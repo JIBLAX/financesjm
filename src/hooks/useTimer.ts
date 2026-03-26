@@ -128,7 +128,7 @@ export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSett
     const newTimeLeft = s.timeLeft - 1
     const newElapsed = s.elapsed + 1
 
-    if (settingsRef.current.soundEnabled && s.phase !== 'finished' && s.phase !== 'idle' && s.phase !== 'preparation' && newTimeLeft <= 3 && newTimeLeft > 0) {
+    if (settingsRef.current.soundEnabled && (s.phase as string) !== 'finished' && (s.phase as string) !== 'idle' && s.phase !== 'preparation' && newTimeLeft <= 3 && newTimeLeft > 0) {
       audioService.playCountdown()
     }
 
