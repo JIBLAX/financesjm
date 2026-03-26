@@ -10,7 +10,7 @@ interface Props {
   onClear: () => void
 }
 
-const modeIcons: Record<TimerMode, React.ComponentType<{ size?: number; className?: string }>> = {
+const modeIcons: Record<TimerMode, any> = {
   tabata: Zap, circuit: RefreshCw, fortime: Clock, amrap: Trophy,
 }
 
