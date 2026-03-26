@@ -61,20 +61,27 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
             onClick={() => setSettingsOpen(false)}
             style={{ position: 'fixed', inset: 0, background: 'rgba(8,6,5,0.65)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 9998 }}
           />
-          {/* Panel */}
+          {/* Wrapper de centrage fixe — séparé de l'animation pour éviter que
+              Framer Motion écrase translateX(-50%) avec son translateY() */}
+          <div style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}>
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 420 }}
             style={{
-              position: 'fixed',
-              bottom: 0,
-              left: '50%',
-              transform: 'translateX(-50%)',
               width: '100%',
               maxWidth: '520px',
-              zIndex: 9999,
+              pointerEvents: 'auto',
               borderRadius: '24px 24px 0 0',
               padding: '24px 24px 40px',
               background: 'rgba(16, 12, 10, 0.98)',
@@ -127,6 +134,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
               Fermer
             </button>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>,
