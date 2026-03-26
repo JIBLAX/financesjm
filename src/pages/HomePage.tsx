@@ -172,7 +172,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
       >
         <h1 className="text-[2rem] font-extrabold text-foreground leading-tight mb-2 tracking-tight">
           Ta séance,<br />
-          <span className="text-gradient-primary">ton rythme.</span>
+          <span className="text-gradient-primary">Ton rythme.</span>
         </h1>
         <p className="text-sm text-muted-foreground font-medium">
           Choisissez un mode pour commencer
