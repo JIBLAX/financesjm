@@ -40,10 +40,10 @@ export const SummaryPage: React.FC<Props> = ({ result, onRestart, onHome }) => {
       </motion.div>
 
       <motion.h2
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="text-3xl font-black text-gradient-primary mb-2"
+        transition={{ delay: 0.15 }}
+        className="text-3xl font-black text-foreground mb-2"
       >
         Bravo !
       </motion.h2>

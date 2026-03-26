@@ -47,7 +47,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
     }
   }
 
-  // Settings panel rendu en portal pour éviter le bug fixed/transform de Framer Motion
+  // Settings panel en portal — évite le conflit fixed/transform de Framer Motion
   const settingsPanel = createPortal(
     <AnimatePresence>
       {settingsOpen && (
@@ -59,81 +59,77 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={() => setSettingsOpen(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(8,6,5,0.65)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 9998 }}
-          />
-          {/* Wrapper de centrage fixe — séparé de l'animation pour éviter que
-              Framer Motion écrase translateX(-50%) avec son translateY() */}
-          <div style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            display: 'flex',
-            justifyContent: 'center',
-            zIndex: 9999,
-            pointerEvents: 'none',
-          }}>
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 32, stiffness: 420 }}
             style={{
-              width: '100%',
-              maxWidth: '520px',
-              pointerEvents: 'auto',
-              borderRadius: '24px 24px 0 0',
-              padding: '24px 24px 40px',
-              background: 'rgba(16, 12, 10, 0.98)',
-              backdropFilter: 'blur(40px)',
-              WebkitBackdropFilter: 'blur(40px)',
-              border: '1px solid rgba(255, 215, 175, 0.10)',
-              borderBottom: 'none',
+              position: 'fixed', inset: 0,
+              background: 'rgba(8,6,5,0.70)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              zIndex: 9998,
             }}
-          >
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)', margin: '0 auto 24px' }} />
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'hsl(var(--foreground))', marginBottom: 20 }}>Paramètres</h2>
+          />
+          {/* Wrapper de centrage séparé du motion (Framer écrase translateX avec translateY) */}
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            display: 'flex', justifyContent: 'center',
+            zIndex: 9999, pointerEvents: 'none',
+          }}>
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 32, stiffness: 420 }}
+              style={{
+                width: '100%', maxWidth: '520px',
+                pointerEvents: 'auto',
+                borderRadius: '24px 24px 0 0',
+                padding: '24px 24px 44px',
+                background: 'rgba(16, 12, 10, 0.98)',
+                backdropFilter: 'blur(40px)',
+                WebkitBackdropFilter: 'blur(40px)',
+                border: '1px solid rgba(255, 215, 175, 0.10)',
+                borderBottom: 'none',
+              }}
+            >
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)', margin: '0 auto 24px' }} />
+              <h2 className="text-lg font-bold text-foreground mb-5">Paramètres</h2>
 
-            <div className="flex flex-col gap-0 divide-y divide-foreground/[0.06]">
-              <div className="flex items-center gap-3 py-4">
-                <Volume2 size={16} className="text-foreground/40 shrink-0" />
-                <div className="flex-1">
-                  <GlassToggle checked={settings.soundEnabled} onChange={val => update({ soundEnabled: val })} label="Sons activés" />
+              <div className="flex flex-col divide-y divide-foreground/[0.06]">
+                <div className="flex items-center gap-3 py-4">
+                  <Volume2 size={16} className="text-foreground/40 shrink-0" />
+                  <div className="flex-1">
+                    <GlassToggle checked={settings.soundEnabled} onChange={val => update({ soundEnabled: val })} label="Sons activés" />
+                  </div>
                 </div>
+
+                <div className="flex items-center gap-3 py-4">
+                  <Vibrate size={16} className="text-foreground/40 shrink-0" />
+                  <div className="flex-1">
+                    <GlassToggle checked={settings.vibrationEnabled} onChange={val => update({ vibrationEnabled: val })} label="Vibrations" />
+                  </div>
+                </div>
+
+                <button onClick={requestNotifications} className="flex items-center gap-3 py-4 text-left w-full">
+                  <Bell size={16} className="text-foreground/40 shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-foreground">Notifications de phase</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{notifStatus()}</div>
+                  </div>
+                </button>
+
+                <button onClick={() => { setSettingsOpen(false); onHistory() }} className="flex items-center gap-3 py-4 text-left w-full">
+                  <ClipboardList size={16} className="text-foreground/40 shrink-0" />
+                  <span className="flex-1 text-sm font-medium text-foreground">Historique des séances</span>
+                  <ChevronRight size={15} className="text-foreground/30" />
+                </button>
               </div>
-
-              <div className="flex items-center gap-3 py-4">
-                <Vibrate size={16} className="text-foreground/40 shrink-0" />
-                <div className="flex-1">
-                  <GlassToggle checked={settings.vibrationEnabled} onChange={val => update({ vibrationEnabled: val })} label="Vibrations" />
-                </div>
-              </div>
-
-              <button onClick={requestNotifications} className="flex items-center gap-3 py-4 text-left w-full">
-                <Bell size={16} className="text-foreground/40 shrink-0" />
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-foreground">Notifications de phase</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{notifStatus()}</div>
-                </div>
-              </button>
 
               <button
-                onClick={() => { setSettingsOpen(false); onHistory() }}
-                className="flex items-center gap-3 py-4 text-left w-full"
+                onClick={() => setSettingsOpen(false)}
+                className="glass-btn w-full mt-6 h-[50px] rounded-2xl text-foreground/55 font-semibold text-sm"
               >
-                <ClipboardList size={16} className="text-foreground/40 shrink-0" />
-                <span className="flex-1 text-sm font-medium text-foreground">Historique des séances</span>
-                <ChevronRight size={15} className="text-foreground/30" />
+                Fermer
               </button>
-            </div>
-
-            <button
-              onClick={() => setSettingsOpen(false)}
-              className="glass-btn w-full mt-6 h-[50px] rounded-2xl text-foreground/55 font-semibold text-sm"
-            >
-              Fermer
-            </button>
-          </motion.div>
+            </motion.div>
           </div>
         </>
       )}
@@ -143,17 +139,11 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
 
   return (
     <div className="page-container">
-      {/* Header : logo centré + bouton settings */}
+      {/* Header */}
       <div className="flex items-center justify-between pt-6 mb-5">
         <div className="w-10" />
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          {/* Logo nettement plus grand */}
-          <img src={logoBeactiv} alt="Be Activ" className="h-16 object-contain" />
-        </motion.div>
+        {/* Logo — pas d'animation propre, la page entière anime via Index.tsx AnimatePresence */}
+        <img src={logoBeactiv} alt="Be Activ" className="h-16 object-contain" />
         <button
           onClick={() => setSettingsOpen(true)}
           className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground/50"
@@ -163,13 +153,8 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
         </button>
       </div>
 
-      {/* Hero — centré, "!" sur la même ligne que "ton rythme" */}
-      <motion.div
-        initial={{ opacity: 0, y: -6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.08 }}
-        className="text-center mb-7"
-      >
+      {/* Hero — statique, la page transition suffit */}
+      <div className="text-center mb-7">
         <h1 className="text-[2rem] font-extrabold text-foreground leading-tight mb-2 tracking-tight">
           Ta séance,<br />
           <span className="text-gradient-primary">Ton rythme.</span>
@@ -177,16 +162,14 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
         <p className="text-sm text-muted-foreground font-medium">
           Choisissez un mode pour commencer
         </p>
-      </motion.div>
+      </div>
 
-      {/* Mode cards — 2×2, contenu centré */}
+      {/* Mode cards — animations d'entrée SUPPRIMÉES (causaient la "mini reprise")
+          Seuls whileTap/whileHover restent pour le feedback interactif */}
       <div className="mode-cards-grid flex-1">
-        {modes.map((card, i) => (
+        {modes.map((card) => (
           <motion.button
             key={card.mode}
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07, duration: 0.38 }}
             whileTap={{ scale: 0.94 }}
             whileHover={{ scale: 1.02 }}
             onClick={() => onSelectMode(card.mode)}
@@ -200,7 +183,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
               className="absolute top-0 left-6 right-6 h-[2px] rounded-full opacity-80"
               style={{ background: `linear-gradient(90deg, transparent, ${card.accent}, transparent)` }}
             />
-            <div className="relative z-10 flex items-center justify-center">
+            <div className="relative z-10">
               <card.Icon size={24} color={card.accent} />
             </div>
             <div className="relative z-10 text-center">

@@ -57,7 +57,7 @@ export const SetupPage: React.FC<Props> = ({ mode, onStart, onBack }) => {
     <div className="page-container pt-6">
       {/* Top */}
       <div className="flex items-center justify-between mb-6">
-        <button onClick={onBack} className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground">
+        <button onClick={onBack} className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground/55">
           <ChevronLeft size={20} />
         </button>
         <span

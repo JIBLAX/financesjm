@@ -9,13 +9,15 @@ import { TimerPage } from './TimerPage'
 import { SummaryPage } from './SummaryPage'
 import { HistoryPage } from './HistoryPage'
 
+// Transition simple : fade uniquement, sans y/scale
+// Le y+scale causait une double animation visuelle sur la home (page + cards)
 const variants = {
-  initial: { opacity: 0, y: 20, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: -10, scale: 1.01 },
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
 }
 
-const transition = { duration: 0.35, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }
+const transition = { duration: 0.22, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }
 
 const BeActivApp: React.FC = () => {
   const [screen, setScreen] = useState<AppScreen>('home')

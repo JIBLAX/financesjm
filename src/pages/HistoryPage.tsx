@@ -27,7 +27,7 @@ export const HistoryPage: React.FC<Props> = ({ sessions, onBack, onClear }) => {
   return (
     <div className="page-container pt-6">
       <div className="flex items-center justify-between mb-6">
-        <button onClick={onBack} className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground">
+        <button onClick={onBack} className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground/55">
           <ChevronLeft size={20} />
         </button>
         <h2 className="text-lg font-bold text-foreground">Historique</h2>
