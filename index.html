@@ -21,6 +21,22 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      // iOS ignore user-scalable=no depuis iOS 10 — seul preventDefault bloque réellement le zoom
+      document.addEventListener('touchmove', function(e) {
+        if (e.touches.length > 1) e.preventDefault()
+      }, { passive: false })
+      document.addEventListener('touchstart', function(e) {
+        if (e.touches.length > 1) e.preventDefault()
+      }, { passive: false })
+      // Bloquer double-tap zoom (300ms heuristic)
+      var lastTap = 0
+      document.addEventListener('touchend', function(e) {
+        var now = Date.now()
+        if (now - lastTap < 300) e.preventDefault()
+        lastTap = now
+      }, { passive: false })
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

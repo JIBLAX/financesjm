@@ -9,16 +9,45 @@ function getCtx(): AudioContext {
   if (!audioCtx || audioCtx.state === 'closed') {
     audioCtx = new AudioCtx()
   }
-  // Resume systématiquement si suspendu — pattern original qui fonctionnait
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {})
-  }
   return audioCtx
 }
 
+// Joue un tone APRÈS avoir attendu que le contexte soit running
+// → résout le bug iOS : resume() est async mais on schedulait osc.start() sans attendre
+function playTone(freq: number, duration: number, type: OscillatorType = 'sine', gainPeak = 0.4, startDelay = 0): void {
+  const ctx = getCtx()
+
+  const doPlay = () => {
+    try {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = type
+      const t = ctx.currentTime + startDelay
+      osc.frequency.setValueAtTime(freq, t)
+      gain.gain.setValueAtTime(0, t)
+      gain.gain.linearRampToValueAtTime(gainPeak, t + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration)
+      osc.start(t)
+      osc.stop(t + duration + 0.05)
+    } catch { /* silently fail */ }
+  }
+
+  if (ctx.state === 'running') {
+    doPlay()
+  } else {
+    // Contexte suspendu → on attend le resume PUIS on joue
+    ctx.resume().then(doPlay).catch(() => {})
+  }
+}
+
 // Unlock iOS : jouer un buffer silencieux DANS le handler du geste utilisateur
-function unlockWithSilentBuffer(ctx: AudioContext): void {
+function unlockAudio(): void {
+  if (!AudioCtx) return
   try {
+    const ctx = getCtx()
+    // Buffer silencieux obligatoire pour débloquer iOS
     const buf = ctx.createBuffer(1, 1, 22050)
     const src = ctx.createBufferSource()
     src.buffer = buf
@@ -28,10 +57,10 @@ function unlockWithSilentBuffer(ctx: AudioContext): void {
   } catch { /* ignore */ }
 }
 
-// Auto-unlock dès le premier touch/click — avant même d'appuyer sur GO
+// Auto-unlock dès le premier touch/click (avant même d'appuyer sur GO)
 if (typeof document !== 'undefined') {
   const handler = () => {
-    try { unlockWithSilentBuffer(getCtx()) } catch { /* ignore */ }
+    unlockAudio()
     document.removeEventListener('touchstart', handler)
     document.removeEventListener('click', handler)
   }
@@ -39,27 +68,9 @@ if (typeof document !== 'undefined') {
   document.addEventListener('click', handler)
 }
 
-function playTone(freq: number, duration: number, type: OscillatorType = 'sine', gainPeak = 0.4, startDelay = 0): void {
-  try {
-    const ctx = getCtx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = type
-    osc.frequency.setValueAtTime(freq, ctx.currentTime + startDelay)
-    gain.gain.setValueAtTime(0, ctx.currentTime + startDelay)
-    gain.gain.linearRampToValueAtTime(gainPeak, ctx.currentTime + startDelay + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startDelay + duration)
-    osc.start(ctx.currentTime + startDelay)
-    osc.stop(ctx.currentTime + startDelay + duration + 0.05)
-  } catch { /* silently fail */ }
-}
-
 export const audioService = {
-  unlock(): void {
-    try { unlockWithSilentBuffer(getCtx()) } catch { /* noop */ }
-  },
+  // Appelé sur chaque geste utilisateur (bouton GO, etc.) pour s'assurer que le contexte est unlocked
+  unlock(): void { unlockAudio() },
 
   // WORK : double impulsion montante — énergique
   playWork(): void {
