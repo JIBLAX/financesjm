@@ -119,19 +119,26 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, o
             style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9998 }}
             onClick={() => setConfirmExit(false)}
           />
+          {/* Wrapper de centrage — séparé du motion.div pour éviter le conflit transform */}
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 24px',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}>
           <motion.div
-            initial={{ opacity: 0, scale: 0.92, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 10 }}
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.94 }}
             transition={{ type: 'spring', damping: 28, stiffness: 380 }}
             style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 'calc(100% - 48px)',
+              width: '100%',
               maxWidth: 340,
-              zIndex: 9999,
+              pointerEvents: 'auto',
               borderRadius: 24,
               padding: '28px 24px 24px',
               background: 'rgba(20,15,12,0.98)',
@@ -168,6 +175,7 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, o
               </div>
             </div>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>,
