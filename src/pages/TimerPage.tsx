@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, Pause, Play, SkipForward, RotateCcw, Square, Plus } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { ChevronLeft, Pause, Play, SkipForward, RotateCcw, Square, Plus, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { TimerMode, TimerConfig, SessionResult, AppSettings, TimerPhase } from '../types'
 import { useTimer } from '../hooks/useTimer'
@@ -16,12 +17,10 @@ interface Props {
   onBack: () => void
 }
 
-// Labels courts affichés dans le petit header
 const phaseHeaderLabels: Record<TimerPhase, string> = {
   idle: 'PRÊT', preparation: 'PRÉPARATION', work: 'WORK', rest: 'PAUSE', round_rest: 'REPOS', finished: 'TERMINÉ',
 }
 
-// Grands labels au-dessus du cercle
 const phaseBigLabels: Record<TimerPhase, string> = {
   idle: '', preparation: 'PRÉPAREZ-VOUS', work: 'WORK', rest: 'PAUSE', round_rest: 'REPOS', finished: 'TERMINÉ',
 }
@@ -62,7 +61,6 @@ function useRingSize() {
     if (w >= 480) return 280
     return 258
   })
-
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth
@@ -75,11 +73,12 @@ function useRingSize() {
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
-
   return size
 }
 
 export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, onBack }) => {
+  const [confirmExit, setConfirmExit] = useState(false)
+
   const handleFinish = useCallback((elapsed: number, rounds: number) => {
     const c = config as any
     onFinish({
@@ -98,15 +97,91 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, o
   const accent = phaseAccents[state.phase]
   const ringSize = useRingSize()
 
-  const showBigLabel = state.phase !== 'idle'
+  // Bouton retour : confirmation si timer actif
+  const handleBack = () => {
+    if (state.phase !== 'idle' && state.phase !== 'finished') {
+      if (state.isRunning) pause()
+      setConfirmExit(true)
+    } else {
+      onBack()
+    }
+  }
+
+  // Dialog de confirmation en portal (évite les bugs de stacking context)
+  const exitDialog = createPortal(
+    <AnimatePresence>
+      {confirmExit && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.7 }}
+            exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9998 }}
+            onClick={() => setConfirmExit(false)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 10 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 380 }}
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 'calc(100% - 48px)',
+              maxWidth: 340,
+              zIndex: 9999,
+              borderRadius: 24,
+              padding: '28px 24px 24px',
+              background: 'rgba(20,15,12,0.98)',
+              backdropFilter: 'blur(40px)',
+              WebkitBackdropFilter: 'blur(40px)',
+              border: '1px solid rgba(255,215,175,0.12)',
+            }}
+          >
+            <div className="flex flex-col items-center text-center gap-4">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)' }}
+              >
+                <AlertTriangle size={22} className="text-destructive" />
+              </div>
+              <div>
+                <div className="text-base font-bold text-foreground mb-1">Quitter la séance ?</div>
+                <div className="text-sm text-muted-foreground">Ta progression sera perdue.</div>
+              </div>
+              <div className="flex gap-3 w-full mt-1">
+                <button
+                  onClick={() => setConfirmExit(false)}
+                  className="flex-1 h-11 rounded-xl glass-btn text-sm font-semibold text-foreground/70"
+                >
+                  Continuer
+                </button>
+                <button
+                  onClick={onBack}
+                  className="flex-1 h-11 rounded-xl text-sm font-semibold text-white"
+                  style={{ background: 'hsl(var(--destructive))', opacity: 0.9 }}
+                >
+                  Quitter
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>,
+    document.body
+  )
 
   return (
     <div className="page-container pt-6">
       <GlassPhaseFlash phase={state.flash} />
+      {exitDialog}
 
       {/* Header */}
       <div className="flex items-center justify-between w-full mb-5">
-        <button onClick={onBack} className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground/55">
+        <button onClick={handleBack} className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground/55">
           <ChevronLeft size={20} />
         </button>
         <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-foreground/35">
@@ -115,16 +190,16 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, o
         <div className="w-10" />
       </div>
 
-      {/* Grand label de phase au-dessus du ring */}
-      <div className="min-h-[60px] flex items-center justify-center mb-2">
+      {/* Grand label de phase */}
+      <div className="min-h-[56px] flex items-center justify-center mb-2">
         <AnimatePresence mode="wait">
-          {showBigLabel && (
+          {state.phase !== 'idle' && (
             <motion.div
               key={state.phase}
               initial={{ opacity: 0, y: -8, scale: 0.88 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 6, scale: 0.92 }}
-              transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
               className="text-center"
             >
               <span
@@ -141,7 +216,7 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, o
         </AnimatePresence>
       </div>
 
-      {/* Ring — occupe l'espace restant, centré */}
+      {/* Ring */}
       <div className="flex-1 flex items-center justify-center py-2">
         <GlassProgressRing size={ringSize} progress={progress} phase={state.phase} strokeWidth={7}>
           <div className="flex flex-col items-center gap-2">
@@ -188,7 +263,6 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, o
                 {state.isRunning ? <Pause size={18} /> : <Play size={18} />}
                 {state.isRunning ? 'Pause' : 'Reprendre'}
               </GlassButton>
-
               {mode !== 'fortime' && mode !== 'amrap' && (
                 <GlassButton variant="ghost" onClick={skip}>
                   <SkipForward size={18} />

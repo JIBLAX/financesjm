@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate, ChevronRight, Bell } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { TimerMode } from '../types'
@@ -27,7 +28,7 @@ const modes: ModeCard[] = [
 ]
 
 function notifStatus(): string {
-  if (typeof Notification === 'undefined') return 'Non supportées'
+  if (typeof Notification === 'undefined') return 'Non supportées sur ce navigateur'
   if (Notification.permission === 'granted') return 'Activées ✓'
   if (Notification.permission === 'denied') return 'Refusées par le navigateur'
   return 'Appuyer pour activer'
@@ -46,6 +47,92 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
     }
   }
 
+  // Settings panel rendu en portal pour éviter le bug fixed/transform de Framer Motion
+  const settingsPanel = createPortal(
+    <AnimatePresence>
+      {settingsOpen && (
+        <>
+          {/* Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setSettingsOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(8,6,5,0.65)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 9998 }}
+          />
+          {/* Panel */}
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 32, stiffness: 420 }}
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '100%',
+              maxWidth: '520px',
+              zIndex: 9999,
+              borderRadius: '24px 24px 0 0',
+              padding: '24px 24px 40px',
+              background: 'rgba(16, 12, 10, 0.98)',
+              backdropFilter: 'blur(40px)',
+              WebkitBackdropFilter: 'blur(40px)',
+              border: '1px solid rgba(255, 215, 175, 0.10)',
+              borderBottom: 'none',
+            }}
+          >
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)', margin: '0 auto 24px' }} />
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'hsl(var(--foreground))', marginBottom: 20 }}>Paramètres</h2>
+
+            <div className="flex flex-col gap-0 divide-y divide-foreground/[0.06]">
+              <div className="flex items-center gap-3 py-4">
+                <Volume2 size={16} className="text-foreground/40 shrink-0" />
+                <div className="flex-1">
+                  <GlassToggle checked={settings.soundEnabled} onChange={val => update({ soundEnabled: val })} label="Sons activés" />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 py-4">
+                <Vibrate size={16} className="text-foreground/40 shrink-0" />
+                <div className="flex-1">
+                  <GlassToggle checked={settings.vibrationEnabled} onChange={val => update({ vibrationEnabled: val })} label="Vibrations" />
+                </div>
+              </div>
+
+              <button onClick={requestNotifications} className="flex items-center gap-3 py-4 text-left w-full">
+                <Bell size={16} className="text-foreground/40 shrink-0" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-foreground">Notifications de phase</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{notifStatus()}</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setSettingsOpen(false); onHistory() }}
+                className="flex items-center gap-3 py-4 text-left w-full"
+              >
+                <ClipboardList size={16} className="text-foreground/40 shrink-0" />
+                <span className="flex-1 text-sm font-medium text-foreground">Historique des séances</span>
+                <ChevronRight size={15} className="text-foreground/30" />
+              </button>
+            </div>
+
+            <button
+              onClick={() => setSettingsOpen(false)}
+              className="glass-btn w-full mt-6 h-[50px] rounded-2xl text-foreground/55 font-semibold text-sm"
+            >
+              Fermer
+            </button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>,
+    document.body
+  )
+
   return (
     <div className="page-container">
       {/* Header : logo centré + bouton settings */}
@@ -56,7 +143,8 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <img src={logoBeactiv} alt="Be Activ" className="h-12 object-contain" />
+          {/* Logo nettement plus grand */}
+          <img src={logoBeactiv} alt="Be Activ" className="h-16 object-contain" />
         </motion.div>
         <button
           onClick={() => setSettingsOpen(true)}
@@ -67,7 +155,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
         </button>
       </div>
 
-      {/* Hero — centré */}
+      {/* Hero — centré, "!" sur la même ligne que "ton rythme" */}
       <motion.div
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -75,8 +163,8 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
         className="text-center mb-7"
       >
         <h1 className="text-[2rem] font-extrabold text-foreground leading-tight mb-2 tracking-tight">
-          Ta séance,{' '}
-          <span className="text-gradient-primary">ton rythme !</span>
+          Ta séance,<br />
+          <span className="text-gradient-primary">ton rythme&nbsp;!</span>
         </h1>
         <p className="text-sm text-muted-foreground font-medium">
           Choisissez un mode pour commencer
@@ -96,17 +184,14 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
             onClick={() => onSelectMode(card.mode)}
             className="glass-card relative overflow-hidden flex flex-col items-center justify-center min-h-[148px] w-full py-5 px-3 gap-3"
           >
-            {/* Lueur centrale colorée */}
             <div
               className="absolute inset-0 opacity-[0.09] pointer-events-none"
               style={{ background: `radial-gradient(circle at 50% 40%, ${card.accent}, transparent 68%)` }}
             />
-            {/* Liseré couleur en haut */}
             <div
               className="absolute top-0 left-6 right-6 h-[2px] rounded-full opacity-80"
               style={{ background: `linear-gradient(90deg, transparent, ${card.accent}, transparent)` }}
             />
-
             <div className="relative z-10 flex items-center justify-center">
               <card.Icon size={24} color={card.accent} />
             </div>
@@ -118,92 +203,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
         ))}
       </div>
 
-      {/* Settings bottom sheet */}
-      <AnimatePresence>
-        {settingsOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSettingsOpen(false)}
-              className="fixed inset-0 bg-background/65 backdrop-blur-sm z-[100]"
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 32, stiffness: 420 }}
-              className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[520px] z-[101] rounded-t-3xl p-6 pb-10"
-              style={{
-                background: 'rgba(16, 12, 10, 0.97)',
-                backdropFilter: 'blur(40px)',
-                WebkitBackdropFilter: 'blur(40px)',
-                border: '1px solid rgba(255, 215, 175, 0.10)',
-                borderBottom: 'none',
-              }}
-            >
-              <div className="w-10 h-1 rounded-full bg-foreground/20 mx-auto mb-6" />
-              <h2 className="text-lg font-bold text-foreground mb-5">Paramètres</h2>
-
-              <div className="flex flex-col gap-0 divide-y divide-foreground/[0.06]">
-                {/* Sons */}
-                <div className="flex items-center gap-3 py-4">
-                  <Volume2 size={16} className="text-foreground/40 shrink-0" />
-                  <div className="flex-1">
-                    <GlassToggle
-                      checked={settings.soundEnabled}
-                      onChange={val => update({ soundEnabled: val })}
-                      label="Sons activés"
-                    />
-                  </div>
-                </div>
-
-                {/* Vibrations */}
-                <div className="flex items-center gap-3 py-4">
-                  <Vibrate size={16} className="text-foreground/40 shrink-0" />
-                  <div className="flex-1">
-                    <GlassToggle
-                      checked={settings.vibrationEnabled}
-                      onChange={val => update({ vibrationEnabled: val })}
-                      label="Vibrations"
-                    />
-                  </div>
-                </div>
-
-                {/* Notifications arrière-plan */}
-                <button
-                  onClick={requestNotifications}
-                  className="flex items-center gap-3 py-4 text-left w-full"
-                >
-                  <Bell size={16} className="text-foreground/40 shrink-0" />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-foreground">Notifications de phase</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{notifStatus()}</div>
-                  </div>
-                </button>
-
-                {/* Historique */}
-                <button
-                  onClick={() => { setSettingsOpen(false); onHistory() }}
-                  className="flex items-center gap-3 py-4 text-left w-full"
-                >
-                  <ClipboardList size={16} className="text-foreground/40 shrink-0" />
-                  <span className="flex-1 text-sm font-medium text-foreground">Historique des séances</span>
-                  <ChevronRight size={15} className="text-foreground/28" />
-                </button>
-              </div>
-
-              <button
-                onClick={() => setSettingsOpen(false)}
-                className="glass-btn w-full mt-6 h-[50px] rounded-2xl text-foreground/55 font-semibold text-sm"
-              >
-                Fermer
-              </button>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {settingsPanel}
     </div>
   )
 }

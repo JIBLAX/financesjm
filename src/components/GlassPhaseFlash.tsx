@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { TimerPhase } from '../types'
 
 const phaseColors: Partial<Record<TimerPhase, string>> = {
-  preparation: 'rgba(129,140,248,0.2)',
-  work: 'rgba(74,222,128,0.15)',
-  rest: 'rgba(251,146,60,0.15)',
+  preparation: 'rgba(129,140,248,0.18)',
+  work: 'rgba(74,222,128,0.14)',
+  rest: 'rgba(251,146,60,0.14)',
   round_rest: 'rgba(212,184,150,0.12)',
-  finished: 'rgba(74,222,128,0.15)',
+  finished: 'rgba(74,222,128,0.14)',
 }
 
 export const GlassPhaseFlash: React.FC<{ phase: TimerPhase | null }> = ({ phase }) => {
@@ -18,7 +18,7 @@ export const GlassPhaseFlash: React.FC<{ phase: TimerPhase | null }> = ({ phase 
     if (phase && phaseColors[phase]) {
       setColor(phaseColors[phase]!)
       setVisible(true)
-      const t = setTimeout(() => setVisible(false), 400)
+      const t = setTimeout(() => setVisible(false), 380)
       return () => clearTimeout(t)
     }
   }, [phase])
@@ -30,9 +30,10 @@ export const GlassPhaseFlash: React.FC<{ phase: TimerPhase | null }> = ({ phase 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.25 }}
           className="fixed inset-0 pointer-events-none z-[9999]"
-          style={{ background: color, backdropFilter: 'blur(8px)' }}
+          // Pas de backdropFilter : évite le halo flou permanent sur iOS
+          style={{ background: color }}
         />
       )}
     </AnimatePresence>
