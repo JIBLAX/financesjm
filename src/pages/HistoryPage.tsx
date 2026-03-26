@@ -57,7 +57,7 @@ export const HistoryPage: React.FC<Props> = ({ sessions, onBack, onClear }) => {
                       className="w-9 h-9 rounded-xl flex items-center justify-center"
                       style={{ background: `${accent}15`, border: `1px solid ${accent}25` }}
                     >
-                      <Icon size={16} style={{ color: accent }} />
+                      <Icon size={16} color={accent} />
                     </div>
                     <div>
                       <div className="text-sm font-bold text-foreground uppercase">{s.mode}</div>

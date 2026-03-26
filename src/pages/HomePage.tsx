@@ -86,7 +86,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
             />
 
             <div className="relative z-10">
-              <card.Icon size={28} style={{ color: card.accent }} />
+              <card.Icon size={28} color={card.accent} />
             </div>
             <div className="relative z-10">
               <div className="text-lg font-extrabold text-foreground mb-1">{card.title}</div>
