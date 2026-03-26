@@ -3,11 +3,15 @@ import { AnimatePresence, motion } from 'framer-motion'
 import type { AppScreen, TimerMode, TimerConfig, SessionResult } from '../types'
 import { useHistory } from '../hooks/useHistory'
 import { useSettings } from '../hooks/useSettings'
+import { useClients } from '../hooks/useClients'
+import { useSessionRecords } from '../hooks/useSessionRecords'
 import { HomePage } from './HomePage'
 import { SetupPage } from './SetupPage'
 import { TimerPage } from './TimerPage'
 import { SummaryPage } from './SummaryPage'
 import { HistoryPage } from './HistoryPage'
+import { ClientsPage } from './ClientsPage'
+import { SessionLogPage } from './SessionLogPage'
 
 // Transition simple : fade uniquement, sans y/scale
 // Le y+scale causait une double animation visuelle sur la home (page + cards)
@@ -25,7 +29,9 @@ const BeActivApp: React.FC = () => {
   const [timerConfig, setTimerConfig] = useState<TimerConfig>({} as TimerConfig)
   const [lastResult, setLastResult] = useState<SessionResult | null>(null)
   const { sessions, addSession, clearHistory } = useHistory()
-  const { settings } = useSettings()
+  const { settings, update: updateSettings } = useSettings()
+  const { clients, addClient, removeClient } = useClients()
+  const { records, addRecord } = useSessionRecords()
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden relative">
@@ -45,19 +51,53 @@ const BeActivApp: React.FC = () => {
             className="flex-1 flex flex-col min-h-full"
           >
             {screen === 'home' && (
-              <HomePage onSelectMode={m => { setSelectedMode(m); setScreen('setup') }} onHistory={() => setScreen('history')} />
+              <HomePage
+                onSelectMode={m => { setSelectedMode(m); setScreen('setup') }}
+                onHistory={() => setScreen('history')}
+                onClients={() => setScreen('clients')}
+                settings={settings}
+                onUpdateSettings={updateSettings}
+              />
             )}
             {screen === 'setup' && (
               <SetupPage mode={selectedMode} onStart={c => { setTimerConfig(c); setScreen('timer') }} onBack={() => setScreen('home')} />
             )}
             {screen === 'timer' && (
-              <TimerPage mode={selectedMode} config={timerConfig} settings={settings} onFinish={r => { addSession(r); setLastResult(r); setScreen('summary') }} onBack={() => setScreen('home')} />
+              <TimerPage
+                mode={selectedMode}
+                config={timerConfig}
+                settings={settings}
+                coachTag={settings.coachTag}
+                onFinish={r => { addSession(r); setLastResult(r); setScreen('summary') }}
+                onBack={() => setScreen('home')}
+              />
             )}
             {screen === 'summary' && lastResult && (
-              <SummaryPage result={lastResult} onRestart={() => setScreen('timer')} onHome={() => setScreen('home')} />
+              <SummaryPage
+                result={lastResult}
+                onRestart={() => setScreen('timer')}
+                onHome={() => setScreen('home')}
+                onLogSession={() => setScreen('session-log')}
+              />
             )}
             {screen === 'history' && (
               <HistoryPage sessions={sessions} onBack={() => setScreen('home')} onClear={clearHistory} />
+            )}
+            {screen === 'clients' && (
+              <ClientsPage
+                clients={clients}
+                onBack={() => setScreen('home')}
+                onAdd={addClient}
+                onRemove={removeClient}
+              />
+            )}
+            {screen === 'session-log' && lastResult && (
+              <SessionLogPage
+                result={lastResult}
+                clients={clients}
+                onSave={addRecord}
+                onBack={() => setScreen('summary')}
+              />
             )}
           </motion.div>
         </AnimatePresence>

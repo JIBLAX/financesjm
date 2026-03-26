@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import type { AppSettings } from '../types'
 
 const STORAGE_KEY = 'beactiv_settings'
-const defaults: AppSettings = { soundEnabled: true, vibrationEnabled: true }
+const defaults: AppSettings = { soundEnabled: true, vibrationEnabled: true, coachTag: '' }
 
 export function useSettings() {
   const [settings, setSettings] = useState<AppSettings>(() => {

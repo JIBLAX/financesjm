@@ -1,15 +1,17 @@
 import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate, ChevronRight, Bell } from 'lucide-react'
+import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate, ChevronRight, Bell, Users } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { TimerMode } from '../types'
+import type { TimerMode, AppSettings } from '../types'
 import { GlassToggle } from '../components/GlassToggle'
-import { useSettings } from '../hooks/useSettings'
 import logoBeactiv from '../assets/logo-beactiv.png'
 
 interface Props {
   onSelectMode: (mode: TimerMode) => void
   onHistory: () => void
+  onClients: () => void
+  settings: AppSettings
+  onUpdateSettings: (patch: Partial<AppSettings>) => void
 }
 
 interface ModeCard {
@@ -34,10 +36,9 @@ function notifStatus(): string {
   return 'Appuyer pour activer'
 }
 
-export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
+export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, settings, onUpdateSettings }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [, forceUpdate] = useState(0)
-  const { settings, update } = useSettings()
 
   const requestNotifications = async () => {
     if (typeof Notification === 'undefined') return
@@ -97,14 +98,30 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
                 <div className="flex items-center gap-3 py-4">
                   <Volume2 size={16} className="text-foreground/40 shrink-0" />
                   <div className="flex-1">
-                    <GlassToggle checked={settings.soundEnabled} onChange={val => update({ soundEnabled: val })} label="Sons activés" />
+                    <GlassToggle checked={settings.soundEnabled} onChange={val => onUpdateSettings({ soundEnabled: val })} label="Sons activés" />
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 py-4">
                   <Vibrate size={16} className="text-foreground/40 shrink-0" />
                   <div className="flex-1">
-                    <GlassToggle checked={settings.vibrationEnabled} onChange={val => update({ vibrationEnabled: val })} label="Vibrations" />
+                    <GlassToggle checked={settings.vibrationEnabled} onChange={val => onUpdateSettings({ vibrationEnabled: val })} label="Vibrations" />
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 py-4">
+                  <Settings size={16} className="text-foreground/40 shrink-0 mt-[3px]" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-foreground mb-2">Initiales coach</div>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="ex: JM"
+                      value={settings.coachTag}
+                      onChange={e => onUpdateSettings({ coachTag: e.target.value.toUpperCase() })}
+                      className="w-full h-9 rounded-xl px-3 text-sm text-foreground font-semibold tracking-widest bg-white/[0.05] border border-white/[0.09] outline-none focus:border-white/20 placeholder:text-foreground/25 placeholder:tracking-normal placeholder:font-normal"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">Affiché : BE ACTIV | {settings.coachTag || '…'}</div>
                   </div>
                 </div>
 
@@ -119,6 +136,12 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
                 <button onClick={() => { setSettingsOpen(false); onHistory() }} className="flex items-center gap-3 py-4 text-left w-full">
                   <ClipboardList size={16} className="text-foreground/40 shrink-0" />
                   <span className="flex-1 text-sm font-medium text-foreground">Historique des séances</span>
+                  <ChevronRight size={15} className="text-foreground/30" />
+                </button>
+
+                <button onClick={() => { setSettingsOpen(false); onClients() }} className="flex items-center gap-3 py-4 text-left w-full">
+                  <Users size={16} className="text-foreground/40 shrink-0" />
+                  <span className="flex-1 text-sm font-medium text-foreground">Gestion des clients</span>
                   <ChevronRight size={15} className="text-foreground/30" />
                 </button>
               </div>

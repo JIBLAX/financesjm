@@ -1,5 +1,5 @@
 import React from 'react'
-import { CheckCircle, Clock, Dumbbell, RotateCcw, Home } from 'lucide-react'
+import { CheckCircle, Clock, Dumbbell, RotateCcw, Home, ClipboardList } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { SessionResult } from '../types'
 import { GlassButton } from '../components/GlassButton'
@@ -8,6 +8,7 @@ interface Props {
   result: SessionResult
   onRestart: () => void
   onHome: () => void
+  onLogSession: () => void
 }
 
 function formatTime(s: number): string {
@@ -17,7 +18,7 @@ function formatTime(s: number): string {
 
 const modeLabels: Record<string, string> = { tabata: 'TABATA', circuit: 'CIRCUIT', fortime: 'FOR TIME', amrap: 'AMRAP' }
 
-export const SummaryPage: React.FC<Props> = ({ result, onRestart, onHome }) => {
+export const SummaryPage: React.FC<Props> = ({ result, onRestart, onHome, onLogSession }) => {
   return (
     <div className="page-container pt-6 items-center">
       {/* Success icon */}
@@ -83,7 +84,10 @@ export const SummaryPage: React.FC<Props> = ({ result, onRestart, onHome }) => {
       </motion.div>
 
       <div className="w-full mt-auto flex flex-col gap-3">
-        <GlassButton variant="primary" fullWidth onClick={onRestart}>
+        <GlassButton variant="primary" fullWidth onClick={onLogSession}>
+          <ClipboardList size={16} /> Enregistrer les résultats
+        </GlassButton>
+        <GlassButton variant="glass" fullWidth onClick={onRestart}>
           <RotateCcw size={16} /> Recommencer
         </GlassButton>
         <GlassButton variant="ghost" fullWidth onClick={onHome}>
