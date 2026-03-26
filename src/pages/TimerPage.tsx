@@ -13,6 +13,7 @@ interface Props {
   mode: TimerMode
   config: TimerConfig
   settings: AppSettings
+  coachTag: string
   onFinish: (result: SessionResult) => void
   onBack: () => void
 }
@@ -22,7 +23,7 @@ const phaseHeaderLabels: Record<TimerPhase, string> = {
 }
 
 const phaseBigLabels: Record<TimerPhase, string> = {
-  idle: '', preparation: 'PRÉPAREZ-VOUS', work: 'WORK', rest: 'PAUSE', round_rest: 'REPOS', finished: 'TERMINÉ',
+  idle: '', preparation: 'PRÊT', work: 'WORK', rest: 'PAUSE', round_rest: 'REPOS', finished: 'TERMINÉ',
 }
 
 const phaseAccents: Record<TimerPhase, string> = {
@@ -76,7 +77,7 @@ function useRingSize() {
   return size
 }
 
-export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, onBack }) => {
+export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, onFinish, onBack }) => {
   const [confirmExit, setConfirmExit] = useState(false)
 
   const handleFinish = useCallback((elapsed: number, rounds: number) => {
@@ -193,13 +194,13 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, onFinish, o
           <ChevronLeft size={20} />
         </button>
         <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-foreground/35">
-          {phaseHeaderLabels[state.phase]}
+          {coachTag ? `BE ACTIV | ${coachTag}` : 'BE ACTIV'}
         </span>
         <div className="w-10" />
       </div>
 
       {/* Grand label de phase */}
-      <div className="min-h-[56px] flex items-center justify-center mb-2">
+      <div className="min-h-[80px] flex items-center justify-center mb-2">
         <AnimatePresence mode="wait">
           {state.phase !== 'idle' && (
             <motion.div

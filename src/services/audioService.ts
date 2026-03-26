@@ -1,15 +1,23 @@
+// webkitAudioContext pour compatibilité iOS ancienne
+const AudioCtx = typeof window !== 'undefined'
+  ? (window.AudioContext || (window as any).webkitAudioContext)
+  : null
+
 let audioCtx: AudioContext | null = null
 
 function getCtx(): AudioContext {
   if (!audioCtx || audioCtx.state === 'closed') {
-    audioCtx = new AudioContext()
+    audioCtx = new AudioCtx()
+  }
+  // Resume systématiquement si suspendu — pattern original qui fonctionnait
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {})
   }
   return audioCtx
 }
 
-// Unlock iOS AudioContext : jouer un buffer silencieux + resume()
-// Doit être appelé dans un handler de geste utilisateur
-function unlockCtx(ctx: AudioContext): void {
+// Unlock iOS : jouer un buffer silencieux DANS le handler du geste utilisateur
+function unlockWithSilentBuffer(ctx: AudioContext): void {
   try {
     const buf = ctx.createBuffer(1, 1, 22050)
     const src = ctx.createBufferSource()
@@ -20,86 +28,70 @@ function unlockCtx(ctx: AudioContext): void {
   } catch { /* ignore */ }
 }
 
-// Auto-unlock au premier touch/click sur la page (avant même le GO)
-// Cela garantit que l'AudioContext est running dès le premier son
-let autoUnlocked = false
-function setupAutoUnlock() {
+// Auto-unlock dès le premier touch/click — avant même d'appuyer sur GO
+if (typeof document !== 'undefined') {
   const handler = () => {
-    if (autoUnlocked) return
-    autoUnlocked = true
-    try {
-      const ctx = getCtx()
-      unlockCtx(ctx)
-    } catch { /* ignore */ }
+    try { unlockWithSilentBuffer(getCtx()) } catch { /* ignore */ }
     document.removeEventListener('touchstart', handler)
-    document.removeEventListener('mousedown', handler)
+    document.removeEventListener('click', handler)
   }
   document.addEventListener('touchstart', handler, { passive: true })
-  document.addEventListener('mousedown', handler)
+  document.addEventListener('click', handler)
 }
-setupAutoUnlock()
 
 function playTone(freq: number, duration: number, type: OscillatorType = 'sine', gainPeak = 0.4, startDelay = 0): void {
   try {
     const ctx = getCtx()
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {})
-    }
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.type = type
-    // Petit délai de sécurité (0.02s) pour laisser le temps au context de reprendre
-    const safeDelay = ctx.state === 'running' ? startDelay : startDelay + 0.05
-    osc.frequency.setValueAtTime(freq, ctx.currentTime + safeDelay)
-    gain.gain.setValueAtTime(0, ctx.currentTime + safeDelay)
-    gain.gain.linearRampToValueAtTime(gainPeak, ctx.currentTime + safeDelay + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + safeDelay + duration)
-    osc.start(ctx.currentTime + safeDelay)
-    osc.stop(ctx.currentTime + safeDelay + duration + 0.05)
+    osc.frequency.setValueAtTime(freq, ctx.currentTime + startDelay)
+    gain.gain.setValueAtTime(0, ctx.currentTime + startDelay)
+    gain.gain.linearRampToValueAtTime(gainPeak, ctx.currentTime + startDelay + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startDelay + duration)
+    osc.start(ctx.currentTime + startDelay)
+    osc.stop(ctx.currentTime + startDelay + duration + 0.05)
   } catch { /* silently fail */ }
 }
 
 export const audioService = {
   unlock(): void {
-    try {
-      const ctx = getCtx()
-      unlockCtx(ctx)
-    } catch { /* noop */ }
+    try { unlockWithSilentBuffer(getCtx()) } catch { /* noop */ }
   },
 
   // WORK : double impulsion montante — énergique
   playWork(): void {
-    playTone(660, 0.07, 'square', 0.28)
-    playTone(880, 0.13, 'square', 0.32, 0.09)
+    playTone(660, 0.08, 'square', 0.30)
+    playTone(880, 0.14, 'square', 0.34, 0.10)
   },
 
-  // PAUSE (récup active) : ton doux descendant
+  // PAUSE (récup) : ton doux descendant
   playRest(): void {
-    playTone(660, 0.07, 'sine', 0.22)
-    playTone(440, 0.20, 'sine', 0.20, 0.08)
+    playTone(660, 0.08, 'sine', 0.24)
+    playTone(440, 0.22, 'sine', 0.22, 0.09)
   },
 
-  // REPOS (entre rounds) : triple descente chaude
+  // REPOS (inter-rounds) : triple descente chaude
   playRoundRest(): void {
-    playTone(660, 0.09, 'triangle', 0.20)
-    playTone(550, 0.09, 'triangle', 0.18, 0.12)
-    playTone(440, 0.22, 'sine', 0.16, 0.24)
+    playTone(660, 0.10, 'triangle', 0.22)
+    playTone(550, 0.10, 'triangle', 0.19, 0.13)
+    playTone(440, 0.24, 'sine', 0.17, 0.26)
   },
 
-  // Countdown : 1 seul bip court par appel (le tick loop appelle déjà 3× à t=3,2,1)
-  playCountdown(): void { playTone(1100, 0.07, 'sine', 0.26) },
+  // Countdown : 1 seul bip court par appel (tick loop appelle 3× à t=3,2,1)
+  playCountdown(): void { playTone(1100, 0.08, 'sine', 0.28) },
 
-  // Fin : accord ascendant victorieux
+  // Fin : accord ascendant
   playFinish(): void { [660, 880, 1100].forEach((f, i) => playTone(f, 0.22, 'sine', 0.36, i * 0.22)) },
 
-  // AMRAP : tap de round
+  // AMRAP round tap
   playAmrapRound(): void { playTone(740, 0.10, 'sine', 0.26) },
 
-  // Préparation : montée douce
+  // Préparation
   playPreparation(): void {
-    playTone(440, 0.09, 'sine', 0.18)
-    playTone(550, 0.16, 'sine', 0.20, 0.10)
+    playTone(440, 0.10, 'sine', 0.20)
+    playTone(550, 0.18, 'sine', 0.22, 0.11)
   },
 }
