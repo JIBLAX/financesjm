@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate } from 'lucide-react'
+import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate, ChevronRight, Bell } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { TimerMode } from '../types'
 import { GlassToggle } from '../components/GlassToggle'
@@ -16,7 +16,7 @@ interface ModeCard {
   title: string
   desc: string
   accent: string
-  Icon: any
+  Icon: React.ComponentType<{ size?: number; color?: string }>
 }
 
 const modes: ModeCard[] = [
@@ -26,89 +26,99 @@ const modes: ModeCard[] = [
   { mode: 'amrap', title: 'AMRAP', desc: 'Max rounds · Durée', accent: 'hsl(var(--accent-amrap))', Icon: Trophy },
 ]
 
+function notifStatus(): string {
+  if (typeof Notification === 'undefined') return 'Non supportées'
+  if (Notification.permission === 'granted') return 'Activées ✓'
+  if (Notification.permission === 'denied') return 'Refusées par le navigateur'
+  return 'Appuyer pour activer'
+}
+
 export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [, forceUpdate] = useState(0)
   const { settings, update } = useSettings()
 
+  const requestNotifications = async () => {
+    if (typeof Notification === 'undefined') return
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission()
+      forceUpdate(n => n + 1)
+    }
+  }
+
   return (
-    <div className="page-container pt-6">
-      {/* Top bar */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="page-container">
+      {/* Header : logo centré + bouton settings */}
+      <div className="flex items-center justify-between pt-6 mb-5">
         <div className="w-10" />
-        <img src={logoBeactiv} alt="BeActiv" className="h-10 object-contain opacity-90" />
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <img src={logoBeactiv} alt="Be Activ" className="h-12 object-contain" />
+        </motion.div>
         <button
           onClick={() => setSettingsOpen(true)}
-          className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground/60"
+          className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground/50"
+          aria-label="Paramètres"
         >
           <Settings size={18} />
         </button>
       </div>
 
-      {/* Hero */}
+      {/* Hero — centré */}
       <motion.div
-        initial={{ opacity: 0, y: -10 }}
+        initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="mb-8"
+        transition={{ duration: 0.45, delay: 0.08 }}
+        className="text-center mb-7"
       >
-        <h1 className="text-3xl font-extrabold text-foreground leading-tight mb-2">
-          Votre séance,<br />
-          <span className="text-gradient-primary">votre rythme.</span>
+        <h1 className="text-[2rem] font-extrabold text-foreground leading-tight mb-2 tracking-tight">
+          Ta séance,{' '}
+          <span className="text-gradient-primary">ton rythme !</span>
         </h1>
         <p className="text-sm text-muted-foreground font-medium">
           Choisissez un mode pour commencer
         </p>
       </motion.div>
 
-      {/* Mode cards */}
-      <div className="mode-cards-grid mb-5">
+      {/* Mode cards — 2×2, contenu centré */}
+      <div className="mode-cards-grid flex-1">
         {modes.map((card, i) => (
           <motion.button
             key={card.mode}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08, duration: 0.4 }}
-            whileTap={{ scale: 0.95 }}
+            transition={{ delay: i * 0.07, duration: 0.38 }}
+            whileTap={{ scale: 0.94 }}
             whileHover={{ scale: 1.02 }}
             onClick={() => onSelectMode(card.mode)}
-            className="glass-card relative overflow-hidden flex flex-col justify-between min-h-[170px] w-full p-5 text-left"
+            className="glass-card relative overflow-hidden flex flex-col items-center justify-center min-h-[148px] w-full py-5 px-3 gap-3"
           >
-            {/* Accent glow */}
+            {/* Lueur centrale colorée */}
             <div
-              className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-20 blur-2xl"
-              style={{ background: card.accent }}
+              className="absolute inset-0 opacity-[0.09] pointer-events-none"
+              style={{ background: `radial-gradient(circle at 50% 40%, ${card.accent}, transparent 68%)` }}
+            />
+            {/* Liseré couleur en haut */}
+            <div
+              className="absolute top-0 left-6 right-6 h-[2px] rounded-full opacity-80"
+              style={{ background: `linear-gradient(90deg, transparent, ${card.accent}, transparent)` }}
             />
 
-            {/* Top border accent */}
-            <div
-              className="absolute top-0 left-4 right-4 h-[2px] rounded-full"
-              style={{ background: `linear-gradient(90deg, ${card.accent}, transparent)` }}
-            />
-
-            <div className="relative z-10">
-              <card.Icon size={28} color={card.accent} />
+            <div className="relative z-10 flex items-center justify-center">
+              <card.Icon size={24} color={card.accent} />
             </div>
-            <div className="relative z-10">
-              <div className="text-lg font-extrabold text-foreground mb-1">{card.title}</div>
-              <div className="text-xs text-foreground/40 font-medium">{card.desc}</div>
+            <div className="relative z-10 text-center">
+              <div className="text-sm font-extrabold text-foreground tracking-widest mb-0.5">{card.title}</div>
+              <div className="text-[11px] text-foreground/38 font-medium leading-tight">{card.desc}</div>
             </div>
           </motion.button>
         ))}
       </div>
 
-      {/* History button */}
-      <motion.button
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        onClick={onHistory}
-        className="glass-btn w-full flex items-center justify-center gap-3 h-[52px] rounded-2xl text-foreground/60 text-sm font-semibold"
-      >
-        <ClipboardList size={16} />
-        Historique des séances
-      </motion.button>
-
-      {/* Settings sheet */}
+      {/* Settings bottom sheet */}
       <AnimatePresence>
         {settingsOpen && (
           <>
@@ -117,42 +127,76 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory }) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSettingsOpen(false)}
-              className="fixed inset-0 bg-background/60 backdrop-blur-sm z-[100]"
+              className="fixed inset-0 bg-background/65 backdrop-blur-sm z-[100]"
             />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 400 }}
+              transition={{ type: 'spring', damping: 32, stiffness: 420 }}
               className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[520px] z-[101] rounded-t-3xl p-6 pb-10"
               style={{
-                background: 'rgba(22, 22, 26, 0.95)',
+                background: 'rgba(16, 12, 10, 0.97)',
                 backdropFilter: 'blur(40px)',
                 WebkitBackdropFilter: 'blur(40px)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255, 215, 175, 0.10)',
                 borderBottom: 'none',
               }}
             >
               <div className="w-10 h-1 rounded-full bg-foreground/20 mx-auto mb-6" />
-              <h2 className="text-lg font-bold text-foreground mb-6">Paramètres</h2>
-              <div className="flex flex-col gap-5">
-                <div className="flex items-center gap-3">
-                  <Volume2 size={16} className="text-foreground/40" />
+              <h2 className="text-lg font-bold text-foreground mb-5">Paramètres</h2>
+
+              <div className="flex flex-col gap-0 divide-y divide-foreground/[0.06]">
+                {/* Sons */}
+                <div className="flex items-center gap-3 py-4">
+                  <Volume2 size={16} className="text-foreground/40 shrink-0" />
                   <div className="flex-1">
-                    <GlassToggle checked={settings.soundEnabled} onChange={val => update({ soundEnabled: val })} label="Sons activés" />
+                    <GlassToggle
+                      checked={settings.soundEnabled}
+                      onChange={val => update({ soundEnabled: val })}
+                      label="Sons activés"
+                    />
                   </div>
                 </div>
-                <div className="h-px bg-foreground/5" />
-                <div className="flex items-center gap-3">
-                  <Vibrate size={16} className="text-foreground/40" />
+
+                {/* Vibrations */}
+                <div className="flex items-center gap-3 py-4">
+                  <Vibrate size={16} className="text-foreground/40 shrink-0" />
                   <div className="flex-1">
-                    <GlassToggle checked={settings.vibrationEnabled} onChange={val => update({ vibrationEnabled: val })} label="Vibrations" />
+                    <GlassToggle
+                      checked={settings.vibrationEnabled}
+                      onChange={val => update({ vibrationEnabled: val })}
+                      label="Vibrations"
+                    />
                   </div>
                 </div>
+
+                {/* Notifications arrière-plan */}
+                <button
+                  onClick={requestNotifications}
+                  className="flex items-center gap-3 py-4 text-left w-full"
+                >
+                  <Bell size={16} className="text-foreground/40 shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-foreground">Notifications de phase</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{notifStatus()}</div>
+                  </div>
+                </button>
+
+                {/* Historique */}
+                <button
+                  onClick={() => { setSettingsOpen(false); onHistory() }}
+                  className="flex items-center gap-3 py-4 text-left w-full"
+                >
+                  <ClipboardList size={16} className="text-foreground/40 shrink-0" />
+                  <span className="flex-1 text-sm font-medium text-foreground">Historique des séances</span>
+                  <ChevronRight size={15} className="text-foreground/28" />
+                </button>
               </div>
+
               <button
                 onClick={() => setSettingsOpen(false)}
-                className="glass-btn w-full mt-8 h-[52px] rounded-2xl text-foreground/60 font-semibold"
+                className="glass-btn w-full mt-6 h-[50px] rounded-2xl text-foreground/55 font-semibold text-sm"
               >
                 Fermer
               </button>

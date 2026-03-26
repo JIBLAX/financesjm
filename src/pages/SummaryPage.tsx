@@ -30,9 +30,9 @@ export const SummaryPage: React.FC<Props> = ({ result, onRestart, onHome }) => {
         <div
           className="w-24 h-24 rounded-full flex items-center justify-center"
           style={{
-            background: 'rgba(74,222,128,0.1)',
-            border: '2px solid rgba(74,222,128,0.3)',
-            boxShadow: '0 0 40px rgba(74,222,128,0.2)',
+            background: 'hsl(345 62% 40% / 0.12)',
+            border: '2px solid hsl(345 62% 40% / 0.30)',
+            boxShadow: '0 0 40px hsl(345 62% 40% / 0.20)',
           }}
         >
           <CheckCircle size={40} className="text-primary" />

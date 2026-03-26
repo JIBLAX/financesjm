@@ -27,9 +27,9 @@ const BeActivApp: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden relative">
-      {/* Ambient glow blobs */}
-      <div className="fixed top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full opacity-[0.03] pointer-events-none" style={{ background: 'radial-gradient(circle, hsl(var(--primary)), transparent)' }} />
-      <div className="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full opacity-[0.02] pointer-events-none" style={{ background: 'radial-gradient(circle, hsl(var(--accent-circuit)), transparent)' }} />
+      {/* Ambient glow blobs — bordeaux/beige */}
+      <div className="fixed top-[-25%] left-[-15%] w-[65%] h-[65%] rounded-full opacity-[0.055] pointer-events-none" style={{ background: 'radial-gradient(circle, hsl(345 62% 40%), transparent)' }} />
+      <div className="fixed bottom-[-20%] right-[-10%] w-[55%] h-[55%] rounded-full opacity-[0.035] pointer-events-none" style={{ background: 'radial-gradient(circle, hsl(35 28% 70%), transparent)' }} />
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <AnimatePresence mode="wait">
