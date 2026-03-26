@@ -34,6 +34,48 @@ function makeInitialState(mode: TimerMode, config: TimerConfig): TimerState {
   return { mode, config, phase: 'idle', flash: null, timeLeft: c.duration, elapsed: 0, currentExercise: 1, currentRound: 1, totalExercises: 1, totalRounds: 1, isRunning: false, amrapRounds: 0 }
 }
 
+// Labels pour notifications et MediaSession
+const phaseNotifMessages: Partial<Record<TimerPhase, string>> = {
+  work: '💪 WORK — C\'est parti !',
+  rest: '⏸ PAUSE — Récupère !',
+  round_rest: '🛑 REPOS — Round terminé',
+  preparation: '🎯 Préparez-vous !',
+  finished: '🏁 Séance terminée !',
+}
+
+const phaseMediaTitles: Partial<Record<TimerPhase, string>> = {
+  preparation: 'PRÉPARATION',
+  work: 'WORK',
+  rest: 'PAUSE',
+  round_rest: 'REPOS',
+  finished: 'TERMINÉ',
+}
+
+function sendPhaseNotification(phase: TimerPhase) {
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    if (!document.hidden) return // pas de notif si l'app est au premier plan
+    const body = phaseNotifMessages[phase]
+    if (!body) return
+    new Notification('Be Activ Timer', { body, icon: '/favicon.ico', silent: false })
+  } catch { /* ignore */ }
+}
+
+function updateMediaSession(phase: TimerPhase, isRunning: boolean) {
+  try {
+    if (!('mediaSession' in navigator)) return
+    const title = phaseMediaTitles[phase]
+    if (title) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: `Be Activ — ${title}`,
+        artist: 'Be Activ Timer',
+        album: 'Séance en cours',
+      })
+    }
+    navigator.mediaSession.playbackState = isRunning ? 'playing' : 'paused'
+  } catch { /* ignore */ }
+}
+
 export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSettings, onFinish: (elapsed: number, rounds: number) => void) {
   const [state, setState] = useState<TimerState>(() => makeInitialState(mode, config))
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -43,8 +85,15 @@ export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSett
   useEffect(() => { stateRef.current = state }, [state])
   useEffect(() => { settingsRef.current = settings }, [settings])
 
+  // MediaSession sync
   useEffect(() => {
-    const handleVis = () => { if (document.visibilityState === 'visible' && stateRef.current.isRunning) requestWakeLock() }
+    updateMediaSession(state.phase, state.isRunning)
+  }, [state.phase, state.isRunning])
+
+  useEffect(() => {
+    const handleVis = () => {
+      if (document.visibilityState === 'visible' && stateRef.current.isRunning) requestWakeLock()
+    }
     document.addEventListener('visibilitychange', handleVis)
     return () => { document.removeEventListener('visibilitychange', handleVis); releaseWakeLock() }
   }, [])
@@ -71,6 +120,7 @@ export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSett
     playSound(newPhase)
     vibrate(newPhase === 'finished' ? [100, 50, 100, 50, 200] : [80])
     triggerFlash(newPhase)
+    sendPhaseNotification(newPhase)
     setState(s => ({ ...s, phase: newPhase, timeLeft: newTime, ...updates }))
   }, [playSound, vibrate, triggerFlash])
 
@@ -128,7 +178,8 @@ export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSett
     const newTimeLeft = s.timeLeft - 1
     const newElapsed = s.elapsed + 1
 
-    if (settingsRef.current.soundEnabled && (s.phase as string) !== 'finished' && (s.phase as string) !== 'idle' && s.phase !== 'preparation' && newTimeLeft <= 3 && newTimeLeft > 0) {
+    // Countdown : 1 seul bip par seconde (le bug était que playCountdown jouait 3 bips à la fois)
+    if (settingsRef.current.soundEnabled && s.phase !== 'finished' && s.phase !== 'idle' && s.phase !== 'preparation' && newTimeLeft <= 3 && newTimeLeft > 0) {
       audioService.playCountdown()
     }
 
@@ -143,6 +194,12 @@ export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSett
   const start = useCallback(() => {
     audioService.unlock()
     requestWakeLock()
+
+    // Demande de permission notifications au premier lancement (geste utilisateur)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {})
+    }
+
     setState(s => {
       const prepTime = (s.config as any).prepTime ?? 0
       if (prepTime > 0) {
@@ -157,7 +214,13 @@ export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSett
   const pause = useCallback(() => {
     setState(s => {
       const newRunning = !s.isRunning
-      if (!newRunning) releaseWakeLock(); else requestWakeLock()
+      if (!newRunning) {
+        releaseWakeLock()
+        updateMediaSession(s.phase, false)
+      } else {
+        requestWakeLock()
+        updateMediaSession(s.phase, true)
+      }
       return { ...s, isRunning: newRunning }
     })
   }, [])

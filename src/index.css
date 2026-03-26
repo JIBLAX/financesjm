@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,76 +6,76 @@
 
 @layer base {
   :root {
-    /* === iOS Glass Design System === */
-    --background: 220 20% 4%;
-    --foreground: 0 0% 100%;
-    
-    --card: 220 15% 8%;
-    --card-foreground: 0 0% 100%;
-    
-    --popover: 220 15% 10%;
-    --popover-foreground: 0 0% 100%;
-    
-    --primary: 142 69% 58%;
-    --primary-foreground: 220 20% 4%;
-    
-    --secondary: 220 15% 14%;
-    --secondary-foreground: 0 0% 90%;
-    
-    --muted: 220 12% 12%;
-    --muted-foreground: 220 10% 55%;
-    
-    --accent: 30 60% 68%;
-    --accent-foreground: 220 20% 4%;
-    
-    --destructive: 0 72% 51%;
+    /* === Be Activ — Palette Bordeaux / Beige / Noir / Blanc === */
+    --background: 20 10% 5%;
+    --foreground: 30 15% 96%;
+
+    --card: 20 8% 9%;
+    --card-foreground: 30 15% 96%;
+
+    --popover: 20 8% 11%;
+    --popover-foreground: 30 15% 96%;
+
+    /* Bordeaux comme couleur principale */
+    --primary: 345 62% 40%;
+    --primary-foreground: 30 15% 97%;
+
+    --secondary: 20 8% 13%;
+    --secondary-foreground: 30 10% 88%;
+
+    --muted: 20 6% 11%;
+    --muted-foreground: 30 6% 52%;
+
+    /* Beige chaud comme accent */
+    --accent: 35 28% 70%;
+    --accent-foreground: 20 10% 10%;
+
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
-    
-    --border: 220 15% 15%;
-    --input: 220 15% 15%;
-    --ring: 142 69% 58%;
-    
+
+    --border: 20 8% 15%;
+    --input: 20 8% 15%;
+    --ring: 345 62% 40%;
+
     --radius: 1rem;
 
-    /* Glass tokens */
-    --glass-bg: rgba(255, 255, 255, 0.04);
-    --glass-bg-hover: rgba(255, 255, 255, 0.07);
-    --glass-bg-active: rgba(255, 255, 255, 0.10);
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --glass-border-bright: rgba(255, 255, 255, 0.15);
+    /* Glass tokens — légèrement chauds */
+    --glass-bg: rgba(255, 232, 210, 0.04);
+    --glass-bg-hover: rgba(255, 232, 210, 0.08);
+    --glass-bg-active: rgba(255, 232, 210, 0.12);
+    --glass-border: rgba(255, 220, 190, 0.09);
+    --glass-border-bright: rgba(255, 215, 180, 0.18);
     --glass-blur: 24px;
     --glass-blur-heavy: 40px;
 
-    /* Mode accents */
+    /* Couleurs d'accent par mode (conservées pour identifier les modes) */
     --accent-tabata: 142 69% 58%;
     --accent-circuit: 27 95% 61%;
     --accent-fortime: 214 32% 91%;
-    --accent-amrap: 30 35% 72%;
-    
-    /* Phase colors */
+    --accent-amrap: 35 45% 68%;
+
+    /* Couleurs de phase (work/rest/repos — conservées, c'est leur code couleur sportif) */
     --phase-prep: 234 89% 74%;
     --phase-work: 142 69% 58%;
     --phase-rest: 27 95% 61%;
-    --phase-round-rest: 30 35% 72%;
+    --phase-round-rest: 35 45% 68%;
 
-    /* Layout */
+    /* Layout mobile-first */
     --page-max-width: 100%;
     --page-px: 20px;
-    --ring-size: 260px;
+    --ring-size: 258px;
+  }
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+  @media (min-width: 480px) {
+    :root {
+      --page-px: 24px;
+      --ring-size: 280px;
+    }
   }
 
   @media (min-width: 640px) {
     :root {
-      --page-max-width: 520px;
+      --page-max-width: 440px;
       --page-px: 28px;
       --ring-size: 300px;
     }
@@ -83,8 +83,16 @@
 
   @media (min-width: 768px) {
     :root {
-      --page-max-width: 560px;
+      --page-max-width: 460px;
       --ring-size: 320px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    :root {
+      --page-max-width: 480px;
+      --page-px: 32px;
+      --ring-size: 336px;
     }
   }
 }
@@ -102,7 +110,7 @@
   }
 
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -123,18 +131,12 @@
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: 1px solid var(--glass-border);
     border-radius: 1.25rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .glass-card:hover {
     background: var(--glass-bg-hover);
     border-color: var(--glass-border-bright);
-  }
-
-  .glass-card-active {
-    background: var(--glass-bg-active);
-    border-color: var(--glass-border-bright);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
   /* Glass button */
@@ -152,11 +154,6 @@
     border-color: var(--glass-border-bright);
   }
 
-  /* iOS-style glow ring */
-  .glow-ring {
-    filter: drop-shadow(0 0 20px hsl(var(--primary) / 0.3));
-  }
-
   /* Page container */
   .page-container {
     width: 100%;
@@ -166,14 +163,20 @@
     display: flex;
     flex-direction: column;
     padding: 0 var(--page-px);
-    padding-bottom: 40px;
+    padding-bottom: 44px;
   }
 
-  /* Mode cards grid */
+  /* Mode cards grid — 2 colonnes */
   .mode-cards-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    gap: 12px;
+  }
+
+  @media (min-width: 640px) {
+    .mode-cards-grid {
+      gap: 14px;
+    }
   }
 
   /* Setup fields */
@@ -205,11 +208,26 @@
       gap: 12px;
     }
   }
+
+  /* Phase label — grand label au-dessus du ring */
+  .phase-label {
+    font-size: clamp(1.7rem, 6vw, 2.6rem);
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  /* Glow ring */
+  .glow-ring {
+    filter: drop-shadow(0 0 20px hsl(var(--primary) / 0.3));
+  }
 }
 
 @layer utilities {
+  /* Gradient bordeaux → beige chaud */
   .text-gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent-circuit)));
+    background: linear-gradient(135deg, hsl(35, 45%, 82%), hsl(345, 65%, 55%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -236,18 +254,18 @@ button:focus-visible {
 
 /* Animations */
 @keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 0px rgba(74,222,128,0); }
-  50% { box-shadow: 0 0 60px rgba(74,222,128,0.3); }
+  0%, 100% { box-shadow: 0 0 0px rgba(180, 30, 60, 0); }
+  50% { box-shadow: 0 0 60px rgba(180, 30, 60, 0.25); }
+}
+
+@keyframes phaseIn {
+  from { transform: translateY(-6px) scale(0.94); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 @keyframes shimmer {
   0% { background-position: -200% center; }
   100% { background-position: 200% center; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
 }
 
 @keyframes fadeSlideUp {
