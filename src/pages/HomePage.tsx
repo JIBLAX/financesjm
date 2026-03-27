@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate, ChevronRight, Bell, Users } from 'lucide-react'
+import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate, ChevronRight, Bell, Users, LogOut } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import type { User } from '@supabase/supabase-js'
 import type { TimerMode, AppSettings } from '../types'
 import { GlassToggle } from '../components/GlassToggle'
+import { supabaseConfigured } from '../lib/supabase'
 import logoBeactiv from '../assets/logo-beactiv.png'
 
 interface Props {
@@ -12,6 +14,8 @@ interface Props {
   onClients: () => void
   settings: AppSettings
   onUpdateSettings: (patch: Partial<AppSettings>) => void
+  user: User | null
+  onSignOut: () => void
 }
 
 interface ModeCard {
@@ -36,7 +40,7 @@ function notifStatus(): string {
   return 'Appuyer pour activer'
 }
 
-export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, settings, onUpdateSettings }) => {
+export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, settings, onUpdateSettings, user, onSignOut }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [, forceUpdate] = useState(0)
 
@@ -144,6 +148,16 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, 
                   <span className="flex-1 text-sm font-medium text-foreground">Gestion des clients</span>
                   <ChevronRight size={15} className="text-foreground/30" />
                 </button>
+
+                {supabaseConfigured && user && (
+                  <button onClick={() => { setSettingsOpen(false); onSignOut() }} className="flex items-center gap-3 py-4 text-left w-full">
+                    <LogOut size={16} className="text-foreground/40 shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-foreground">Déconnexion</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 truncate">{user.email}</div>
+                    </div>
+                  </button>
+                )}
               </div>
 
               <button
