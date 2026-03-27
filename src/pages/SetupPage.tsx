@@ -70,7 +70,7 @@ export const SetupPage: React.FC<Props> = ({ mode, onStart, onBack }) => {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h2 className="text-2xl font-extrabold text-foreground mb-1">Configurez</h2>
+        <h2 className="text-2xl font-extrabold text-foreground mb-1">Configure</h2>
         <p className="text-sm text-muted-foreground">{modeDescriptions[mode]}</p>
       </motion.div>
 

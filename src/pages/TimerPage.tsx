@@ -18,10 +18,6 @@ interface Props {
   onBack: () => void
 }
 
-const phaseHeaderLabels: Record<TimerPhase, string> = {
-  idle: 'PRÊT', preparation: 'PRÉPARATION', work: 'WORK', rest: 'PAUSE', round_rest: 'REPOS', finished: 'TERMINÉ',
-}
-
 const phaseBigLabels: Record<TimerPhase, string> = {
   idle: '', preparation: 'PRÊT', work: 'WORK', rest: 'PAUSE', round_rest: 'REPOS', finished: 'TERMINÉ',
 }

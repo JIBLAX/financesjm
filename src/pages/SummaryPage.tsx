@@ -64,7 +64,7 @@ export const SummaryPage: React.FC<Props> = ({ result, onRestart, onHome, onLogS
         transition={{ delay: 0.35 }}
         className="glass-card w-full p-5 mb-6"
       >
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className={`grid gap-4 text-center ${result.mode === 'fortime' || result.mode === 'amrap' ? 'grid-cols-2' : 'grid-cols-3'}`}>
           <div>
             <Clock size={16} className="mx-auto mb-2 text-foreground/40" />
             <div className="text-xl font-bold text-foreground">{formatTime(result.totalTime)}</div>
@@ -73,13 +73,15 @@ export const SummaryPage: React.FC<Props> = ({ result, onRestart, onHome, onLogS
           <div>
             <RotateCcw size={16} className="mx-auto mb-2 text-foreground/40" />
             <div className="text-xl font-bold text-foreground">{result.rounds}</div>
-            <div className="text-xs text-muted-foreground mt-1">Rounds</div>
+            <div className="text-xs text-muted-foreground mt-1">{result.mode === 'amrap' ? 'Rounds' : 'Rounds'}</div>
           </div>
-          <div>
-            <Dumbbell size={16} className="mx-auto mb-2 text-foreground/40" />
-            <div className="text-xl font-bold text-foreground">{result.exercises}</div>
-            <div className="text-xs text-muted-foreground mt-1">Exercices</div>
-          </div>
+          {result.mode !== 'fortime' && result.mode !== 'amrap' && (
+            <div>
+              <Dumbbell size={16} className="mx-auto mb-2 text-foreground/40" />
+              <div className="text-xl font-bold text-foreground">{result.exercises}</div>
+              <div className="text-xs text-muted-foreground mt-1">Exercices</div>
+            </div>
+          )}
         </div>
       </motion.div>
 

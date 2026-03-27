@@ -1,6 +1,6 @@
 export type TimerMode = 'tabata' | 'circuit' | 'fortime' | 'amrap'
 export type TimerPhase = 'idle' | 'preparation' | 'work' | 'rest' | 'round_rest' | 'finished'
-export type AppScreen = 'home' | 'setup' | 'timer' | 'summary' | 'history' | 'clients' | 'session-log'
+export type AppScreen = 'home' | 'setup' | 'timer' | 'summary' | 'history' | 'clients' | 'session-log' | 'records'
 
 export interface TabataConfig {
   workTime: number
