@@ -14,6 +14,7 @@ import { SummaryPage } from './SummaryPage'
 import { HistoryPage } from './HistoryPage'
 import { ClientsPage } from './ClientsPage'
 import { SessionLogPage } from './SessionLogPage'
+import { RecordsPage } from './RecordsPage'
 import { LoginPage } from './LoginPage'
 
 const variants = {
@@ -33,7 +34,7 @@ const BeActivApp: React.FC = () => {
   const { sessions, addSession, clearHistory } = useHistory(user)
   const { settings, update: updateSettings } = useSettings(user)
   const { clients, addClient, removeClient } = useClients(user)
-  const { records, addRecord } = useSessionRecords(user)
+  const { records, addRecord, removeRecord } = useSessionRecords(user)
 
   // Pendant le chargement de la session auth
   if (supabaseConfigured && status === 'loading') {
@@ -78,6 +79,7 @@ const BeActivApp: React.FC = () => {
                 onSelectMode={m => { setSelectedMode(m); setScreen('setup') }}
                 onHistory={() => setScreen('history')}
                 onClients={() => setScreen('clients')}
+                onRecords={() => setScreen('records')}
                 settings={settings}
                 onUpdateSettings={updateSettings}
                 user={user}
@@ -122,6 +124,14 @@ const BeActivApp: React.FC = () => {
                 clients={clients}
                 onSave={addRecord}
                 onBack={() => setScreen('summary')}
+              />
+            )}
+            {screen === 'records' && (
+              <RecordsPage
+                records={records}
+                clients={clients}
+                onBack={() => setScreen('home')}
+                onRemove={removeRecord}
               />
             )}
           </motion.div>

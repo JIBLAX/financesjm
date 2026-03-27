@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate, ChevronRight, Bell, Users, LogOut } from 'lucide-react'
+import { Zap, RefreshCw, Clock, Trophy, Settings, ClipboardList, Volume2, Vibrate, ChevronRight, Bell, Users, LogOut, FileText } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { User } from '@supabase/supabase-js'
 import type { TimerMode, AppSettings } from '../types'
@@ -12,6 +12,7 @@ interface Props {
   onSelectMode: (mode: TimerMode) => void
   onHistory: () => void
   onClients: () => void
+  onRecords: () => void
   settings: AppSettings
   onUpdateSettings: (patch: Partial<AppSettings>) => void
   user: User | null
@@ -40,7 +41,7 @@ function notifStatus(): string {
   return 'Appuyer pour activer'
 }
 
-export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, settings, onUpdateSettings, user, onSignOut }) => {
+export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, onRecords, settings, onUpdateSettings, user, onSignOut }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [, forceUpdate] = useState(0)
 
@@ -110,6 +111,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, 
                   <Vibrate size={16} className="text-foreground/40 shrink-0" />
                   <div className="flex-1">
                     <GlassToggle checked={settings.vibrationEnabled} onChange={val => onUpdateSettings({ vibrationEnabled: val })} label="Vibrations" />
+                    <div className="text-[11px] text-foreground/25 mt-1">Android uniquement · non supporté sur iOS</div>
                   </div>
                 </div>
 
@@ -146,6 +148,12 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, 
                 <button onClick={() => { setSettingsOpen(false); onClients() }} className="flex items-center gap-3 py-4 text-left w-full">
                   <Users size={16} className="text-foreground/40 shrink-0" />
                   <span className="flex-1 text-sm font-medium text-foreground">Gestion des clients</span>
+                  <ChevronRight size={15} className="text-foreground/30" />
+                </button>
+
+                <button onClick={() => { setSettingsOpen(false); onRecords() }} className="flex items-center gap-3 py-4 text-left w-full">
+                  <FileText size={16} className="text-foreground/40 shrink-0" />
+                  <span className="flex-1 text-sm font-medium text-foreground">Fiches coaching</span>
                   <ChevronRight size={15} className="text-foreground/30" />
                 </button>
 
@@ -197,7 +205,7 @@ export const HomePage: React.FC<Props> = ({ onSelectMode, onHistory, onClients, 
           <span className="text-gradient-primary">Ton rythme.</span>
         </h1>
         <p className="text-sm text-muted-foreground font-medium">
-          Choisissez un mode pour commencer
+          Choisis un mode pour commencer
         </p>
       </div>
 
