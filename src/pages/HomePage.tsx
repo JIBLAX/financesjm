@@ -24,7 +24,7 @@ interface ModeCard {
   title: string
   desc: string
   accent: string
-  Icon: React.ComponentType<{ size?: number; color?: string }>
+  Icon: React.ComponentType<any>
 }
 
 const modes: ModeCard[] = [

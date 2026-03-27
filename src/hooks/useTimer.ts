@@ -179,7 +179,7 @@ export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSett
     const newElapsed = s.elapsed + 1
 
     // Countdown : 1 seul bip par seconde (le bug était que playCountdown jouait 3 bips à la fois)
-    if (settingsRef.current.soundEnabled && s.phase !== 'finished' && s.phase !== 'idle' && s.phase !== 'preparation' && newTimeLeft <= 3 && newTimeLeft > 0) {
+    if (settingsRef.current.soundEnabled && (s.phase === 'work' || s.phase === 'rest' || s.phase === 'round_rest') && newTimeLeft <= 3 && newTimeLeft > 0) {
       audioService.playCountdown()
     }
 
