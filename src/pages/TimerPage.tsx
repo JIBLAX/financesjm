@@ -7,6 +7,7 @@ import { useTimer } from '../hooks/useTimer'
 import { GlassProgressRing } from '../components/GlassProgressRing'
 import { GlassPhaseFlash } from '../components/GlassPhaseFlash'
 import { GlassButton } from '../components/GlassButton'
+import { audioService } from '../services/audioService'
 import type { TabataConfig, CircuitConfig, AmrapConfig } from '../types'
 
 interface Props {
@@ -94,7 +95,10 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, o
   const accent = phaseAccents[state.phase]
   const ringSize = useRingSize()
 
-  // Bouton retour : confirmation si timer actif
+  const primeAudio = useCallback(() => {
+    if (settings.soundEnabled) audioService.unlock()
+  }, [settings.soundEnabled])
+
   const handleBack = () => {
     if (state.phase !== 'idle' && state.phase !== 'finished') {
       if (state.isRunning) pause()
@@ -104,7 +108,6 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, o
     }
   }
 
-  // Dialog de confirmation en portal (évite les bugs de stacking context)
   const exitDialog = createPortal(
     <AnimatePresence>
       {confirmExit && (
@@ -116,7 +119,6 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, o
             style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9998 }}
             onClick={() => setConfirmExit(false)}
           />
-          {/* Wrapper de centrage — séparé du motion.div pour éviter le conflit transform */}
           <div style={{
             position: 'fixed',
             inset: 0,
@@ -184,7 +186,6 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, o
       <GlassPhaseFlash phase={state.flash} />
       {exitDialog}
 
-      {/* Header */}
       <div className="flex items-center justify-between w-full mb-5">
         <button onClick={handleBack} className="glass-btn w-10 h-10 rounded-xl flex items-center justify-center text-foreground/55">
           <ChevronLeft size={20} />
@@ -195,7 +196,6 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, o
         <div className="w-10" />
       </div>
 
-      {/* Grand label de phase */}
       <div className="min-h-[80px] flex items-center justify-center mb-2">
         <AnimatePresence mode="wait">
           {state.phase !== 'idle' && (
@@ -221,7 +221,6 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, o
         </AnimatePresence>
       </div>
 
-      {/* Ring */}
       <div className="flex-1 flex items-center justify-center py-2">
         <GlassProgressRing size={ringSize} progress={progress} phase={state.phase} strokeWidth={7}>
           <div className="flex flex-col items-center gap-2">
@@ -253,10 +252,9 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, o
         </GlassProgressRing>
       </div>
 
-      {/* Controls */}
       <div className="w-full mt-5 flex flex-col gap-2.5">
         {state.phase === 'idle' && (
-          <GlassButton variant="primary" fullWidth onClick={start}>
+          <GlassButton variant="primary" fullWidth onPointerDownCapture={primeAudio} onTouchStartCapture={primeAudio} onClick={start}>
             <Play size={18} /> GO
           </GlassButton>
         )}
@@ -264,37 +262,37 @@ export const TimerPage: React.FC<Props> = ({ mode, config, settings, coachTag, o
         {state.phase !== 'idle' && state.phase !== 'finished' && (
           <>
             <div className="flex gap-2.5">
-              <GlassButton variant="glass" fullWidth onClick={pause}>
+              <GlassButton variant="glass" fullWidth onPointerDownCapture={primeAudio} onTouchStartCapture={primeAudio} onClick={pause}>
                 {state.isRunning ? <Pause size={18} /> : <Play size={18} />}
                 {state.isRunning ? 'Pause' : 'Reprendre'}
               </GlassButton>
               {mode !== 'fortime' && mode !== 'amrap' && (
-                <GlassButton variant="ghost" onClick={skip}>
+                <GlassButton variant="ghost" onPointerDownCapture={primeAudio} onTouchStartCapture={primeAudio} onClick={skip}>
                   <SkipForward size={18} />
                 </GlassButton>
               )}
             </div>
 
             {mode === 'amrap' && state.phase === 'work' && (
-              <GlassButton variant="primary" fullWidth onClick={addAmrapRound}>
+              <GlassButton variant="primary" fullWidth onPointerDownCapture={primeAudio} onTouchStartCapture={primeAudio} onClick={addAmrapRound}>
                 <Plus size={18} /> Round
               </GlassButton>
             )}
 
             {mode === 'fortime' && state.phase === 'work' && (
-              <GlassButton variant="primary" fullWidth onClick={stopForTime}>
+              <GlassButton variant="primary" fullWidth onPointerDownCapture={primeAudio} onTouchStartCapture={primeAudio} onClick={stopForTime}>
                 <Square size={18} /> STOP
               </GlassButton>
             )}
 
-            <GlassButton variant="ghost" fullWidth onClick={restart}>
+            <GlassButton variant="ghost" fullWidth onPointerDownCapture={primeAudio} onTouchStartCapture={primeAudio} onClick={restart}>
               <RotateCcw size={15} /> Recommencer
             </GlassButton>
           </>
         )}
 
         {state.phase === 'finished' && (
-          <GlassButton variant="ghost" fullWidth onClick={restart}>
+          <GlassButton variant="ghost" fullWidth onPointerDownCapture={primeAudio} onTouchStartCapture={primeAudio} onClick={restart}>
             <RotateCcw size={15} /> Recommencer
           </GlassButton>
         )}
