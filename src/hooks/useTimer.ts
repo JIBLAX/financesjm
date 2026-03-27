@@ -192,22 +192,39 @@ export function useTimer(mode: TimerMode, config: TimerConfig, settings: AppSett
   }, [advance])
 
   const start = useCallback(() => {
+    // 1. Unlock SYNCHRONE dans le geste utilisateur — critique pour iOS
     audioService.unlock()
     requestWakeLock()
 
-    // Demande de permission notifications au premier lancement (geste utilisateur)
+    // Demande de permission notifications (geste utilisateur = bon moment)
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {})
     }
 
-    setState(s => {
-      const prepTime = (s.config as any).prepTime ?? 0
-      if (prepTime > 0) {
-        playSound('preparation'); triggerFlash('preparation'); vibrate(80)
-        return { ...s, phase: 'preparation' as TimerPhase, timeLeft: prepTime, isRunning: true }
+    // 2. Lire l'état courant via ref (synchrone, pas de setState ici)
+    const s = stateRef.current
+    const prepTime = (s.config as any).prepTime ?? 0
+
+    // 3. Sons + vibration AVANT setState — on est encore dans le stack synchrone du geste
+    //    Ne JAMAIS appeler playSound() à l'intérieur d'un setState updater :
+    //    React peut invoquer les updaters deux fois (StrictMode) et en dehors du contexte utilisateur
+    if (prepTime > 0) {
+      playSound('preparation')
+      vibrate(80)
+      triggerFlash('preparation')
+    } else {
+      playSound('work')
+      vibrate(80)
+      triggerFlash('work')
+    }
+
+    // 4. Mise à jour d'état (pur, sans effets de bord audio)
+    setState(prev => {
+      const pt = (prev.config as any).prepTime ?? 0
+      if (pt > 0) {
+        return { ...prev, phase: 'preparation' as TimerPhase, timeLeft: pt, isRunning: true }
       }
-      playSound('work'); triggerFlash('work'); vibrate(80)
-      return { ...s, phase: 'work' as TimerPhase, isRunning: true }
+      return { ...prev, phase: 'work' as TimerPhase, isRunning: true }
     })
   }, [playSound, triggerFlash, vibrate])
 

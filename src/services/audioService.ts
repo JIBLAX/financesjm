@@ -1,108 +1,145 @@
-// webkitAudioContext pour compatibilité iOS ancienne
-const AudioCtx = typeof window !== 'undefined'
-  ? (window.AudioContext || (window as any).webkitAudioContext)
-  : null
+/**
+ * Audio Service — Be Activ Timer
+ *
+ * Limitations connues iOS :
+ * - Le commutateur silencieux MUTE le Web Audio API. Si l'iPhone est en mode silence/vibreur,
+ *   aucun son ne sortira — c'est une contrainte hardware iOS impossible à contourner via le web.
+ * - navigator.vibrate() n'existe pas sur iOS Safari (Apple n'a jamais implémenté l'API Vibration).
+ *   Sur Android Chrome, la vibration fonctionne normalement.
+ * - Sur iOS, l'AudioContext peut être suspendu automatiquement. On le reprend à chaque interaction.
+ */
 
-let audioCtx: AudioContext | null = null
+const AudioCtxClass =
+  typeof window !== 'undefined'
+    ? (window.AudioContext || (window as any).webkitAudioContext)
+    : null
+
+let ctx: AudioContext | null = null
 
 function getCtx(): AudioContext {
-  if (!audioCtx || audioCtx.state === 'closed') {
-    audioCtx = new AudioCtx()
+  if (!ctx || ctx.state === 'closed') {
+    ctx = new AudioCtxClass()
   }
-  return audioCtx
+  return ctx
 }
 
-// Joue un tone APRÈS avoir attendu que le contexte soit running
-// → résout le bug iOS : resume() est async mais on schedulait osc.start() sans attendre
-function playTone(freq: number, duration: number, type: OscillatorType = 'sine', gainPeak = 0.4, startDelay = 0): void {
-  const ctx = getCtx()
+// Joue un son. Si le contexte est suspendu, attend resume() PUIS joue.
+// Pattern .then() pour ne jamais bloquer la stack synchrone.
+function playTone(
+  freq: number,
+  duration: number,
+  type: OscillatorType = 'sine',
+  gainPeak = 0.4,
+  startDelay = 0,
+): void {
+  if (!AudioCtxClass) return
+  const context = getCtx()
 
   const doPlay = () => {
     try {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
+      const osc = context.createOscillator()
+      const gain = context.createGain()
       osc.connect(gain)
-      gain.connect(ctx.destination)
+      gain.connect(context.destination)
       osc.type = type
-      const t = ctx.currentTime + startDelay
+      const t = context.currentTime + startDelay
       osc.frequency.setValueAtTime(freq, t)
       gain.gain.setValueAtTime(0, t)
       gain.gain.linearRampToValueAtTime(gainPeak, t + 0.01)
       gain.gain.exponentialRampToValueAtTime(0.001, t + duration)
       osc.start(t)
       osc.stop(t + duration + 0.05)
-    } catch { /* silently fail */ }
+    } catch { /* ignore */ }
   }
 
-  if (ctx.state === 'running') {
+  if (context.state === 'running') {
     doPlay()
   } else {
-    // Contexte suspendu → on attend le resume PUIS on joue
-    ctx.resume().then(doPlay).catch(() => {})
+    // Contexte suspendu → résoudre d'abord, puis jouer
+    context.resume().then(doPlay).catch(() => {})
   }
 }
 
-// Unlock iOS : jouer un buffer silencieux DANS le handler du geste utilisateur
+// Unlock/resume : appeler DIRECTEMENT dans un handler de geste utilisateur (click, touchstart)
+// La séquence : buffer silencieux + resume() = débloque l'audio session iOS
 function unlockAudio(): void {
-  if (!AudioCtx) return
+  if (!AudioCtxClass) return
+  const context = getCtx()
   try {
-    const ctx = getCtx()
-    // Buffer silencieux obligatoire pour débloquer iOS
-    const buf = ctx.createBuffer(1, 1, 22050)
-    const src = ctx.createBufferSource()
+    const buf = context.createBuffer(1, 1, 22050)
+    const src = context.createBufferSource()
     src.buffer = buf
-    src.connect(ctx.destination)
+    src.connect(context.destination)
     src.start(0)
-    ctx.resume().catch(() => {})
   } catch { /* ignore */ }
+  context.resume().catch(() => {})
 }
 
-// Auto-unlock dès le premier touch/click (avant même d'appuyer sur GO)
+// Listener PERSISTANT (pas removeEventListener) : reprend le contexte à chaque interaction.
+// iOS peut suspendre l'AudioContext entre les navigations / backgrounding.
 if (typeof document !== 'undefined') {
-  const handler = () => {
-    unlockAudio()
-    document.removeEventListener('touchstart', handler)
-    document.removeEventListener('click', handler)
+  const resumeCtx = () => {
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {})
+    }
   }
-  document.addEventListener('touchstart', handler, { passive: true })
-  document.addEventListener('click', handler)
+  // capture:true pour attraper l'event avant les composants React
+  document.addEventListener('touchstart', resumeCtx, { passive: true, capture: true })
+  document.addEventListener('click', resumeCtx, { capture: true })
+
+  // Reprend quand l'app revient au premier plan (après backgrounding)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      resumeCtx()
+    }
+  })
 }
 
 export const audioService = {
-  // Appelé sur chaque geste utilisateur (bouton GO, etc.) pour s'assurer que le contexte est unlocked
+  /**
+   * À appeler dans le handler direct du geste "GO" (onClick synchrone).
+   * Crée et débloque l'AudioContext dans le contexte utilisateur iOS.
+   */
   unlock(): void { unlockAudio() },
 
-  // WORK : double impulsion montante — énergique
+  // WORK : double impulsion montante
   playWork(): void {
-    playTone(660, 0.08, 'square', 0.30)
-    playTone(880, 0.14, 'square', 0.34, 0.10)
+    playTone(660, 0.08, 'square', 0.35)
+    playTone(880, 0.14, 'square', 0.38, 0.10)
   },
 
-  // PAUSE (récup) : ton doux descendant
+  // PAUSE : descente douce
   playRest(): void {
-    playTone(660, 0.08, 'sine', 0.24)
-    playTone(440, 0.22, 'sine', 0.22, 0.09)
+    playTone(660, 0.08, 'sine', 0.28)
+    playTone(440, 0.22, 'sine', 0.25, 0.09)
   },
 
-  // REPOS (inter-rounds) : triple descente chaude
+  // REPOS inter-rounds : triple descente
   playRoundRest(): void {
-    playTone(660, 0.10, 'triangle', 0.22)
-    playTone(550, 0.10, 'triangle', 0.19, 0.13)
-    playTone(440, 0.24, 'sine', 0.17, 0.26)
+    playTone(660, 0.10, 'triangle', 0.25)
+    playTone(550, 0.10, 'triangle', 0.22, 0.13)
+    playTone(440, 0.24, 'sine', 0.20, 0.26)
   },
 
-  // Countdown : 1 seul bip court par appel (tick loop appelle 3× à t=3,2,1)
-  playCountdown(): void { playTone(1100, 0.08, 'sine', 0.28) },
+  // Countdown : 1 bip par appel (appelé 3× pour t=3,2,1)
+  playCountdown(): void { playTone(1100, 0.08, 'sine', 0.32) },
 
-  // Fin : accord ascendant
-  playFinish(): void { [660, 880, 1100].forEach((f, i) => playTone(f, 0.22, 'sine', 0.36, i * 0.22)) },
+  // Fin de séance
+  playFinish(): void {
+    [660, 880, 1100].forEach((f, i) => playTone(f, 0.22, 'sine', 0.40, i * 0.22))
+  },
 
-  // AMRAP round tap
-  playAmrapRound(): void { playTone(740, 0.10, 'sine', 0.26) },
+  // AMRAP : round comptabilisé
+  playAmrapRound(): void { playTone(740, 0.10, 'sine', 0.30) },
 
   // Préparation
   playPreparation(): void {
-    playTone(440, 0.10, 'sine', 0.20)
-    playTone(550, 0.18, 'sine', 0.22, 0.11)
+    playTone(440, 0.10, 'sine', 0.24)
+    playTone(550, 0.18, 'sine', 0.26, 0.11)
+  },
+
+  /** Retourne true si l'API est disponible et le contexte actif */
+  isAvailable(): boolean {
+    return !!AudioCtxClass && !!ctx && ctx.state === 'running'
   },
 }
