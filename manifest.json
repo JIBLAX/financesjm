@@ -1,8 +1,0 @@
-{
-  "name": "Timer Be Activ",
-  "short_name": "Timer",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#ffffff"
-}
