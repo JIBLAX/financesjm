@@ -1,8 +1,21 @@
 {
-  "name": "Timer Be Activ",
-  "short_name": "Timer",
+  "name": "FINANCES JM",
+  "short_name": "Finances JM",
+  "description": "Gestion financière personnelle",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#ffffff"
+  "background_color": "#0f1219",
+  "theme_color": "#2eb88a",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
