@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,94 +6,51 @@
 
 @layer base {
   :root {
-    /* === Be Activ — Palette Bordeaux / Beige / Noir / Blanc === */
-    --background: 20 10% 5%;
-    --foreground: 30 15% 96%;
+    /* === FINANCES JM — Premium Dark Finance === */
+    --background: 225 15% 7%;
+    --foreground: 210 20% 95%;
 
-    --card: 20 8% 9%;
-    --card-foreground: 30 15% 96%;
+    --card: 225 14% 10%;
+    --card-foreground: 210 20% 95%;
 
-    --popover: 20 8% 11%;
-    --popover-foreground: 30 15% 96%;
+    --popover: 225 14% 12%;
+    --popover-foreground: 210 20% 95%;
 
-    /* Bordeaux comme couleur principale */
-    --primary: 345 62% 40%;
-    --primary-foreground: 30 15% 97%;
+    --primary: 165 60% 45%;
+    --primary-foreground: 225 15% 7%;
 
-    --secondary: 20 8% 13%;
-    --secondary-foreground: 30 10% 88%;
+    --secondary: 225 12% 14%;
+    --secondary-foreground: 210 15% 80%;
 
-    --muted: 20 6% 11%;
-    --muted-foreground: 30 6% 52%;
+    --muted: 225 10% 13%;
+    --muted-foreground: 215 10% 48%;
 
-    /* Beige chaud comme accent */
-    --accent: 35 28% 70%;
-    --accent-foreground: 20 10% 10%;
+    --accent: 38 70% 55%;
+    --accent-foreground: 225 15% 7%;
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 65% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 20 8% 15%;
-    --input: 20 8% 15%;
-    --ring: 345 62% 40%;
+    --success: 152 60% 45%;
+    --success-foreground: 0 0% 100%;
 
-    --radius: 1rem;
+    --border: 225 12% 16%;
+    --input: 225 12% 16%;
+    --ring: 165 60% 45%;
 
-    /* Glass tokens — légèrement chauds */
-    --glass-bg: rgba(255, 232, 210, 0.04);
-    --glass-bg-hover: rgba(255, 232, 210, 0.08);
-    --glass-bg-active: rgba(255, 232, 210, 0.12);
-    --glass-border: rgba(255, 220, 190, 0.09);
-    --glass-border-bright: rgba(255, 215, 180, 0.18);
-    --glass-blur: 24px;
-    --glass-blur-heavy: 40px;
+    --radius: 0.875rem;
 
-    /* Couleurs d'accent par mode (conservées pour identifier les modes) */
-    --accent-tabata: 142 69% 58%;
-    --accent-circuit: 27 95% 61%;
-    --accent-fortime: 214 32% 91%;
-    --accent-amrap: 35 45% 68%;
-
-    /* Couleurs de phase (work/rest/repos — conservées, c'est leur code couleur sportif) */
-    --phase-prep: 234 89% 74%;
-    --phase-work: 142 69% 58%;
-    --phase-rest: 27 95% 61%;
-    --phase-round-rest: 35 45% 68%;
-
-    /* Layout mobile-first */
+    /* Layout */
     --page-max-width: 100%;
     --page-px: 20px;
-    --ring-size: 258px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   @media (min-width: 480px) {
-    :root {
-      --page-px: 24px;
-      --ring-size: 280px;
-    }
+    :root { --page-px: 24px; }
   }
-
   @media (min-width: 640px) {
-    :root {
-      --page-max-width: 440px;
-      --page-px: 28px;
-      --ring-size: 300px;
-    }
-  }
-
-  @media (min-width: 768px) {
-    :root {
-      --page-max-width: 460px;
-      --ring-size: 320px;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    :root {
-      --page-max-width: 480px;
-      --page-px: 32px;
-      --ring-size: 336px;
-    }
+    :root { --page-max-width: 480px; --page-px: 28px; }
   }
 }
 
@@ -110,7 +67,7 @@
   }
 
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-family: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -124,37 +81,6 @@
 }
 
 @layer components {
-  /* Glass card */
-  .glass-card {
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid var(--glass-border);
-    border-radius: 1.25rem;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .glass-card:hover {
-    background: var(--glass-bg-hover);
-    border-color: var(--glass-border-bright);
-  }
-
-  /* Glass button */
-  .glass-btn {
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid var(--glass-border);
-    border-radius: 0.875rem;
-    transition: all 0.2s ease;
-  }
-
-  .glass-btn:hover {
-    background: var(--glass-bg-hover);
-    border-color: var(--glass-border-bright);
-  }
-
-  /* Page container */
   .page-container {
     width: 100%;
     max-width: var(--page-max-width);
@@ -163,74 +89,11 @@
     display: flex;
     flex-direction: column;
     padding: 0 var(--page-px);
-    padding-bottom: 44px;
+    padding-bottom: calc(80px + var(--safe-bottom));
   }
 
-  /* Mode cards grid — 2 colonnes */
-  .mode-cards-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-
-  @media (min-width: 640px) {
-    .mode-cards-grid {
-      gap: 14px;
-    }
-  }
-
-  /* Setup fields */
-  .setup-fields-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  @media (min-width: 640px) {
-    .setup-fields-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-  }
-
-  /* History grid */
-  .history-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  @media (min-width: 640px) {
-    .history-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-  }
-
-  /* Phase label — grand label au-dessus du ring */
-  .phase-label {
-    font-size: clamp(3.2rem, 14vw, 5.5rem);
-    font-weight: 900;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    line-height: 1;
-  }
-
-  /* Glow ring */
-  .glow-ring {
-    filter: drop-shadow(0 0 20px hsl(var(--primary) / 0.3));
-  }
-}
-
-@layer utilities {
-  /* Gradient bordeaux → beige chaud */
-  .text-gradient-primary {
-    background: linear-gradient(135deg, hsl(35, 45%, 82%), hsl(345, 65%, 55%));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .safe-area-bottom {
+    padding-bottom: var(--safe-bottom);
   }
 }
 
@@ -240,13 +103,11 @@
 
 html { scroll-behavior: smooth; }
 
-/* Bloquer tout zoom tactile (pinch, double-tap) */
 html, body {
   touch-action: pan-x pan-y;
   -ms-touch-action: pan-x pan-y;
 }
 
-/* iOS : empêcher le zoom auto sur les inputs (déclenché quand font-size < 16px) */
 input, textarea, select {
   font-size: 16px !important;
 }
@@ -261,25 +122,4 @@ button:focus:not(:focus-visible) { outline: none; }
 button:focus-visible {
   outline: 2px solid hsl(var(--primary) / 0.5);
   outline-offset: 2px;
-}
-
-/* Animations */
-@keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 0px rgba(180, 30, 60, 0); }
-  50% { box-shadow: 0 0 60px rgba(180, 30, 60, 0.25); }
-}
-
-@keyframes phaseIn {
-  from { transform: translateY(-6px) scale(0.94); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-@keyframes fadeSlideUp {
-  from { transform: translateY(30px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
 }
