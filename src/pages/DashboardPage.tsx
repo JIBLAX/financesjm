@@ -1,16 +1,32 @@
 import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Plus } from 'lucide-react'
+import { ArrowUpRight, ArrowDownRight, Plus, X, ChevronRight, TrendingDown, Sparkles } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
-import { formatCurrency, getCurrentMonthKey, getMonthLabel } from '@/lib/constants'
+import { formatCurrency, getCurrentMonthKey, getMonthLabel, getLevelForXp, getNextLevel } from '@/lib/constants'
+import { generateAlerts, generateInsights, calculateHealthScore } from '@/lib/analytics'
 import type { FinanceStore } from '@/types/finance'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 
 interface Props {
   store: FinanceStore
+  onDismissAlert: (id: string) => void
 }
 
-export const DashboardPage: React.FC<Props> = ({ store }) => {
+const severityStyles = {
+  critical: 'border-destructive/50 bg-destructive/10',
+  warning: 'border-amber-500/50 bg-amber-500/10',
+  info: 'border-blue-400/50 bg-blue-400/10',
+  positive: 'border-emerald-500/50 bg-emerald-500/10',
+}
+
+const severityText = {
+  critical: 'text-destructive',
+  warning: 'text-amber-400',
+  info: 'text-blue-400',
+  positive: 'text-emerald-400',
+}
+
+export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const navigate = useNavigate()
   const monthKey = getCurrentMonthKey()
 
@@ -20,42 +36,79 @@ export const DashboardPage: React.FC<Props> = ({ store }) => {
     const totalAssets = store.assets.reduce((s, a) => s + a.value, 0)
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
     const netWorth = totalAccounts + totalAssets - totalDebts
-
     const monthTx = store.transactions.filter(t => t.monthKey === monthKey)
     const monthIncome = monthTx.filter(t => t.direction === 'income').reduce((s, t) => s + t.amount, 0)
     const monthExpenses = monthTx.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
-
     return { totalAccounts, totalCash, totalAssets, totalDebts, netWorth, monthIncome, monthExpenses }
   }, [store, monthKey])
 
-  // Mock sparkline data for patrimoine evolution
+  const alerts = useMemo(() => generateAlerts(store), [store])
+  const insights = useMemo(() => generateInsights(store), [store])
+  const healthScore = useMemo(() => calculateHealthScore(store), [store])
+  const level = getLevelForXp(store.settings.xp)
+  const nextLevel = getNextLevel(level.level)
+
   const sparkData = useMemo(() => {
     const snapshots = store.monthlySnapshots.slice(-6)
-    if (snapshots.length < 2) {
-      return Array.from({ length: 6 }, (_, i) => ({ v: stats.netWorth * (0.85 + i * 0.03) }))
-    }
+    if (snapshots.length < 2) return Array.from({ length: 6 }, (_, i) => ({ v: stats.netWorth * (0.85 + i * 0.03) }))
     return snapshots.map(s => ({ v: s.netWorth }))
   }, [store.monthlySnapshots, stats.netWorth])
 
+  const scoreColor = healthScore.total >= 75 ? 'text-emerald-400' : healthScore.total >= 60 ? 'text-amber-300' : healthScore.total >= 40 ? 'text-amber-500' : 'text-destructive'
+  const scoreBg = healthScore.total >= 75 ? 'bg-emerald-500/10' : healthScore.total >= 60 ? 'bg-amber-300/10' : healthScore.total >= 40 ? 'bg-amber-500/10' : 'bg-destructive/10'
+
   return (
-    <div className="page-container pt-6 pb-24 gap-5">
+    <div className="page-container pt-6 pb-24 gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Patrimoine net</p>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">{formatCurrency(stats.netWorth)}</h1>
         </div>
-        <button
-          onClick={() => navigate('/transactions/new')}
-          className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center text-primary-foreground active:scale-95 transition-transform"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/profil')} className={`px-3 py-1.5 rounded-xl text-xs font-bold ${scoreBg} ${scoreColor}`}>
+            {healthScore.total}/100
+          </button>
+          <button onClick={() => navigate('/transactions/new')} className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center text-primary-foreground active:scale-95 transition-transform">
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
       </div>
+
+      {/* Alerts */}
+      {alerts.length > 0 && (
+        <div className="flex gap-3 overflow-x-auto -mx-5 px-5 pb-1" style={{ scrollSnapType: 'x mandatory' }}>
+          {alerts.slice(0, 3).map(alert => (
+            <div key={alert.id} className={`flex-shrink-0 w-[85%] rounded-xl border p-3 ${severityStyles[alert.severity]}`} style={{ scrollSnapAlign: 'start' }}>
+              <div className="flex items-start justify-between gap-2">
+                <p className={`text-sm font-medium ${severityText[alert.severity]} flex-1`}>{alert.message}</p>
+                <button onClick={() => onDismissAlert(alert.id)} className="text-muted-foreground mt-0.5"><X className="w-4 h-4" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Insights */}
+      {insights.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Insights du mois</h2>
+          </div>
+          <div className="space-y-2">
+            {insights.map((insight, i) => (
+              <FinanceCard key={i} className="!py-2.5">
+                <p className="text-xs text-foreground/80">{insight}</p>
+              </FinanceCard>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Sparkline */}
       <FinanceCard className="p-3">
-        <ResponsiveContainer width="100%" height={80}>
+        <ResponsiveContainer width="100%" height={70}>
           <AreaChart data={sparkData}>
             <defs>
               <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
@@ -114,7 +167,37 @@ export const DashboardPage: React.FC<Props> = ({ store }) => {
         </div>
       </div>
 
-      {/* Alerts */}
+      {/* Quick actions */}
+      <div className="flex gap-3">
+        <FinanceCard className="flex-1" onClick={() => navigate('/repartition')}>
+          <p className="text-xs text-muted-foreground">Répartition</p>
+          <p className="text-sm font-semibold text-primary">Calculer →</p>
+        </FinanceCard>
+        <FinanceCard className="flex-1" onClick={() => navigate('/plan')}>
+          <p className="text-xs text-muted-foreground">Quêtes actives</p>
+          <p className="text-sm font-semibold text-primary">{store.quests.filter(q => q.status === 'active').length} en cours →</p>
+        </FinanceCard>
+      </div>
+
+      {/* Level badge */}
+      <FinanceCard onClick={() => navigate('/profil')}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{level.emoji}</span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Nv.{level.level} — {level.name}</p>
+              <p className="text-xs text-muted-foreground">{store.settings.xp} XP{nextLevel ? ` · ${nextLevel.minXp - store.settings.xp} XP avant Nv.${nextLevel.level}` : ''}</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </div>
+        {nextLevel && (
+          <div className="mt-2 w-full bg-muted/50 rounded-full h-1.5">
+            <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, ((store.settings.xp - level.minXp) / (nextLevel.minXp - level.minXp)) * 100)}%` }} />
+          </div>
+        )}
+      </FinanceCard>
+
       {stats.monthExpenses > stats.monthIncome && stats.monthIncome > 0 && (
         <FinanceCard className="border-destructive/30 bg-destructive/5">
           <div className="flex items-center gap-2">

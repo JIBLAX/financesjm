@@ -1,13 +1,13 @@
 import React from 'react'
-import { Home, CalendarDays, Wallet, TrendingUp, MoreHorizontal } from 'lucide-react'
+import { Home, BarChart3, Map, Wallet, MoreHorizontal } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
 const tabs = [
   { path: '/', label: 'Accueil', icon: Home },
-  { path: '/mois', label: 'Mois', icon: CalendarDays },
+  { path: '/analyse', label: 'Analyse', icon: BarChart3 },
+  { path: '/plan', label: 'Plan', icon: Map },
   { path: '/comptes', label: 'Comptes', icon: Wallet },
-  { path: '/patrimoine', label: 'Patrimoine', icon: TrendingUp },
   { path: '/plus', label: 'Plus', icon: MoreHorizontal },
 ]
 
@@ -26,14 +26,8 @@ export const BottomNav: React.FC = () => {
         {tabs.map(({ path, label, icon: Icon }) => {
           const active = isActive(path)
           return (
-            <button
-              key={path}
-              onClick={() => navigate(path)}
-              className={cn(
-                'flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-colors min-w-[56px]',
-                active ? 'text-primary' : 'text-muted-foreground'
-              )}
-            >
+            <button key={path} onClick={() => navigate(path)}
+              className={cn('flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-colors min-w-[56px]', active ? 'text-primary' : 'text-muted-foreground')}>
               <Icon className={cn('w-5 h-5', active && 'stroke-[2.5]')} />
               <span className="text-[10px] font-medium">{label}</span>
             </button>
