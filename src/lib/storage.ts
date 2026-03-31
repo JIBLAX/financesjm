@@ -1,5 +1,5 @@
 import type { FinanceStore } from '@/types/finance'
-import { DEFAULT_SETTINGS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, DEFAULT_CASH_ENVELOPES } from './constants'
+import { DEFAULT_SETTINGS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, DEFAULT_CASH_ENVELOPES, DEFAULT_QUESTS } from './constants'
 
 const STORE_KEY = 'finances_jm_store'
 const PIN_SESSION_KEY = 'finances_jm_session'
@@ -14,6 +14,9 @@ function getDefaultStore(): FinanceStore {
     monthlySnapshots: [],
     categories: [...DEFAULT_CATEGORIES],
     cashEnvelopes: [...DEFAULT_CASH_ENVELOPES],
+    quests: [...DEFAULT_QUESTS],
+    dismissedAlerts: [],
+    monthlyJournals: {},
   }
 }
 
@@ -22,11 +25,14 @@ export function loadStore(): FinanceStore {
     const raw = localStorage.getItem(STORE_KEY)
     if (!raw) return getDefaultStore()
     const parsed = JSON.parse(raw)
-    // Merge defaults for missing fields
+    const defaults = getDefaultStore()
     return {
-      ...getDefaultStore(),
+      ...defaults,
       ...parsed,
-      settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
+      settings: { ...defaults.settings, ...parsed.settings, allocationRules: { ...defaults.settings.allocationRules, ...(parsed.settings?.allocationRules || {}) }, investorQuestionnaire: { ...defaults.settings.investorQuestionnaire, ...(parsed.settings?.investorQuestionnaire || {}) } },
+      quests: parsed.quests?.length ? parsed.quests : defaults.quests,
+      dismissedAlerts: parsed.dismissedAlerts || [],
+      monthlyJournals: parsed.monthlyJournals || {},
     }
   } catch {
     return getDefaultStore()
@@ -54,22 +60,17 @@ export function resetStore(): FinanceStore {
   return fresh
 }
 
-// Session management
 export function isSessionValid(): boolean {
   try {
     const raw = localStorage.getItem(PIN_SESSION_KEY)
     if (!raw) return false
     const { expiresAt } = JSON.parse(raw)
     return Date.now() < expiresAt
-  } catch {
-    return false
-  }
+  } catch { return false }
 }
 
 export function createSession(durationMinutes: number = 30): void {
-  localStorage.setItem(PIN_SESSION_KEY, JSON.stringify({
-    expiresAt: Date.now() + durationMinutes * 60 * 1000,
-  }))
+  localStorage.setItem(PIN_SESSION_KEY, JSON.stringify({ expiresAt: Date.now() + durationMinutes * 60 * 1000 }))
 }
 
 export function clearSession(): void {
