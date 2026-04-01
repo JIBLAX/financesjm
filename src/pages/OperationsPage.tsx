@@ -38,8 +38,10 @@ type ModalState =
   | { mode: 'cat_manage' }
   | null
 
+const todayISO = () => new Date().toISOString().split('T')[0]
+
 function emptyForm(family: FamilyTab, scope: ScopeTab, monthKey: string): Omit<Operation, 'id'> {
-  return { monthKey, family, scope, label: '', categoryId: '', subcategoryId: '', forecast: 0, actual: 0, isTemplate: family === 'charge_fixe', note: '', clientName: '' }
+  return { monthKey, family, scope, label: '', categoryId: '', subcategoryId: '', forecast: 0, actual: 0, isTemplate: family === 'charge_fixe', note: '', date: todayISO() }
 }
 
 const deltaColor = (forecast: number, actual: number) => {
@@ -65,6 +67,7 @@ export const OperationsPage: React.FC<Props> = ({
   const [family, setFamily] = useState<FamilyTab>('charge_fixe')
   const [scope, setScope] = useState<ScopeTab>('perso')
   const [modal, setModal] = useState<ModalState>(null)
+  const [scopePicker, setScopePicker] = useState<{ categoryId?: string } | null>(null)
   const [form, setForm] = useState<Omit<Operation, 'id'>>(emptyForm('charge_fixe', 'perso', getCurrentMonthKey()))
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [newCatName, setNewCatName] = useState('')
@@ -97,17 +100,25 @@ export const OperationsPage: React.FC<Props> = ({
     return { forecast, actual, delta: actual - forecast }
   }, [operations])
 
-  const openAdd = () => {
-    setForm(emptyForm(family, scope, monthKey))
+  const openAdd = (categoryId?: string) => {
+    setScopePicker({ categoryId })
+  }
+
+  const confirmScope = (s: ScopeTab) => {
+    const pending = scopePicker
+    setScopePicker(null)
+    setScope(s)
+    const base = emptyForm(family, s, monthKey)
+    setForm(pending?.categoryId ? { ...base, categoryId: pending.categoryId } : base)
     setModal({ mode: 'add' })
   }
 
   const openEdit = (op: Operation) => {
-    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, note: op.note || '', clientName: op.clientName || '' })
+    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, note: op.note || '', date: op.date || todayISO() })
     setModal({ mode: 'edit', op })
   }
 
-  const closeModal = () => { setModal(null); setDeleteConfirm(null); setNewCatName(''); setNewCatIcon('') }
+  const closeModal = () => { setModal(null); setScopePicker(null); setDeleteConfirm(null); setNewCatName(''); setNewCatIcon('') }
 
   const handleSave = () => {
     if (!form.label.trim() || !form.categoryId) return
@@ -153,7 +164,7 @@ export const OperationsPage: React.FC<Props> = ({
           <button onClick={() => setModal({ mode: 'cat_manage' })} className="w-9 h-9 rounded-xl bg-muted/30 text-muted-foreground flex items-center justify-center active:bg-muted/50">
             <Settings2 className="w-4 h-4" />
           </button>
-          <button onClick={openAdd} className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:bg-primary/20">
+          <button onClick={() => openAdd()} className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:bg-primary/20">
             <Plus className="w-4 h-4" />
           </button>
         </div>
@@ -207,7 +218,7 @@ export const OperationsPage: React.FC<Props> = ({
             <div className="flex items-center gap-2 mb-2">
               <span className="text-base">{cat.icon}</span>
               <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">{cat.name}</h2>
-              <button onClick={() => { setForm({ ...emptyForm(family, scope, monthKey), categoryId: cat.id }); setModal({ mode: 'add' }) }}
+              <button onClick={() => openAdd(cat.id)}
                 className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -264,14 +275,41 @@ export const OperationsPage: React.FC<Props> = ({
         </div>
       )}
 
+      {/* Perso / Pro picker */}
+      {scopePicker !== null && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={() => setScopePicker(null)}>
+          <div className="w-full bg-background rounded-t-2xl px-5 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]" onClick={e => e.stopPropagation()}>
+            <p className="text-base font-bold text-foreground text-center mb-5">C'est pour…</p>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button onClick={() => confirmScope('perso')}
+                className="flex flex-col items-center gap-2 py-6 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 active:bg-cyan-500/20 shadow-[0_0_14px_rgba(34,211,238,0.15)]">
+                <span className="text-3xl">👤</span>
+                <span className="text-sm font-bold">Perso</span>
+              </button>
+              <button onClick={() => confirmScope('pro')}
+                className="flex flex-col items-center gap-2 py-6 rounded-2xl bg-violet-500/10 border border-violet-500/25 text-violet-400 active:bg-violet-500/20 shadow-[0_0_14px_rgba(167,139,250,0.15)]">
+                <span className="text-3xl">💼</span>
+                <span className="text-sm font-bold">Pro</span>
+              </button>
+            </div>
+            <button onClick={() => setScopePicker(null)} className="w-full py-2.5 rounded-xl bg-muted/30 text-sm text-muted-foreground">Annuler</button>
+          </div>
+        </div>
+      )}
+
       {/* Add/Edit modal */}
       {(modal?.mode === 'add' || modal?.mode === 'edit') && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={closeModal}>
           <div className="w-full bg-background rounded-t-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border/50">
-              <h2 className="text-base font-bold text-foreground">
-                {modal.mode === 'add' ? 'Nouvelle opération' : 'Modifier'}
-              </h2>
+              <div>
+                <h2 className="text-base font-bold text-foreground">
+                  {modal.mode === 'add' ? 'Nouvelle opération' : 'Modifier'}
+                </h2>
+                <p className={`text-xs font-semibold ${form.scope === 'perso' ? 'text-cyan-400' : 'text-violet-400'}`}>
+                  {form.scope === 'perso' ? '👤 Personnel' : '💼 Professionnel'}
+                </p>
+              </div>
               <button onClick={closeModal} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"><X className="w-4 h-4" /></button>
             </div>
 
@@ -279,7 +317,24 @@ export const OperationsPage: React.FC<Props> = ({
               {/* Label */}
               <div>
                 <label className="text-xs text-muted-foreground">Libellé *</label>
-                <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="Ex: Loyer, Netflix, Coaching…" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+                <input
+                  className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
+                  placeholder={family === 'revenu' ? 'Nom Prénom / Libellé' : 'Ex: Loyer, Netflix, Coaching…'}
+                  value={form.label}
+                  onChange={e => setForm(f => ({ ...f, label: e.target.value.replace(/\b\w/g, c => c.toUpperCase()) }))}
+                />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="text-xs text-muted-foreground">Date</label>
+                <input
+                  type="date"
+                  className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
+                  value={form.date || todayISO()}
+                  max={todayISO()}
+                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                />
               </div>
 
               {/* Category */}
@@ -314,23 +369,15 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Client name (for revenus) */}
-              {family === 'revenu' && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Nom client (optionnel)</label>
-                  <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="Prénom Nom" value={form.clientName || ''} onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))} />
-                </div>
-              )}
-
               {/* Forecast + Actual */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">Prévision (€)</label>
-                  <input type="number" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.forecast || ''} onChange={e => setForm(f => ({ ...f, forecast: parseFloat(e.target.value) || 0 }))} />
+                  <input type="number" inputMode="decimal" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.forecast || ''} onFocus={e => e.target.select()} onChange={e => setForm(f => ({ ...f, forecast: parseFloat(e.target.value) || 0 }))} />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Réel (€)</label>
-                  <input type="number" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.actual || ''} onChange={e => setForm(f => ({ ...f, actual: parseFloat(e.target.value) || 0 }))} />
+                  <input type="number" inputMode="decimal" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.actual || ''} onFocus={e => e.target.select()} onChange={e => setForm(f => ({ ...f, actual: parseFloat(e.target.value) || 0 }))} />
                 </div>
               </div>
 

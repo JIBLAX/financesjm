@@ -265,7 +265,8 @@ export interface Operation {
   isTemplate: boolean      // if true, auto-carry to next months
   templateId?: string      // links copies to their origin template
   note?: string
-  clientName?: string      // for JM Be Activ revenues
+  clientName?: string      // kept for backwards compat — label is now the primary name
+  date?: string            // ISO date string (optional, for individual op tracking)
 }
 
 export interface OpCategory {
