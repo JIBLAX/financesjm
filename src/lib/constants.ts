@@ -157,21 +157,22 @@ export const BE_ACTIV_STATUS_LABELS: Record<BeActivStatus, string> = {
 }
 
 export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
-  compte_bancaire: 'Compte bancaire', livret_epargne: 'Livret / épargne', actions: 'Actions',
+  compte_bancaire: 'Compte bancaire', livret_epargne: 'Livret / épargne',
+  assurance_vie: 'Assurance Vie', actions: 'Actions',
   etf: 'ETF', crypto: 'Crypto', immobilier: 'Immobilier', vehicule: 'Véhicule',
   objet_valeur: 'Objet de valeur', autre_actif: 'Autre actif', dette: 'Dette',
 }
 
 export const ASSET_TYPE_ICONS: Record<AssetType, string> = {
-  compte_bancaire: '🏦', livret_epargne: '💰', actions: '📈', etf: '📊',
-  crypto: '🪙', immobilier: '🏠', vehicule: '🚗', objet_valeur: '💎',
-  autre_actif: '📦', dette: '💳',
+  compte_bancaire: '🏦', livret_epargne: '💰', assurance_vie: '🛡️',
+  actions: '📈', etf: '📊', crypto: '🪙', immobilier: '🏠',
+  vehicule: '🚗', objet_valeur: '💎', autre_actif: '📦', dette: '💳',
 }
 
 export const ASSET_CLASS_MAP: Record<AssetType, string> = {
-  compte_bancaire: 'cash', livret_epargne: 'epargne', actions: 'marches', etf: 'marches',
-  crypto: 'crypto', immobilier: 'immobilier', vehicule: 'autres', objet_valeur: 'autres',
-  autre_actif: 'autres', dette: 'dettes',
+  compte_bancaire: 'cash', livret_epargne: 'epargne', assurance_vie: 'epargne',
+  actions: 'marches', etf: 'marches', crypto: 'crypto', immobilier: 'immobilier',
+  vehicule: 'autres', objet_valeur: 'autres', autre_actif: 'autres', dette: 'dettes',
 }
 
 export const ASSET_CLASS_LABELS: Record<string, { label: string; color: string }> = {

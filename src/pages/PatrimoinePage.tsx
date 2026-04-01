@@ -13,7 +13,7 @@ interface Props {
   onRemoveDebt: (id: string) => void
 }
 
-const ASSET_TYPES: AssetType[] = ['compte_bancaire', 'livret_epargne', 'actions', 'etf', 'crypto', 'immobilier', 'vehicule', 'objet_valeur', 'autre_actif', 'dette']
+const ASSET_TYPES: AssetType[] = ['compte_bancaire', 'livret_epargne', 'assurance_vie', 'actions', 'etf', 'crypto', 'immobilier', 'vehicule', 'objet_valeur', 'autre_actif', 'dette']
 
 export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAsset, onAddDebt, onRemoveDebt }) => {
   const [showAdd, setShowAdd] = useState(false)
@@ -369,6 +369,16 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
                     <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Solde actuel" type="number" value={value} onChange={e => setValue(e.target.value)} />
                     <select className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" value={currency} onChange={e => setCurrency(e.target.value)}>
                       <option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option>
+                    </select>
+                  </>
+                )}
+
+                {selectedType === 'assurance_vie' && (
+                  <>
+                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Assureur (ex: Linxea, Boursorama…)" value={platform} onChange={e => setPlatform(e.target.value)} />
+                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Valeur actuelle du contrat €" type="number" value={value} onChange={e => setValue(e.target.value)} />
+                    <select className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" value={currency} onChange={e => setCurrency(e.target.value)}>
+                      <option value="EUR">EUR</option>
                     </select>
                   </>
                 )}
