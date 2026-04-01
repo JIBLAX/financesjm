@@ -20,10 +20,12 @@ const typeConfig: Record<string, { label: string; icon: React.ReactNode; color: 
 export const AccountsPage: React.FC<Props> = ({ store }) => {
   const navigate = useNavigate()
   const total = store.accounts.filter(a => a.isActive).reduce((s, a) => s + a.currentBalance, 0)
-  const mainAccounts = store.accounts.filter(a => a.isActive && a.group !== 'bunq')
-  const bunqAccounts = store.accounts.filter(a => a.isActive && a.group === 'bunq')
+  // Separate pro accounts for the Professionnel section (includes bunq-fiscal)
   const proAccounts = store.accounts.filter(a => a.isActive && a.type === 'pro')
   const proTotal = proAccounts.reduce((s, a) => s + a.currentBalance, 0)
+  // Non-pro main accounts (excluding bunq group)
+  const mainAccounts = store.accounts.filter(a => a.isActive && a.group !== 'bunq' && a.type !== 'pro')
+  const bunqAccounts = store.accounts.filter(a => a.isActive && a.group === 'bunq' && a.type !== 'pro')
 
   const grouped = mainAccounts.reduce<Record<string, Account[]>>((acc, a) => {
     const key = a.type
@@ -54,24 +56,26 @@ export const AccountsPage: React.FC<Props> = ({ store }) => {
         <h1 className="text-3xl font-bold text-foreground">{formatCurrency(total)}</h1>
       </div>
 
-      {/* Vue Pro globale */}
+      {/* Professionnel section — includes Qonto + Réserve Fiscale BUNQ + trésorerie totale */}
       {proAccounts.length > 0 && (
-        <FinanceCard className="border-blue-400/20">
-          <h3 className="text-sm font-semibold text-blue-400 mb-2">💼 Vue Pro globale</h3>
-          {proAccounts.map(a => (
-            <div key={a.id} className="flex justify-between text-sm py-1">
-              <span className="text-muted-foreground">{a.name}</span>
-              <span className="font-medium text-foreground">{formatCurrency(a.currentBalance)}</span>
-            </div>
-          ))}
-          <div className="border-t border-border/50 mt-2 pt-2 flex justify-between text-sm">
-            <span className="text-foreground font-semibold">Trésorerie pro</span>
-            <span className="font-bold text-foreground">{formatCurrency(proTotal)}</span>
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-blue-400"><Briefcase className="w-4 h-4" /></span>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Professionnel</h2>
           </div>
-        </FinanceCard>
+          <div className="space-y-2">
+            {proAccounts.map(renderAccount)}
+          </div>
+          {proAccounts.length > 1 && (
+            <div className="mt-2 px-4 py-2 bg-muted/20 rounded-xl flex justify-between items-center">
+              <span className="text-xs font-semibold text-muted-foreground">Trésorerie pro totale</span>
+              <span className="text-sm font-bold text-foreground">{formatCurrency(proTotal)}</span>
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Main accounts by type */}
+      {/* Main accounts by type (non-pro) */}
       {Object.entries(grouped).map(([type, accounts]) => {
         const cfg = typeConfig[type] || { label: type, icon: null, color: 'text-foreground' }
         const groupTotal = accounts.reduce((s, a) => s + a.currentBalance, 0)
@@ -89,7 +93,7 @@ export const AccountsPage: React.FC<Props> = ({ store }) => {
         )
       })}
 
-      {/* BUNQ */}
+      {/* BUNQ — Non-pro accounts */}
       {bunqAccounts.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-2">
