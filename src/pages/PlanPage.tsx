@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Plus, ChevronRight, ChevronDown, Check, Sparkles, Shield } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
-import { formatCurrency, QUEST_CATEGORY_META, getLevelForXp } from '@/lib/constants'
+import { formatCurrency, QUEST_CATEGORY_META, getLevelForXp, getCurrentMonthKey } from '@/lib/constants'
 import { calculatePilotageMode, getPilotageRecommendation } from '@/lib/analytics'
 import type { FinanceStore, Quest, QuestCategory } from '@/types/finance'
 import { useNavigate } from 'react-router-dom'
@@ -55,9 +55,10 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
   }, [store])
 
   const conseil = useMemo(() => {
+    const monthKey = getCurrentMonthKey()
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
     const lep = store.accounts.find(a => a.id === 'lep')?.currentBalance || 0
-    const monthlyExpenses = store.transactions.filter(t => t.direction === 'expense' && t.isRecurring).reduce((s, t) => s + t.amount, 0)
+    const monthlyExpenses = store.transactions.filter(t => t.monthKey === monthKey && t.direction === 'expense' && t.isRecurring).reduce((s, t) => s + t.amount, 0)
     const monthsCovered = monthlyExpenses > 0 ? Math.floor(lep / monthlyExpenses) : 0
 
     if (totalDebts > 0) {
@@ -110,7 +111,7 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
   ]
 
   return (
-    <div className="page-container pt-6 pb-24 gap-5">
+    <div className="page-container pt-6 page-bottom-pad gap-5">
       <h1 className="text-xl font-bold text-foreground">Guide de Plan</h1>
 
       {/* Pilotage Mode */}

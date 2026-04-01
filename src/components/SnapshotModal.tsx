@@ -5,7 +5,7 @@ import type { FinanceStore, MonthlySnapshot } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
-  onDismiss: (monthKey: string) => void
+  onDismiss: (snapshot: MonthlySnapshot) => void
 }
 
 export const SnapshotModal: React.FC<Props> = ({ store, onDismiss }) => {
@@ -65,7 +65,7 @@ export const SnapshotModal: React.FC<Props> = ({ store, onDismiss }) => {
         <p className="text-xs text-center text-muted-foreground italic">
           {balance >= 0 ? '✅ Bon mois ! Continue sur cette lancée.' : '⚠️ Mois négatif. Ajuste tes dépenses le mois prochain.'}
         </p>
-        <button onClick={() => onDismiss(prevMonthKey)} className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">
+        <button onClick={() => onDismiss({ ...snapshot, dismissed: true })} className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">
           Fermer et continuer
         </button>
       </div>

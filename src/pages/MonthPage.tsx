@@ -59,7 +59,7 @@ export const MonthPage: React.FC<Props> = ({ store, journal, onUpdateJournal }) 
   }
 
   return (
-    <div className="page-container pt-6 pb-24 gap-5">
+    <div className="page-container pt-6 page-bottom-pad gap-5">
       <div className="flex items-center justify-between">
         <button onClick={() => navigateMonth(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50"><ChevronLeft className="w-5 h-5" /></button>
         <h1 className="text-lg font-bold text-foreground capitalize">{getMonthLabel(monthKey)}</h1>

@@ -50,7 +50,7 @@ export const AccountsPage: React.FC<Props> = ({ store }) => {
   )
 
   return (
-    <div className="page-container pt-6 pb-24 gap-5">
+    <div className="page-container pt-6 page-bottom-pad gap-5">
       <div>
         <p className="text-xs text-muted-foreground uppercase tracking-wider">Total comptes</p>
         <h1 className="text-3xl font-bold text-foreground">{formatCurrency(total)}</h1>

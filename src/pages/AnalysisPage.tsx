@@ -66,7 +66,7 @@ export const AnalysisPage: React.FC<Props> = ({ store }) => {
   const selectedDetail = selectedCat ? categories.find(c => c.catId === selectedCat) : null
 
   return (
-    <div className="page-container pt-6 pb-24 gap-5">
+    <div className="page-container pt-6 page-bottom-pad gap-5">
       <h1 className="text-xl font-bold text-foreground">Analyse</h1>
 
       {/* Period tabs */}
@@ -100,14 +100,11 @@ export const AnalysisPage: React.FC<Props> = ({ store }) => {
         ) : (
           <p className="text-sm text-muted-foreground text-center py-8">Aucune dépense sur cette période</p>
         )}
-        {/* Legend */}
+        {/* Legend — colors match bubble status (normal/warning/danger) */}
         <div className="flex gap-4 mt-3 justify-center">
-          {Object.entries(CLASSIFICATION_META).map(([key, meta]) => (
-            <div key={key} className="flex items-center gap-1.5">
-              <div className={`w-2.5 h-2.5 rounded-full ${meta.color}`} />
-              <span className="text-[10px] text-muted-foreground">{meta.label}</span>
-            </div>
-          ))}
+          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500/60" /><span className="text-[10px] text-muted-foreground">Normal</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-500/60" /><span className="text-[10px] text-muted-foreground">+20 %</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-destructive/60" /><span className="text-[10px] text-muted-foreground">+50 %</span></div>
         </div>
       </FinanceCard>
 
@@ -122,7 +119,7 @@ export const AnalysisPage: React.FC<Props> = ({ store }) => {
             </span>
           </div>
           <div className="space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Ce mois</span><span className="font-bold text-foreground">{formatCurrency(selectedDetail.amount)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{period === 'month' ? 'Ce mois' : 'Cette période'}</span><span className="font-bold text-foreground">{formatCurrency(selectedDetail.amount)}</span></div>
             {selectedDetail.prevAmount > 0 && (
               <div className="flex justify-between"><span className="text-muted-foreground">Période précédente</span><span className="text-foreground">{formatCurrency(selectedDetail.prevAmount)}</span></div>
             )}

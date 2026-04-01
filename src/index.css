@@ -89,11 +89,18 @@
     display: flex;
     flex-direction: column;
     padding: 0 var(--page-px);
-    padding-bottom: calc(80px + var(--safe-bottom));
   }
 
   .safe-area-bottom {
     padding-bottom: var(--safe-bottom);
+  }
+}
+
+/* Bottom padding for pages — accounts for fixed nav (64px) + safe area + extra breathing room.
+   Placed in @layer utilities so it wins over Tailwind utility classes (pb-24 etc.) */
+@layer utilities {
+  .page-bottom-pad {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
 }
 
