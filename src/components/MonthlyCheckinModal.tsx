@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getMonthLabel } from '@/lib/constants'
+import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getMonthLabel, getLevelForXp, getNextLevel } from '@/lib/constants'
+import { calculateHealthScore } from '@/lib/analytics'
 import type { FinanceStore, MonthlyCheckIn, Account, Asset, Debt } from '@/types/finance'
 
 interface Props {
@@ -87,6 +88,43 @@ function buildWrappedCards(store: FinanceStore, prevMonthKey: string): WrappedCa
       label: 'Résultat net',
       value: `${net >= 0 ? '+' : ''}${formatCurrency(net)}`,
       sub: net >= 0 ? 'Mois positif — bien joué !' : 'Mois déficitaire — à ajuster',
+    })
+  }
+
+  // Card 5: Score santé financière
+  const health = calculateHealthScore(store)
+  const healthEmoji = health.total >= 75 ? '💚' : health.total >= 60 ? '🟡' : health.total >= 40 ? '🟠' : '🔴'
+  const healthMsg = health.total >= 75 ? 'Excellente santé financière' : health.total >= 60 ? 'Bonne dynamique' : health.total >= 40 ? 'Des marges de progression' : 'Point d\'attention requis'
+  cards.push({
+    bg: health.total >= 60 ? 'from-emerald-500/15 to-background' : 'from-amber-500/15 to-background',
+    emoji: healthEmoji,
+    label: 'Score santé financière',
+    value: `${health.total} / 100`,
+    sub: health.weakestCriterion ? `À renforcer : ${health.weakestCriterion}` : healthMsg,
+  })
+
+  // Card 6: Niveau & XP
+  const level = getLevelForXp(store.settings.xp)
+  const nextLevel = getNextLevel(level.level)
+  const xpToNext = nextLevel ? nextLevel.minXp - store.settings.xp : null
+  cards.push({
+    bg: 'from-primary/15 to-background',
+    emoji: level.emoji,
+    label: `Niveau ${level.level} — ${level.name}`,
+    value: `${store.settings.xp} XP`,
+    sub: xpToNext !== null ? `Plus que ${xpToNext} XP avant Niveau ${level.level + 1}` : '🎖️ Niveau maximum atteint !',
+  })
+
+  // Card 7: Quêtes complétées ce mois (conditionnel)
+  const completedThisMonth = store.quests.filter(q => q.status === 'completed')
+  if (completedThisMonth.length > 0) {
+    const q = completedThisMonth[0]
+    cards.push({
+      bg: 'from-amber-500/20 to-background',
+      emoji: q.emoji || '🏆',
+      label: 'Quête accomplie !',
+      value: q.title,
+      sub: `+${q.xpReward} XP débloqués`,
     })
   }
 
