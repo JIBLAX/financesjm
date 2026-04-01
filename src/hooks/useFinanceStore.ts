@@ -56,6 +56,14 @@ export function useFinanceStore() {
     })
   }, [update])
 
+  const addAccount = useCallback((a: Account) => {
+    update(prev => ({ ...prev, accounts: [...prev.accounts, a] }))
+  }, [update])
+
+  const removeAccount = useCallback((id: string) => {
+    update(prev => ({ ...prev, accounts: prev.accounts.filter(a => a.id !== id) }))
+  }, [update])
+
   const updateAccount = useCallback((id: string, patch: Partial<Account>) => {
     update(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === id ? { ...a, ...patch } : a) }))
   }, [update])
@@ -125,8 +133,11 @@ export function useFinanceStore() {
   }, [update])
 
   return {
-    store, persist, update, updateSettings, addTransaction, updateTransaction, deleteTransaction,
-    updateAccount, addAsset, updateAsset, removeAsset, addDebt, removeDebt, updateDebt, saveSnapshot,
-    updateQuest, addQuest, dismissAlert, updateJournal, addXp, updateProfileRegulation,
+    store, persist, update, updateSettings,
+    addTransaction, updateTransaction, deleteTransaction,
+    addAccount, updateAccount, removeAccount,
+    addAsset, updateAsset, removeAsset,
+    addDebt, removeDebt, updateDebt,
+    saveSnapshot, updateQuest, addQuest, dismissAlert, updateJournal, addXp, updateProfileRegulation,
   }
 }

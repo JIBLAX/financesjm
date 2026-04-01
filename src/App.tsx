@@ -50,7 +50,7 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<DashboardPage store={store} onDismissAlert={finance.dismissAlert} />} />
               <Route path="/mois" element={<MonthPage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} />} />
-              <Route path="/comptes" element={<AccountsPage store={store} />} />
+              <Route path="/comptes" element={<AccountsPage store={store} onAdd={finance.addAccount} onUpdate={finance.updateAccount} onRemove={finance.removeAccount} />} />
               <Route path="/analyse" element={<AnalysisPage store={store} />} />
               <Route path="/plan" element={<PlanPage store={store} onUpdateQuest={finance.updateQuest} onAddQuest={finance.addQuest} onAddXp={finance.addXp} />} />
               <Route path="/patrimoine" element={<PatrimoinePage store={store} onAddAsset={finance.addAsset} onRemoveAsset={finance.removeAsset} onAddDebt={finance.addDebt} onRemoveDebt={finance.removeDebt} />} />
