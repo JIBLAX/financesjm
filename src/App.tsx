@@ -81,7 +81,7 @@ const App: React.FC = () => {
               <Route path="/analyse" element={<AnalysisPage store={store} />} />
               <Route path="/operations" element={<OperationsPage store={store} onAdd={finance.addOperation} onUpdate={finance.updateOperation} onRemove={finance.removeOperation} onInitMonth={finance.initMonthOperations} onAddOpCategory={finance.addOpCategory} onUpdateOpCategory={finance.updateOpCategory} onRemoveOpCategory={finance.removeOpCategory} onAddOpSubcategory={finance.addOpSubcategory} onRemoveOpSubcategory={finance.removeOpSubcategory} />} />
               <Route path="/plan" element={<PlanPage store={store} onUpdateQuest={finance.updateQuest} onAddQuest={finance.addQuest} onAddXp={finance.addXp} />} />
-              <Route path="/patrimoine" element={<PatrimoinePage store={store} onAddAsset={finance.addAsset} onRemoveAsset={finance.removeAsset} onAddDebt={finance.addDebt} onRemoveDebt={finance.removeDebt} />} />
+              <Route path="/patrimoine" element={<PatrimoinePage store={store} onAddAsset={finance.addAsset} onUpdateAsset={finance.updateAsset} onRemoveAsset={finance.removeAsset} onAddDebt={finance.addDebt} onUpdateDebt={finance.updateDebt} onRemoveDebt={finance.removeDebt} />} />
               <Route path="/plus" element={<MorePage />} />
               <Route path="/repartition" element={<AllocationPage rules={store.settings.allocationRules} />} />
               <Route path="/transactions" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} />} />

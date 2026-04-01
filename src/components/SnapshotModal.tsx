@@ -31,7 +31,7 @@ export const SnapshotModal: React.FC<Props> = ({ store, onDismiss }) => {
       totalIncomeBank: incomeBank, totalIncomeCash: incomeCash,
       totalExpenses: expenses, totalAssets, totalDebts,
       netWorth: totalAccounts + totalAssets - totalDebts,
-    } as MonthlySnapshot
+    }
   }, [store, prevMonthKey])
 
   if (!snapshot) return null

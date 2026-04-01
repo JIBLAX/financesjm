@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Plus, Trash2, ChevronRight, X } from 'lucide-react'
+import { Plus, ChevronRight, X, Pencil, Check } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, ASSET_TYPE_LABELS, ASSET_TYPE_ICONS, ASSET_CLASS_MAP, ASSET_CLASS_LABELS } from '@/lib/constants'
 import type { FinanceStore, Asset, Debt, AssetType } from '@/types/finance'
@@ -8,17 +8,30 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 interface Props {
   store: FinanceStore
   onAddAsset: (a: Asset) => void
+  onUpdateAsset: (id: string, patch: Partial<Asset>) => void
   onRemoveAsset: (id: string) => void
   onAddDebt: (d: Debt) => void
+  onUpdateDebt: (id: string, patch: Partial<Debt>) => void
   onRemoveDebt: (id: string) => void
 }
 
 const ASSET_TYPES: AssetType[] = ['compte_bancaire', 'livret_epargne', 'assurance_vie', 'actions', 'etf', 'crypto', 'immobilier', 'vehicule', 'objet_valeur', 'autre_actif', 'dette']
+const numInput = 'w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none'
 
-export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAsset, onAddDebt, onRemoveDebt }) => {
+type DetailItem = { name: string; value: number; detail?: string; extra?: string }
+
+export const PatrimoinePage: React.FC<Props> = ({
+  store, onAddAsset, onUpdateAsset, onRemoveAsset, onAddDebt, onUpdateDebt, onRemoveDebt,
+}) => {
   const [showAdd, setShowAdd] = useState(false)
   const [selectedType, setSelectedType] = useState<AssetType | null>(null)
   const [detailClass, setDetailClass] = useState<string | null>(null)
+
+  // Edit mode
+  const [editMode, setEditMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingIsDebt, setEditingIsDebt] = useState(false)
 
   // Form state
   const [name, setName] = useState('')
@@ -50,61 +63,43 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
     return { accountsTotal, assetsTotal, debtsTotal, brut, net, lastUpdate }
   }, [store])
 
-  // Class breakdown
   const classBreakdown = useMemo(() => {
     const map: Record<string, number> = {}
-
-    // Accounts as cash
     const accountsCash = store.accounts.filter(a => a.isActive && a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
     if (accountsCash > 0) map['cash'] = (map['cash'] || 0) + accountsCash
-
-    // Assets
     store.assets.forEach(a => {
       const cls = ASSET_CLASS_MAP[a.type] || 'autres'
-      if (cls === 'dettes') {
-        map['dettes'] = (map['dettes'] || 0) + (a.outstandingBalance || a.value)
-      } else {
-        map[cls] = (map[cls] || 0) + a.value
-      }
+      if (cls === 'dettes') map['dettes'] = (map['dettes'] || 0) + (a.outstandingBalance || a.value)
+      else map[cls] = (map[cls] || 0) + a.value
     })
-
-    // Debts from debts array
     const debtsFromArray = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
     if (debtsFromArray > 0) map['dettes'] = (map['dettes'] || 0) + debtsFromArray
-
     return Object.entries(map)
       .filter(([, v]) => v > 0)
       .map(([cls, val]) => ({
-        class: cls,
-        label: ASSET_CLASS_LABELS[cls]?.label || cls,
-        value: val,
+        class: cls, label: ASSET_CLASS_LABELS[cls]?.label || cls, value: val,
         color: ASSET_CLASS_LABELS[cls]?.color || 'hsl(0 0% 55%)',
         pct: stats.brut + stats.debtsTotal > 0 ? Math.round((val / (stats.brut + stats.debtsTotal)) * 100) : 0,
       }))
       .sort((a, b) => b.value - a.value)
   }, [store, stats])
 
-  // Assets for detail view
-  const detailAssets = useMemo(() => {
+  const detailAssets = useMemo((): DetailItem[] => {
     if (!detailClass) return []
     if (detailClass === 'cash') {
       return store.accounts.filter(a => a.isActive && a.type !== 'dette').map(a => ({
-        name: a.name,
-        value: a.currentBalance,
-        detail: a.institution,
+        name: a.name, value: a.currentBalance, detail: a.institution,
       }))
     }
     if (detailClass === 'dettes') {
-      const items = [
+      return [
         ...store.debts.map(d => ({ name: d.name, value: d.outstandingBalance, detail: d.lender || `${formatCurrency(d.monthlyPayment)}/mois` })),
         ...store.assets.filter(a => a.type === 'dette').map(a => ({ name: a.name, value: a.outstandingBalance || a.value, detail: a.lender || '' })),
       ]
-      return items
     }
     const matchingTypes = Object.entries(ASSET_CLASS_MAP).filter(([, cls]) => cls === detailClass).map(([t]) => t)
     return store.assets.filter(a => matchingTypes.includes(a.type)).map(a => ({
-      name: a.name,
-      value: a.value,
+      name: a.name, value: a.value,
       detail: a.ticker || a.symbol || a.platform || a.propertyType || '',
       extra: a.quantity ? `${a.quantity} × ${formatCurrency(a.unitPrice || 0, a.priceCurrency || 'EUR')}` : undefined,
     }))
@@ -112,12 +107,8 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
 
   const computedValue = useMemo(() => {
     if (!selectedType) return 0
-    if (['actions', 'etf', 'crypto'].includes(selectedType)) {
-      return (Number(quantity) || 0) * (Number(unitPrice) || 0)
-    }
-    if (selectedType === 'immobilier') {
-      return (Number(estimatedValue) || 0) - (Number(outstandingMortgage) || 0)
-    }
+    if (['actions', 'etf', 'crypto'].includes(selectedType)) return (Number(quantity) || 0) * (Number(unitPrice) || 0)
+    if (selectedType === 'immobilier') return (Number(estimatedValue) || 0) - (Number(outstandingMortgage) || 0)
     return Number(value) || 0
   }, [selectedType, quantity, unitPrice, estimatedValue, outstandingMortgage, value])
 
@@ -126,51 +117,97 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
     setNotes(''); setTicker(''); setQuantity(''); setUnitPrice(''); setPriceCurrency('EUR')
     setPropertyType(''); setEstimatedValue(''); setOutstandingMortgage(''); setLender('')
     setMonthlyPayment(''); setRate(''); setShowAdd(false)
+    setEditingId(null); setEditingIsDebt(false)
+  }
+
+  const openEditAsset = (a: Asset) => {
+    setEditingId(a.id); setEditingIsDebt(false)
+    setSelectedType(a.type); setName(a.name); setPlatform(a.platform || '')
+    setNotes(a.notes || ''); setCurrency(a.currency || 'EUR')
+    setTicker(a.ticker || a.symbol || ''); setQuantity(a.quantity ? String(a.quantity) : '')
+    setUnitPrice(a.unitPrice ? String(a.unitPrice) : ''); setPriceCurrency(a.priceCurrency || 'EUR')
+    setPropertyType(a.propertyType || '')
+    setEstimatedValue(a.estimatedValue ? String(a.estimatedValue) : '')
+    setOutstandingMortgage(a.outstandingMortgage ? String(a.outstandingMortgage) : '')
+    setValue(String(a.value)); setShowAdd(true)
+    setEditMode(false); setSelectedIds(new Set())
+  }
+
+  const openEditDebt = (d: Debt) => {
+    setEditingId(d.id); setEditingIsDebt(true)
+    setSelectedType('dette'); setName(d.name); setLender(d.lender || '')
+    setValue(String(d.outstandingBalance))
+    setMonthlyPayment(d.monthlyPayment ? String(d.monthlyPayment) : '')
+    setRate(d.rate ? String(d.rate) : ''); setNotes(d.notes || '')
+    setShowAdd(true); setEditMode(false); setSelectedIds(new Set())
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const handleEditSelected = () => {
+    const id = [...selectedIds][0]
+    const asset = store.assets.find(a => a.id === id)
+    const debt = store.debts.find(d => d.id === id)
+    if (asset) openEditAsset(asset)
+    else if (debt) openEditDebt(debt)
+  }
+
+  const handleDeleteSelected = () => {
+    selectedIds.forEach(id => {
+      if (store.assets.some(a => a.id === id)) onRemoveAsset(id)
+      else if (store.debts.some(d => d.id === id)) onRemoveDebt(id)
+    })
+    setSelectedIds(new Set()); setEditMode(false)
   }
 
   const handleSubmit = () => {
     if (!selectedType || !name) return
     const now = new Date().toISOString()
 
+    if (editingId) {
+      if (editingIsDebt) {
+        onUpdateDebt(editingId, {
+          name, lender, outstandingBalance: Number(value) || 0,
+          monthlyPayment: Number(monthlyPayment) || 0, rate: Number(rate) || 0,
+          notes, updatedAt: now,
+        })
+      } else {
+        const rawValue = ['actions', 'etf', 'crypto'].includes(selectedType)
+          ? computedValue
+          : selectedType === 'immobilier' ? (Number(estimatedValue) || 0) : (Number(value) || 0)
+        const patch: Partial<Asset> = { name, platform, notes, currency, updatedAt: now, value: rawValue }
+        if (['actions', 'etf'].includes(selectedType)) {
+          Object.assign(patch, { ticker, quantity: Number(quantity) || 0, unitPrice: Number(unitPrice) || 0, priceCurrency })
+        }
+        if (selectedType === 'crypto') {
+          Object.assign(patch, { symbol: ticker, quantity: Number(quantity) || 0, unitPrice: Number(unitPrice) || 0, priceCurrency })
+        }
+        if (selectedType === 'immobilier') {
+          Object.assign(patch, { propertyType, estimatedValue: Number(estimatedValue) || 0, outstandingMortgage: Number(outstandingMortgage) || 0 })
+        }
+        onUpdateAsset(editingId, patch)
+      }
+      resetForm(); return
+    }
+
+    // Add mode
     if (selectedType === 'dette') {
-      onAddDebt({
-        id: crypto.randomUUID(),
-        name,
-        lender,
-        outstandingBalance: Number(value) || 0,
-        monthlyPayment: Number(monthlyPayment) || 0,
-        rate: Number(rate) || 0,
-        notes,
-        updatedAt: now,
-      })
+      onAddDebt({ id: crypto.randomUUID(), name, lender, outstandingBalance: Number(value) || 0, monthlyPayment: Number(monthlyPayment) || 0, rate: Number(rate) || 0, notes, updatedAt: now })
     } else {
       const asset: Asset = {
-        id: crypto.randomUUID(),
-        name,
-        type: selectedType,
+        id: crypto.randomUUID(), name, type: selectedType,
         value: ['actions', 'etf', 'crypto'].includes(selectedType) ? computedValue : selectedType === 'immobilier' ? (Number(estimatedValue) || 0) : (Number(value) || 0),
-        platform,
-        notes,
-        currency,
-        updatedAt: now,
+        platform, notes, currency, updatedAt: now,
       }
-      if (['actions', 'etf'].includes(selectedType)) {
-        asset.ticker = ticker
-        asset.quantity = Number(quantity) || 0
-        asset.unitPrice = Number(unitPrice) || 0
-        asset.priceCurrency = priceCurrency
-      }
-      if (selectedType === 'crypto') {
-        asset.symbol = ticker
-        asset.quantity = Number(quantity) || 0
-        asset.unitPrice = Number(unitPrice) || 0
-        asset.priceCurrency = priceCurrency
-      }
-      if (selectedType === 'immobilier') {
-        asset.propertyType = propertyType
-        asset.estimatedValue = Number(estimatedValue) || 0
-        asset.outstandingMortgage = Number(outstandingMortgage) || 0
-      }
+      if (['actions', 'etf'].includes(selectedType)) Object.assign(asset, { ticker, quantity: Number(quantity) || 0, unitPrice: Number(unitPrice) || 0, priceCurrency })
+      if (selectedType === 'crypto') Object.assign(asset, { symbol: ticker, quantity: Number(quantity) || 0, unitPrice: Number(unitPrice) || 0, priceCurrency })
+      if (selectedType === 'immobilier') Object.assign(asset, { propertyType, estimatedValue: Number(estimatedValue) || 0, outstandingMortgage: Number(outstandingMortgage) || 0 })
       onAddAsset(asset)
     }
     resetForm()
@@ -180,57 +217,80 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
-      <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider">Patrimoine net</p>
-        <h1 className="text-3xl font-bold text-foreground">{formatCurrency(stats.net)}</h1>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <FinanceCard>
-          <p className="text-[10px] text-muted-foreground">Brut</p>
-          <p className="text-sm font-bold text-foreground">{formatCurrency(stats.brut)}</p>
-        </FinanceCard>
-        <FinanceCard>
-          <p className="text-[10px] text-muted-foreground">Dettes</p>
-          <p className="text-sm font-bold text-destructive">{formatCurrency(stats.debtsTotal)}</p>
-        </FinanceCard>
-        <FinanceCard>
-          <p className="text-[10px] text-muted-foreground">Net</p>
-          <p className={`text-sm font-bold ${stats.net >= 0 ? 'text-foreground' : 'text-destructive'}`}>{formatCurrency(stats.net)}</p>
-        </FinanceCard>
+      {/* Hero */}
+      <div className="p-px rounded-3xl bg-gradient-to-br from-amber-500/40 via-primary/30 to-emerald-500/20">
+        <div className="rounded-[calc(1.5rem-1px)] bg-card px-5 py-5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Patrimoine net</p>
+          <p className="text-4xl font-extrabold text-gradient-gold leading-none mb-3">{formatCurrency(stats.net)}</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-muted/30 rounded-xl px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">Brut</p>
+              <p className="text-sm font-bold text-amber-400">{formatCurrency(stats.brut)}</p>
+            </div>
+            <div className="bg-muted/30 rounded-xl px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">Dettes</p>
+              <p className="text-sm font-bold text-rose-400">{formatCurrency(stats.debtsTotal)}</p>
+            </div>
+            <div className="bg-muted/30 rounded-xl px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">Taux net</p>
+              <p className="text-sm font-bold text-emerald-400">
+                {stats.brut > 0 ? `${Math.round((stats.net / stats.brut) * 100)}%` : '—'}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {stats.lastUpdate && (
         <p className="text-[10px] text-muted-foreground text-right">Dernière MAJ : {new Date(stats.lastUpdate).toLocaleDateString('fr-FR')}</p>
       )}
 
-      {/* Donut chart — Répartition des actifs */}
+      {/* Donut chart */}
       {donutData.length > 0 && (
         <FinanceCard>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Répartition des actifs</h3>
-          <div className="flex items-center gap-4">
-            <ResponsiveContainer width={120} height={120}>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Répartition du patrimoine</h3>
+          <div className="relative mb-4">
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={donutData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} dataKey="value" stroke="none">
+                <Pie data={donutData} cx="50%" cy="50%" innerRadius={68} outerRadius={90} dataKey="value" stroke="none" paddingAngle={2}>
                   {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-            <div className="flex-1 space-y-1.5">
-              {classBreakdown.map(c => (
-                <button key={c.class} onClick={() => setDetailClass(c.class)} className="flex items-center justify-between w-full text-left group">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
-                    <span className="text-[11px] text-muted-foreground group-hover:text-foreground">{c.label}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-medium text-foreground">{formatCurrency(c.value)}</span>
-                    <span className="text-[10px] text-muted-foreground">{c.pct}%</span>
-                    <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                  </div>
-                </button>
-              ))}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Brut</p>
+              <p className="text-lg font-bold text-foreground leading-tight">{formatCurrency(stats.brut)}</p>
+              {stats.debtsTotal > 0 && <p className="text-[10px] text-rose-400 mt-0.5">−{formatCurrency(stats.debtsTotal)}</p>}
             </div>
+          </div>
+          {stats.debtsTotal > 0 && stats.brut > 0 && (
+            <div className="mb-4">
+              <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                <span>Actifs {Math.round((stats.brut / (stats.brut + stats.debtsTotal)) * 100)}%</span>
+                <span>Dettes {Math.round((stats.debtsTotal / (stats.brut + stats.debtsTotal)) * 100)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-rose-500/30 overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all"
+                  style={{ width: `${Math.round((stats.brut / (stats.brut + stats.debtsTotal)) * 100)}%` }} />
+              </div>
+            </div>
+          )}
+          <div className="space-y-2">
+            {classBreakdown.map(c => (
+              <button key={c.class} onClick={() => setDetailClass(c.class)} className="flex items-center justify-between w-full text-left group">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
+                  <span className="text-[11px] text-muted-foreground group-hover:text-foreground truncate">{c.label}</span>
+                </div>
+                <div className="flex items-center gap-2 ml-2">
+                  <div className="w-20 h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${c.pct}%`, background: c.color }} />
+                  </div>
+                  <span className="text-[11px] font-medium text-foreground w-20 text-right">{formatCurrency(c.value)}</span>
+                  <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                </div>
+              </button>
+            ))}
           </div>
         </FinanceCard>
       )}
@@ -262,7 +322,7 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
                       <div>
                         <p className="text-sm font-medium text-foreground">{a.name}</p>
                         {a.detail && <p className="text-[10px] text-muted-foreground">{a.detail}</p>}
-                        {(a as any).extra && <p className="text-[10px] text-primary">{(a as any).extra}</p>}
+                        {a.extra && <p className="text-[10px] text-primary">{a.extra}</p>}
                       </div>
                       <p className={`text-sm font-bold ${detailClass === 'dettes' ? 'text-destructive' : 'text-foreground'}`}>{formatCurrency(a.value)}</p>
                     </div>
@@ -284,9 +344,19 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Actifs & Dettes</h2>
-          <button onClick={() => setShowAdd(true)} className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-            <Plus className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {(store.assets.length > 0 || store.debts.length > 0) && (
+              <button
+                onClick={() => { setEditMode(!editMode); setSelectedIds(new Set()) }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${editMode ? 'bg-primary/20 text-primary' : 'bg-muted/40 text-muted-foreground'}`}
+              >
+                <Pencil className="w-3 h-3" /> Modifier
+              </button>
+            )}
+            <button onClick={() => setShowAdd(true)} className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {store.assets.length === 0 && store.debts.length === 0 && (
@@ -301,52 +371,75 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
 
         <div className="space-y-2">
           {store.assets.map(a => (
-            <FinanceCard key={a.id}>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-lg">{ASSET_TYPE_ICONS[a.type] || '📦'}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{a.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{ASSET_TYPE_LABELS[a.type]}{a.ticker ? ` · ${a.ticker}` : ''}{a.symbol ? ` · ${a.symbol}` : ''}</p>
-                    {a.quantity && <p className="text-[10px] text-primary">{a.quantity} × {formatCurrency(a.unitPrice || 0, a.priceCurrency)}</p>}
-                    {a.type === 'immobilier' && a.outstandingMortgage ? (
-                      <p className="text-[10px] text-muted-foreground">Net : {formatCurrency((a.estimatedValue || 0) - (a.outstandingMortgage || 0))}</p>
-                    ) : null}
+            <FinanceCard key={a.id} onClick={editMode ? () => toggleSelect(a.id) : undefined} className={editMode ? 'cursor-pointer' : ''}>
+              <div className="flex items-center gap-3">
+                {editMode && (
+                  <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${selectedIds.has(a.id) ? 'bg-primary border-primary' : 'border-border'}`}>
+                    {selectedIds.has(a.id) && <Check className="w-3 h-3 text-primary-foreground" />}
                   </div>
+                )}
+                <span className="text-lg flex-shrink-0">{ASSET_TYPE_ICONS[a.type] || '📦'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{a.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{ASSET_TYPE_LABELS[a.type]}{a.ticker ? ` · ${a.ticker}` : ''}{a.symbol ? ` · ${a.symbol}` : ''}</p>
+                  {a.quantity && <p className="text-[10px] text-primary">{a.quantity} × {formatCurrency(a.unitPrice || 0, a.priceCurrency)}</p>}
+                  {a.type === 'immobilier' && a.outstandingMortgage ? (
+                    <p className="text-[10px] text-muted-foreground">Net : {formatCurrency((a.estimatedValue || 0) - (a.outstandingMortgage || 0))}</p>
+                  ) : null}
                 </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold text-foreground">{formatCurrency(a.value, a.currency)}</p>
-                  <button onClick={() => onRemoveAsset(a.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
-                </div>
+                <p className="text-sm font-bold text-foreground flex-shrink-0">{formatCurrency(a.value, a.currency)}</p>
               </div>
             </FinanceCard>
           ))}
           {store.debts.map(d => (
-            <FinanceCard key={d.id}>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-lg">💳</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{d.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{d.lender}{d.monthlyPayment > 0 ? ` · ${formatCurrency(d.monthlyPayment)}/mois` : ''}</p>
+            <FinanceCard key={d.id} onClick={editMode ? () => toggleSelect(d.id) : undefined} className={editMode ? 'cursor-pointer' : ''}>
+              <div className="flex items-center gap-3">
+                {editMode && (
+                  <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${selectedIds.has(d.id) ? 'bg-primary border-primary' : 'border-border'}`}>
+                    {selectedIds.has(d.id) && <Check className="w-3 h-3 text-primary-foreground" />}
                   </div>
+                )}
+                <span className="text-lg flex-shrink-0">💳</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{d.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{d.lender}{d.monthlyPayment > 0 ? ` · ${formatCurrency(d.monthlyPayment)}/mois` : ''}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold text-destructive">{formatCurrency(d.outstandingBalance)}</p>
-                  <button onClick={() => onRemoveDebt(d.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
-                </div>
+                <p className="text-sm font-bold text-rose-400 flex-shrink-0">{formatCurrency(d.outstandingBalance)}</p>
               </div>
             </FinanceCard>
           ))}
         </div>
       </div>
 
-      {/* Add modal */}
+      {/* Edit mode action bar */}
+      {editMode && (
+        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-50 px-4 pb-2">
+          <div className="bg-card/95 backdrop-blur-lg border border-border/50 rounded-2xl p-3 flex gap-2 shadow-xl max-w-lg mx-auto">
+            <button onClick={() => { setEditMode(false); setSelectedIds(new Set()) }} className="flex-1 py-2.5 rounded-xl text-sm bg-muted/50 text-foreground font-medium">
+              Annuler
+            </button>
+            {selectedIds.size === 1 && (
+              <button onClick={handleEditSelected} className="flex-1 py-2.5 rounded-xl text-sm bg-primary/20 text-primary font-semibold">
+                Modifier
+              </button>
+            )}
+            {selectedIds.size > 0 && (
+              <button onClick={handleDeleteSelected} className="flex-1 py-2.5 rounded-xl text-sm bg-rose-500/20 text-rose-400 font-semibold">
+                Supprimer {selectedIds.size > 1 ? `(${selectedIds.size})` : ''}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit modal */}
       {showAdd && (
         <div className="fixed inset-0 z-[60] bg-black/60 flex items-end justify-center" onClick={resetForm}>
           <div className="bg-card w-full max-w-lg rounded-t-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-foreground">{selectedType ? `Ajouter — ${ASSET_TYPE_LABELS[selectedType]}` : 'Choisir un type d\'actif'}</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {editingId ? `Modifier — ${selectedType ? ASSET_TYPE_LABELS[selectedType] : ''}` : (selectedType ? `Ajouter — ${ASSET_TYPE_LABELS[selectedType]}` : 'Choisir un type d\'actif')}
+              </h3>
               <button onClick={resetForm}><X className="w-5 h-5 text-muted-foreground" /></button>
             </div>
 
@@ -361,100 +454,90 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
               </div>
             ) : (
               <div className="space-y-3">
-                <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Nom" value={name} onChange={e => setName(e.target.value)} />
+                <input className={numInput} placeholder="Nom" value={name} onChange={e => setName(e.target.value)} />
 
-                {['compte_bancaire', 'livret_epargne'].includes(selectedType) && (
-                  <>
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Établissement" value={platform} onChange={e => setPlatform(e.target.value)} />
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Solde actuel" type="number" value={value} onChange={e => setValue(e.target.value)} />
-                    <select className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" value={currency} onChange={e => setCurrency(e.target.value)}>
-                      <option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option>
-                    </select>
-                  </>
-                )}
+                {['compte_bancaire', 'livret_epargne'].includes(selectedType) && (<>
+                  <input className={numInput} placeholder="Établissement" value={platform} onChange={e => setPlatform(e.target.value)} />
+                  <input className={numInput} placeholder="Solde actuel" type="number" inputMode="decimal" value={value} onFocus={e => e.target.select()} onChange={e => setValue(e.target.value)} />
+                  <select className={numInput} value={currency} onChange={e => setCurrency(e.target.value)}>
+                    <option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option>
+                  </select>
+                </>)}
 
-                {selectedType === 'assurance_vie' && (
-                  <>
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Assureur (ex: Linxea, Boursorama…)" value={platform} onChange={e => setPlatform(e.target.value)} />
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Valeur actuelle du contrat €" type="number" value={value} onChange={e => setValue(e.target.value)} />
-                    <select className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" value={currency} onChange={e => setCurrency(e.target.value)}>
-                      <option value="EUR">EUR</option>
-                    </select>
-                  </>
-                )}
+                {selectedType === 'assurance_vie' && (<>
+                  <input className={numInput} placeholder="Assureur (ex: Linxea, Boursorama…)" value={platform} onChange={e => setPlatform(e.target.value)} />
+                  <input className={numInput} placeholder="Valeur actuelle du contrat €" type="number" inputMode="decimal" value={value} onFocus={e => e.target.select()} onChange={e => setValue(e.target.value)} />
+                  <select className={numInput} value={currency} onChange={e => setCurrency(e.target.value)}>
+                    <option value="EUR">EUR</option>
+                  </select>
+                </>)}
 
-                {['actions', 'etf'].includes(selectedType) && (
-                  <>
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Ticker (ex: MSCI World)" value={ticker} onChange={e => setTicker(e.target.value)} />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Quantité" type="number" value={quantity} onChange={e => setQuantity(e.target.value)} />
-                      <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Prix unitaire" type="number" value={unitPrice} onChange={e => setUnitPrice(e.target.value)} />
-                    </div>
-                    <select className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" value={priceCurrency} onChange={e => setPriceCurrency(e.target.value)}>
-                      <option value="EUR">EUR</option><option value="USD">USD</option>
-                    </select>
-                    <div className="bg-muted/30 rounded-xl px-3 py-2 flex justify-between">
-                      <span className="text-xs text-muted-foreground">Valeur totale calculée</span>
-                      <span className="text-sm font-bold text-primary">{formatCurrency(computedValue, priceCurrency)}</span>
-                    </div>
-                  </>
-                )}
+                {['actions', 'etf'].includes(selectedType) && (<>
+                  <input className={numInput} placeholder="Ticker (ex: MSCI World)" value={ticker} onChange={e => setTicker(e.target.value)} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Quantité" type="number" inputMode="decimal" value={quantity} onFocus={e => e.target.select()} onChange={e => setQuantity(e.target.value)} />
+                    <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Prix unitaire" type="number" inputMode="decimal" value={unitPrice} onFocus={e => e.target.select()} onChange={e => setUnitPrice(e.target.value)} />
+                  </div>
+                  <select className={numInput} value={priceCurrency} onChange={e => setPriceCurrency(e.target.value)}>
+                    <option value="EUR">EUR</option><option value="USD">USD</option>
+                  </select>
+                  <div className="bg-muted/30 rounded-xl px-3 py-2 flex justify-between">
+                    <span className="text-xs text-muted-foreground">Valeur totale calculée</span>
+                    <span className="text-sm font-bold text-primary">{formatCurrency(computedValue, priceCurrency)}</span>
+                  </div>
+                </>)}
 
-                {selectedType === 'crypto' && (
-                  <>
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Symbole (ex: BTC)" value={ticker} onChange={e => setTicker(e.target.value)} />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Quantité" type="number" value={quantity} onChange={e => setQuantity(e.target.value)} />
-                      <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Prix spot" type="number" value={unitPrice} onChange={e => setUnitPrice(e.target.value)} />
-                    </div>
-                    <select className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" value={priceCurrency} onChange={e => setPriceCurrency(e.target.value)}>
-                      <option value="EUR">EUR</option><option value="USD">USD</option>
-                    </select>
-                    <div className="bg-muted/30 rounded-xl px-3 py-2 flex justify-between">
-                      <span className="text-xs text-muted-foreground">Valeur totale</span>
-                      <span className="text-sm font-bold text-primary">{formatCurrency(computedValue, priceCurrency)}</span>
-                    </div>
-                  </>
-                )}
+                {selectedType === 'crypto' && (<>
+                  <input className={numInput} placeholder="Symbole (ex: BTC)" value={ticker} onChange={e => setTicker(e.target.value)} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Quantité" type="number" inputMode="decimal" value={quantity} onFocus={e => e.target.select()} onChange={e => setQuantity(e.target.value)} />
+                    <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Prix spot" type="number" inputMode="decimal" value={unitPrice} onFocus={e => e.target.select()} onChange={e => setUnitPrice(e.target.value)} />
+                  </div>
+                  <select className={numInput} value={priceCurrency} onChange={e => setPriceCurrency(e.target.value)}>
+                    <option value="EUR">EUR</option><option value="USD">USD</option>
+                  </select>
+                  <div className="bg-muted/30 rounded-xl px-3 py-2 flex justify-between">
+                    <span className="text-xs text-muted-foreground">Valeur totale</span>
+                    <span className="text-sm font-bold text-primary">{formatCurrency(computedValue, priceCurrency)}</span>
+                  </div>
+                </>)}
 
-                {selectedType === 'immobilier' && (
-                  <>
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Type de bien (appartement, maison...)" value={propertyType} onChange={e => setPropertyType(e.target.value)} />
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Valeur estimée actuelle" type="number" value={estimatedValue} onChange={e => setEstimatedValue(e.target.value)} />
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Capital restant dû" type="number" value={outstandingMortgage} onChange={e => setOutstandingMortgage(e.target.value)} />
-                    <select className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" value={currency} onChange={e => setCurrency(e.target.value)}>
-                      <option value="EUR">EUR</option><option value="USD">USD</option>
-                    </select>
-                    <div className="bg-muted/30 rounded-xl px-3 py-2 flex justify-between">
-                      <span className="text-xs text-muted-foreground">Valeur nette</span>
-                      <span className="text-sm font-bold text-primary">{formatCurrency(computedValue)}</span>
-                    </div>
-                  </>
-                )}
+                {selectedType === 'immobilier' && (<>
+                  <input className={numInput} placeholder="Type de bien (appartement, maison...)" value={propertyType} onChange={e => setPropertyType(e.target.value)} />
+                  <input className={numInput} placeholder="Valeur estimée actuelle" type="number" inputMode="decimal" value={estimatedValue} onFocus={e => e.target.select()} onChange={e => setEstimatedValue(e.target.value)} />
+                  <input className={numInput} placeholder="Capital restant dû" type="number" inputMode="decimal" value={outstandingMortgage} onFocus={e => e.target.select()} onChange={e => setOutstandingMortgage(e.target.value)} />
+                  <select className={numInput} value={currency} onChange={e => setCurrency(e.target.value)}>
+                    <option value="EUR">EUR</option><option value="USD">USD</option>
+                  </select>
+                  <div className="bg-muted/30 rounded-xl px-3 py-2 flex justify-between">
+                    <span className="text-xs text-muted-foreground">Valeur nette</span>
+                    <span className="text-sm font-bold text-primary">{formatCurrency(computedValue)}</span>
+                  </div>
+                </>)}
 
-                {['vehicule', 'objet_valeur', 'autre_actif'].includes(selectedType) && (
-                  <>
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Valeur estimée" type="number" value={value} onChange={e => setValue(e.target.value)} />
-                    <select className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" value={currency} onChange={e => setCurrency(e.target.value)}>
-                      <option value="EUR">EUR</option><option value="USD">USD</option>
-                    </select>
-                  </>
-                )}
+                {['vehicule', 'objet_valeur', 'autre_actif'].includes(selectedType) && (<>
+                  <input className={numInput} placeholder="Valeur estimée" type="number" inputMode="decimal" value={value} onFocus={e => e.target.select()} onChange={e => setValue(e.target.value)} />
+                  <select className={numInput} value={currency} onChange={e => setCurrency(e.target.value)}>
+                    <option value="EUR">EUR</option><option value="USD">USD</option>
+                  </select>
+                </>)}
 
-                {selectedType === 'dette' && (
-                  <>
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Organisme" value={lender} onChange={e => setLender(e.target.value)} />
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Montant restant dû" type="number" value={value} onChange={e => setValue(e.target.value)} />
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Mensualité €" type="number" value={monthlyPayment} onChange={e => setMonthlyPayment(e.target.value)} />
-                    <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Taux % (optionnel)" type="number" value={rate} onChange={e => setRate(e.target.value)} />
-                  </>
-                )}
+                {selectedType === 'dette' && (<>
+                  <input className={numInput} placeholder="Organisme" value={lender} onChange={e => setLender(e.target.value)} />
+                  <input className={numInput} placeholder="Montant restant dû" type="number" inputMode="decimal" value={value} onFocus={e => e.target.select()} onChange={e => setValue(e.target.value)} />
+                  <input className={numInput} placeholder="Mensualité €" type="number" inputMode="decimal" value={monthlyPayment} onFocus={e => e.target.select()} onChange={e => setMonthlyPayment(e.target.value)} />
+                  <input className={numInput} placeholder="Taux % (optionnel)" type="number" inputMode="decimal" value={rate} onFocus={e => e.target.select()} onChange={e => setRate(e.target.value)} />
+                </>)}
 
-                <input className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Note (optionnel)" value={notes} onChange={e => setNotes(e.target.value)} />
+                <input className={numInput} placeholder="Note (optionnel)" value={notes} onChange={e => setNotes(e.target.value)} />
 
                 <div className="flex gap-2 pt-1">
-                  <button onClick={() => setSelectedType(null)} className="flex-1 py-2.5 rounded-xl text-sm bg-muted/50 text-foreground">← Type</button>
-                  <button onClick={handleSubmit} disabled={!name} className="flex-1 py-2.5 rounded-xl text-sm bg-primary text-primary-foreground font-semibold disabled:opacity-40">Ajouter</button>
+                  {!editingId && (
+                    <button onClick={() => setSelectedType(null)} className="flex-1 py-2.5 rounded-xl text-sm bg-muted/50 text-foreground">← Type</button>
+                  )}
+                  <button onClick={handleSubmit} disabled={!name} className="flex-1 py-2.5 rounded-xl text-sm bg-primary text-primary-foreground font-semibold disabled:opacity-40">
+                    {editingId ? 'Enregistrer' : 'Ajouter'}
+                  </button>
                 </div>
               </div>
             )}

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, X, ChevronRight, Sparkles } from 'lucide-react'
+import { Plus, X, ChevronRight, Sparkles, TrendingDown } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel, getLevelForXp, getNextLevel, getPreviousMonthKey } from '@/lib/constants'
 import { generateAlerts, generateInsights, calculateHealthScore, calculatePilotageMode, getRealIncome } from '@/lib/analytics'
@@ -368,6 +368,14 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
         </div>
       </button>
 
+      {stats.monthExpenses > stats.monthIncomeTotal && stats.monthIncomeTotal > 0 && (
+        <FinanceCard className="border-destructive/30 bg-destructive/5">
+          <div className="flex items-center gap-2">
+            <TrendingDown className="w-4 h-4 text-destructive" />
+            <p className="text-sm text-destructive font-medium">Dépenses supérieures aux revenus ce mois</p>
+          </div>
+        </FinanceCard>
+      )}
     </div>
   )
 }

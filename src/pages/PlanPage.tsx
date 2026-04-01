@@ -5,6 +5,7 @@ import { formatCurrency, QUEST_CATEGORY_META, getLevelForXp, getCurrentMonthKey 
 import { calculatePilotageMode, getPilotageRecommendation } from '@/lib/analytics'
 import type { FinanceStore, Quest, QuestCategory } from '@/types/finance'
 import { useNavigate } from 'react-router-dom'
+import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts'
 
 interface Props {
   store: FinanceStore
@@ -110,9 +111,55 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
     { title: 'Noël 2026', target: 500 },
   ]
 
+  const globalStats = useMemo(() => {
+    const total = quests.length
+    const completed = quests.filter(q => q.status === 'completed').length
+    const active = quests.filter(q => q.status === 'active').length
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0
+    return { total, completed, active, pct }
+  }, [quests])
+
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
       <h1 className="text-xl font-bold text-foreground">Guide de Plan</h1>
+
+      {/* Hero Progress */}
+      <div className="p-px rounded-3xl bg-gradient-to-br from-primary/40 via-emerald-500/20 to-amber-500/20">
+        <div className="rounded-[calc(1.5rem-1px)] bg-card px-5 py-5 flex items-center gap-4">
+          <div className="relative w-20 h-20 flex-shrink-0">
+            <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+              <circle cx="40" cy="40" r="32" fill="none" stroke="hsl(var(--muted)/0.3)" strokeWidth="8" />
+              <circle
+                cx="40" cy="40" r="32" fill="none"
+                stroke="url(#planGrad)" strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 32}`}
+                strokeDashoffset={`${2 * Math.PI * 32 * (1 - globalStats.pct / 100)}`}
+                style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+              />
+              <defs>
+                <linearGradient id="planGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#10b981" />
+                  <stop offset="100%" stopColor="#f59e0b" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-lg font-extrabold text-foreground leading-none">{globalStats.pct}%</span>
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground font-medium">{globalStats.completed} / {globalStats.total} quêtes</p>
+            <p className="text-xs text-muted-foreground">{globalStats.active} en cours</p>
+            <div className="mt-2 w-full h-1.5 bg-muted/40 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-amber-500 transition-all duration-700"
+                style={{ width: `${globalStats.pct}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Pilotage Mode */}
       <FinanceCard className={`${modeStyle.border} ${modeStyle.bg}`}>
@@ -140,11 +187,27 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
       {/* Quest groups */}
       {Object.entries(groupedQuests).map(([cat, questList]) => {
         const meta = QUEST_CATEGORY_META[cat]
+        const grpCompleted = questList.filter(q => q.status === 'completed').length
+        const grpTotal = questList.length
+        const grpPct = grpTotal > 0 ? Math.round((grpCompleted / grpTotal) * 100) : 0
+        const circumference = 2 * Math.PI * 10
         return (
           <div key={cat}>
             <div className="flex items-center gap-2 mb-3">
               <span>{meta?.emoji}</span>
-              <h2 className={`text-sm font-semibold uppercase tracking-wider ${meta?.color || 'text-muted-foreground'}`}>{meta?.label}</h2>
+              <h2 className={`text-sm font-semibold uppercase tracking-wider flex-1 ${meta?.color || 'text-muted-foreground'}`}>{meta?.label}</h2>
+              <div className="flex items-center gap-1.5">
+                <svg viewBox="0 0 24 24" className="w-6 h-6 -rotate-90">
+                  <circle cx="12" cy="12" r="10" fill="none" stroke="hsl(var(--muted)/0.4)" strokeWidth="2.5" />
+                  <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor"
+                    className={meta?.color || 'text-muted-foreground'} strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeDasharray={`${circumference}`}
+                    strokeDashoffset={`${circumference * (1 - grpPct / 100)}`}
+                  />
+                </svg>
+                <span className="text-[10px] text-muted-foreground">{grpCompleted}/{grpTotal}</span>
+              </div>
             </div>
             <div className="space-y-2">
               {questList.map(q => {
