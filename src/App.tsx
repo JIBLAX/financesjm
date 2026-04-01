@@ -46,15 +46,15 @@ const App: React.FC = () => {
     setShowCheckin(false)
   }, [finance])
 
-  if (!unlocked) {
-    return <PinLock correctPin={store.settings.pin} pinConfigured={store.settings.pinConfigured} onUnlock={handleUnlock} onSetupPin={handleSetupPin} />
-  }
-
-  // Show check-in on mount if conditions met (done here to avoid calling shouldShowCheckin in useState which runs before store migration)
+  // Must be before any conditional return — Rules of Hooks
   React.useEffect(() => {
     if (unlocked && shouldShowCheckin(store)) setShowCheckin(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked])
+
+  if (!unlocked) {
+    return <PinLock correctPin={store.settings.pin} pinConfigured={store.settings.pinConfigured} onUnlock={handleUnlock} onSetupPin={handleSetupPin} />
+  }
 
   return (
     <TooltipProvider>
