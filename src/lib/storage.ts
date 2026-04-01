@@ -1,5 +1,5 @@
 import type { FinanceStore } from '@/types/finance'
-import { DEFAULT_SETTINGS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, DEFAULT_CASH_ENVELOPES, DEFAULT_QUESTS, DEFAULT_PROFILE_REGULATION } from './constants'
+import { DEFAULT_SETTINGS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, DEFAULT_CASH_ENVELOPES, DEFAULT_QUESTS, DEFAULT_PROFILE_REGULATION, DEFAULT_OP_CATEGORIES, DEFAULT_OP_SUBCATEGORIES } from './constants'
 
 const STORE_KEY = 'finances_jm_store'
 const PIN_SESSION_KEY = 'finances_jm_session'
@@ -17,6 +17,9 @@ function getDefaultStore(): FinanceStore {
     quests: [...DEFAULT_QUESTS],
     dismissedAlerts: [],
     monthlyJournals: {},
+    operations: [],
+    opCategories: DEFAULT_OP_CATEGORIES.map(c => ({ ...c })),
+    opSubcategories: DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
   }
 }
 
@@ -43,6 +46,9 @@ export function loadStore(): FinanceStore {
         : defaults.quests,
       dismissedAlerts: parsed.dismissedAlerts || [],
       monthlyJournals: parsed.monthlyJournals || {},
+      operations: parsed.operations || [],
+      opCategories: parsed.opCategories?.length ? parsed.opCategories : DEFAULT_OP_CATEGORIES.map(c => ({ ...c })),
+      opSubcategories: parsed.opSubcategories?.length ? parsed.opSubcategories : DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
     }
   } catch {
     return getDefaultStore()

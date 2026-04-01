@@ -1,4 +1,4 @@
-import type { Account, AllocationRules, Category, CashEnvelope, AppSettings, Quest, InvestorQuestionnaire, ProfileRegulation, RevenueSource, RevenueType, RevenueRecurrence, BeActivOffer, BeActivChannel, BeActivPaymentMode, BeActivStatus, AssetType } from '@/types/finance'
+import type { Account, AllocationRules, Category, CashEnvelope, AppSettings, Quest, InvestorQuestionnaire, ProfileRegulation, RevenueSource, RevenueType, RevenueRecurrence, BeActivOffer, BeActivChannel, BeActivPaymentMode, BeActivStatus, AssetType, OpCategory, OpSubcategory } from '@/types/finance'
 
 export const DEFAULT_PROFILE_REGULATION: ProfileRegulation = {
   lifeSituation: 'solo',
@@ -197,6 +197,12 @@ export const getCurrentMonthKey = (): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+export const getNextMonthKey = (monthKey: string, offset: number = 1): string => {
+  const [y, m] = monthKey.split('-').map(Number)
+  const d = new Date(y, m - 1 + offset)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export const getPreviousMonthKey = (monthKey: string, offset: number = 1): string => {
   const [y, m] = monthKey.split('-').map(Number)
   const d = new Date(y, m - 1 - offset)
@@ -227,3 +233,47 @@ export const getRendementForProfile = (profile: string | null): number => {
     default: return 5
   }
 }
+
+export const DEFAULT_OP_CATEGORIES: OpCategory[] = [
+  // Charges fixes
+  { id: 'opc_logement', family: 'charge_fixe', name: 'Logement', icon: '🏠', order: 1 },
+  { id: 'opc_energie', family: 'charge_fixe', name: 'Énergie', icon: '⚡', order: 2 },
+  { id: 'opc_telecom', family: 'charge_fixe', name: 'Télécom', icon: '📡', order: 3 },
+  { id: 'opc_assurances', family: 'charge_fixe', name: 'Assurances', icon: '🛡️', order: 4 },
+  { id: 'opc_abonnements', family: 'charge_fixe', name: 'Abonnements', icon: '🔄', order: 5 },
+  { id: 'opc_banque_fixe', family: 'charge_fixe', name: 'Banque', icon: '🏦', order: 6 },
+  { id: 'opc_dettes', family: 'charge_fixe', name: 'Dettes / Crédits', icon: '💳', order: 7 },
+  { id: 'opc_cotisations', family: 'charge_fixe', name: 'Cotisations', icon: '📋', order: 8 },
+  { id: 'opc_outils_pro', family: 'charge_fixe', name: 'Outils pro', icon: '🛠️', order: 9 },
+  { id: 'opc_autres_fixes', family: 'charge_fixe', name: 'Autres charges fixes', icon: '📦', order: 10 },
+  // Charges variables
+  { id: 'opc_alimentation', family: 'charge_variable', name: 'Alimentation', icon: '🛒', order: 1 },
+  { id: 'opc_essence', family: 'charge_variable', name: 'Essence', icon: '⛽', order: 2 },
+  { id: 'opc_stationnement', family: 'charge_variable', name: 'Stationnement', icon: '🅿️', order: 3 },
+  { id: 'opc_achats', family: 'charge_variable', name: 'Achats', icon: '🛍️', order: 4 },
+  { id: 'opc_loisirs', family: 'charge_variable', name: 'Loisirs', icon: '🎮', order: 5 },
+  { id: 'opc_restaurants', family: 'charge_variable', name: 'Restaurants / Sorties', icon: '🍽️', order: 6 },
+  { id: 'opc_voyage', family: 'charge_variable', name: 'Voyage', icon: '✈️', order: 7 },
+  { id: 'opc_frais_banc', family: 'charge_variable', name: 'Frais bancaires', icon: '🏦', order: 8 },
+  { id: 'opc_cadeaux', family: 'charge_variable', name: 'Cadeaux / Aide', icon: '🎁', order: 9 },
+  { id: 'opc_paris', family: 'charge_variable', name: 'Paris sportifs', icon: '🎰', order: 10 },
+  { id: 'opc_comm_pro', family: 'charge_variable', name: 'Communication pro', icon: '📢', order: 11 },
+  { id: 'opc_achats_ba', family: 'charge_variable', name: 'Achats BE Activ', icon: '💪', order: 12 },
+  { id: 'opc_autres_var', family: 'charge_variable', name: 'Autres charges variables', icon: '📦', order: 13 },
+  // Revenus
+  { id: 'opc_be_activ', family: 'revenu', name: 'JM Be Activ', icon: '💪', order: 1 },
+  { id: 'opc_salaire', family: 'revenu', name: 'Salaire', icon: '💼', order: 2 },
+  { id: 'opc_caf', family: 'revenu', name: 'CAF / Aides', icon: '🏛️', order: 3 },
+  { id: 'opc_remboursements', family: 'revenu', name: 'Remboursements', icon: '🔄', order: 4 },
+  { id: 'opc_autres_revenus', family: 'revenu', name: 'Autres revenus', icon: '💰', order: 5 },
+]
+
+export const DEFAULT_OP_SUBCATEGORIES: OpSubcategory[] = [
+  { id: 'ops_activ_training', categoryId: 'opc_be_activ', name: 'Activ Training', icon: '🏋️' },
+  { id: 'ops_activ_reset_online', categoryId: 'opc_be_activ', name: 'Activ Reset Online', icon: '💻' },
+  { id: 'ops_activ_reset_hybride', categoryId: 'opc_be_activ', name: 'Activ Reset Hybride', icon: '🔀' },
+  { id: 'ops_jm_pass', categoryId: 'opc_be_activ', name: 'JM Pass Coaching', icon: '🎯' },
+  { id: 'ops_a_la_carte', categoryId: 'opc_be_activ', name: 'À la Carte', icon: '📋' },
+  { id: 'ops_cardio_mouv', categoryId: 'opc_be_activ', name: 'Cardio Mouv', icon: '🏃' },
+  { id: 'ops_boutique', categoryId: 'opc_be_activ', name: 'Boutique', icon: '🛒' },
+]

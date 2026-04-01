@@ -8,6 +8,7 @@ import { useFinanceStore } from '@/hooks/useFinanceStore'
 import { isSessionValid, createSession, clearSession, loadStore } from '@/lib/storage'
 
 import { DashboardPage } from '@/pages/DashboardPage'
+import { OperationsPage } from '@/pages/OperationsPage'
 import { MonthPage } from '@/pages/MonthPage'
 import { AccountsPage } from '@/pages/AccountsPage'
 import { PatrimoinePage } from '@/pages/PatrimoinePage'
@@ -52,6 +53,7 @@ const App: React.FC = () => {
               <Route path="/mois" element={<MonthPage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} />} />
               <Route path="/comptes" element={<AccountsPage store={store} onAdd={finance.addAccount} onUpdate={finance.updateAccount} onRemove={finance.removeAccount} />} />
               <Route path="/analyse" element={<AnalysisPage store={store} />} />
+              <Route path="/operations" element={<OperationsPage store={store} onAdd={finance.addOperation} onUpdate={finance.updateOperation} onRemove={finance.removeOperation} onInitMonth={finance.initMonthOperations} onAddOpCategory={finance.addOpCategory} onUpdateOpCategory={finance.updateOpCategory} onRemoveOpCategory={finance.removeOpCategory} onAddOpSubcategory={finance.addOpSubcategory} onRemoveOpSubcategory={finance.removeOpSubcategory} />} />
               <Route path="/plan" element={<PlanPage store={store} onUpdateQuest={finance.updateQuest} onAddQuest={finance.addQuest} onAddXp={finance.addXp} />} />
               <Route path="/patrimoine" element={<PatrimoinePage store={store} onAddAsset={finance.addAsset} onRemoveAsset={finance.removeAsset} onAddDebt={finance.addDebt} onRemoveDebt={finance.removeDebt} />} />
               <Route path="/plus" element={<MorePage />} />

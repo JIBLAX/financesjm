@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
-import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation } from '@/types/finance'
+import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory } from '@/types/finance'
 import { loadStore, saveStore } from '@/lib/storage'
+import { getPreviousMonthKey } from '@/lib/constants'
 
 export function useFinanceStore() {
   const [store, setStore] = useState<FinanceStore>(loadStore)
@@ -132,6 +133,65 @@ export function useFinanceStore() {
     }))
   }, [update])
 
+  // ─── Operations ──────────────────────────────────────────────────────────────
+
+  const addOperation = useCallback((op: Operation) => {
+    update(prev => ({ ...prev, operations: [...prev.operations, op] }))
+  }, [update])
+
+  const updateOperation = useCallback((id: string, patch: Partial<Operation>) => {
+    update(prev => ({ ...prev, operations: prev.operations.map(op => op.id === id ? { ...op, ...patch } : op) }))
+  }, [update])
+
+  const removeOperation = useCallback((id: string) => {
+    update(prev => ({ ...prev, operations: prev.operations.filter(op => op.id !== id) }))
+  }, [update])
+
+  /** Copy template operations from the previous month into targetMonthKey (only if that month has no operations). */
+  const initMonthOperations = useCallback((targetMonthKey: string) => {
+    update(prev => {
+      if (prev.operations.some(op => op.monthKey === targetMonthKey)) return prev
+      const prevMonthKey = getPreviousMonthKey(targetMonthKey, 1)
+      const templates = prev.operations.filter(op => op.monthKey === prevMonthKey && op.isTemplate)
+      if (templates.length === 0) return prev
+      const base = Date.now()
+      const newOps: Operation[] = templates.map((op, i) => ({
+        ...op,
+        id: `op_${base}_${i}`,
+        monthKey: targetMonthKey,
+        actual: 0,
+        templateId: op.templateId || op.id,
+      }))
+      return { ...prev, operations: [...prev.operations, ...newOps] }
+    })
+  }, [update])
+
+  // ─── Op Categories ───────────────────────────────────────────────────────────
+
+  const addOpCategory = useCallback((c: OpCategory) => {
+    update(prev => ({ ...prev, opCategories: [...prev.opCategories, c] }))
+  }, [update])
+
+  const updateOpCategory = useCallback((id: string, patch: Partial<OpCategory>) => {
+    update(prev => ({ ...prev, opCategories: prev.opCategories.map(c => c.id === id ? { ...c, ...patch } : c) }))
+  }, [update])
+
+  const removeOpCategory = useCallback((id: string) => {
+    update(prev => ({ ...prev, opCategories: prev.opCategories.filter(c => c.id !== id) }))
+  }, [update])
+
+  // ─── Op Subcategories ────────────────────────────────────────────────────────
+
+  const addOpSubcategory = useCallback((s: OpSubcategory) => {
+    update(prev => ({ ...prev, opSubcategories: [...prev.opSubcategories, s] }))
+  }, [update])
+
+  const removeOpSubcategory = useCallback((id: string) => {
+    update(prev => ({ ...prev, opSubcategories: prev.opSubcategories.filter(s => s.id !== id) }))
+  }, [update])
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   return {
     store, persist, update, updateSettings,
     addTransaction, updateTransaction, deleteTransaction,
@@ -139,5 +199,8 @@ export function useFinanceStore() {
     addAsset, updateAsset, removeAsset,
     addDebt, removeDebt, updateDebt,
     saveSnapshot, updateQuest, addQuest, dismissAlert, updateJournal, addXp, updateProfileRegulation,
+    addOperation, updateOperation, removeOperation, initMonthOperations,
+    addOpCategory, updateOpCategory, removeOpCategory,
+    addOpSubcategory, removeOpSubcategory,
   }
 }

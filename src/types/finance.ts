@@ -238,6 +238,44 @@ export interface AppSettings {
   beActivConnection: BeActivConnectionStatus
 }
 
+// ─── Budget Operations ───────────────────────────────────────────────────────
+
+export type OperationFamily = 'charge_fixe' | 'charge_variable' | 'revenu'
+export type OperationScope = 'perso' | 'pro'
+
+export interface Operation {
+  id: string
+  monthKey: string
+  family: OperationFamily
+  scope: OperationScope
+  label: string
+  categoryId: string
+  subcategoryId?: string   // used for revenue sub-offers
+  forecast: number         // prévision
+  actual: number           // réel (0 = not yet filled)
+  isTemplate: boolean      // if true, auto-carry to next months
+  templateId?: string      // links copies to their origin template
+  note?: string
+  clientName?: string      // for JM Be Activ revenues
+}
+
+export interface OpCategory {
+  id: string
+  family: OperationFamily
+  name: string
+  icon: string
+  order: number
+}
+
+export interface OpSubcategory {
+  id: string
+  categoryId: string
+  name: string
+  icon?: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface FinanceStore {
   settings: AppSettings
   accounts: Account[]
@@ -250,4 +288,7 @@ export interface FinanceStore {
   quests: Quest[]
   dismissedAlerts: string[]
   monthlyJournals: Record<string, string>
+  operations: Operation[]
+  opCategories: OpCategory[]
+  opSubcategories: OpSubcategory[]
 }

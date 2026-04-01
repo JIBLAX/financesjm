@@ -36,6 +36,18 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const navigate = useNavigate()
   const monthKey = getCurrentMonthKey()
 
+  const budget = useMemo(() => {
+    const ops = store.operations.filter(op => op.monthKey === monthKey)
+    const revOps = ops.filter(op => op.family === 'revenu')
+    const chargeOps = ops.filter(op => op.family !== 'revenu')
+    const revForecast = revOps.reduce((s, op) => s + op.forecast, 0)
+    const revActual = revOps.reduce((s, op) => s + op.actual, 0)
+    const chargeForecast = chargeOps.reduce((s, op) => s + op.forecast, 0)
+    const chargeActual = chargeOps.reduce((s, op) => s + op.actual, 0)
+    const overBudget = chargeOps.filter(op => op.actual > op.forecast * 1.1 && op.forecast > 0)
+    return { revForecast, revActual, chargeForecast, chargeActual, overBudget, hasOps: ops.length > 0 }
+  }, [store.operations, monthKey])
+
   const stats = useMemo(() => {
     const totalAccounts = store.accounts.filter(a => a.isActive && a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
     const totalCash = store.accounts.filter(a => a.isActive && a.type === 'liquide').reduce((s, a) => s + a.currentBalance, 0)
@@ -156,9 +168,66 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
         </FinanceCard>
       </div>
 
+      {/* Budget cockpit */}
+      {budget.hasOps && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Budget {getMonthLabel(monthKey)}</h2>
+            <button onClick={() => navigate('/operations')} className="text-xs text-primary font-medium">Détail →</button>
+          </div>
+          <div className="space-y-2">
+            {/* Revenus row */}
+            <FinanceCard className="!py-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ArrowUpRight className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs font-medium text-foreground">Revenus</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-muted-foreground">Prév <span className="text-foreground font-medium">{formatCurrency(budget.revForecast)}</span></span>
+                  <span className={`font-bold ${budget.revActual >= budget.revForecast * 0.9 ? 'text-emerald-400' : 'text-amber-400'}`}>{formatCurrency(budget.revActual)}</span>
+                </div>
+              </div>
+              {budget.revForecast > 0 && (
+                <div className="mt-1.5 w-full bg-muted/50 rounded-full h-1">
+                  <div className="h-1 rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, (budget.revActual / budget.revForecast) * 100)}%` }} />
+                </div>
+              )}
+            </FinanceCard>
+            {/* Charges row */}
+            <FinanceCard className="!py-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ArrowDownRight className="w-4 h-4 text-destructive" />
+                  <span className="text-xs font-medium text-foreground">Charges</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-muted-foreground">Prév <span className="text-foreground font-medium">{formatCurrency(budget.chargeForecast)}</span></span>
+                  <span className={`font-bold ${budget.chargeActual <= budget.chargeForecast * 1.05 ? 'text-emerald-400' : 'text-destructive'}`}>{formatCurrency(budget.chargeActual)}</span>
+                </div>
+              </div>
+              {budget.chargeForecast > 0 && (
+                <div className="mt-1.5 w-full bg-muted/50 rounded-full h-1">
+                  <div className={`h-1 rounded-full transition-all ${budget.chargeActual > budget.chargeForecast ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${Math.min(100, (budget.chargeActual / budget.chargeForecast) * 100)}%` }} />
+                </div>
+              )}
+            </FinanceCard>
+            {/* Over-budget alerts */}
+            {budget.overBudget.length > 0 && (
+              <FinanceCard className="border-amber-500/30 bg-amber-500/5 !py-2.5">
+                <p className="text-xs text-amber-400 font-medium">⚠️ Dépassement sur {budget.overBudget.length} poste{budget.overBudget.length > 1 ? 's' : ''} :</p>
+                {budget.overBudget.slice(0, 3).map(op => (
+                  <p key={op.id} className="text-xs text-muted-foreground mt-0.5 truncate">{op.label} — {formatCurrency(op.actual)} vs {formatCurrency(op.forecast)}</p>
+                ))}
+              </FinanceCard>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Monthly summary */}
       <div>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{getMonthLabel(monthKey)}</h2>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Transactions {getMonthLabel(monthKey)}</h2>
         <div className="flex gap-3">
           <FinanceCard className="flex-1" onClick={() => navigate('/mois')}>
             <div className="flex items-center gap-2 mb-1">
