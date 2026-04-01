@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest } from '@/types/finance'
+import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation } from '@/types/finance'
 import { loadStore, saveStore } from '@/lib/storage'
 
 export function useFinanceStore() {
@@ -64,6 +64,10 @@ export function useFinanceStore() {
     update(prev => ({ ...prev, assets: [...prev.assets, a] }))
   }, [update])
 
+  const updateAsset = useCallback((id: string, patch: Partial<Asset>) => {
+    update(prev => ({ ...prev, assets: prev.assets.map(a => a.id === id ? { ...a, ...patch } : a) }))
+  }, [update])
+
   const removeAsset = useCallback((id: string) => {
     update(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }))
   }, [update])
@@ -110,9 +114,19 @@ export function useFinanceStore() {
     update(prev => ({ ...prev, settings: { ...prev.settings, xp: prev.settings.xp + amount } }))
   }, [update])
 
+  const updateProfileRegulation = useCallback((patch: Partial<ProfileRegulation>) => {
+    update(prev => ({
+      ...prev,
+      settings: {
+        ...prev.settings,
+        profileRegulation: { ...prev.settings.profileRegulation, ...patch },
+      },
+    }))
+  }, [update])
+
   return {
     store, persist, update, updateSettings, addTransaction, updateTransaction, deleteTransaction,
-    updateAccount, addAsset, removeAsset, addDebt, removeDebt, updateDebt, saveSnapshot,
-    updateQuest, addQuest, dismissAlert, updateJournal, addXp,
+    updateAccount, addAsset, updateAsset, removeAsset, addDebt, removeDebt, updateDebt, saveSnapshot,
+    updateQuest, addQuest, dismissAlert, updateJournal, addXp, updateProfileRegulation,
   }
 }

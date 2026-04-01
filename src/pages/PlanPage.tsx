@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react'
-import { Plus, ChevronRight, ChevronDown, Check, Sparkles } from 'lucide-react'
+import { Plus, ChevronRight, ChevronDown, Check, Sparkles, Shield } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, QUEST_CATEGORY_META, getLevelForXp } from '@/lib/constants'
+import { calculatePilotageMode, getPilotageRecommendation } from '@/lib/analytics'
 import type { FinanceStore, Quest, QuestCategory } from '@/types/finance'
 import { useNavigate } from 'react-router-dom'
 
@@ -10,6 +11,12 @@ interface Props {
   onUpdateQuest: (id: string, patch: Partial<Quest>) => void
   onAddQuest: (q: Quest) => void
   onAddXp: (amount: number) => void
+}
+
+const MODE_STYLES = {
+  acceleration: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400', emoji: '🚀', label: 'Accélération' },
+  regulation: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', emoji: '⚙️', label: 'Régulation' },
+  protection: { bg: 'bg-destructive/10', border: 'border-destructive/30', text: 'text-destructive', emoji: '🛑', label: 'Protection' },
 }
 
 export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, onAddXp }) => {
@@ -21,7 +28,9 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
   const [newAccountId, setNewAccountId] = useState('')
   const [newDate, setNewDate] = useState('')
 
-  // Update quest amounts from real data
+  const pilotage = useMemo(() => getPilotageRecommendation(store), [store])
+  const modeStyle = MODE_STYLES[pilotage.mode]
+
   const quests = useMemo(() => {
     const totalAccounts = store.accounts.filter(a => a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
     const totalAssets = store.assets.reduce((s, a) => s + a.value, 0)
@@ -30,16 +39,13 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
 
     return store.quests.map(q => {
       let currentAmount = q.currentAmount
-      // Auto-calculate from linked accounts
       if (q.linkedAccountId) {
         const acc = store.accounts.find(a => a.id === q.linkedAccountId)
         if (acc) currentAmount = acc.currentBalance
       }
-      // Patrimoine quests
-      if (['q7', 'q10', 'q13', 'q19', 'q20', 'q21', 'q22', 'q24', 'q26', 'q28'].includes(q.id)) {
+      if (['q7', 'q10', 'q13', 'q19', 'q20', 'q21'].includes(q.id)) {
         currentAmount = netWorth
       }
-      // Debt quests
       if (q.id === 'q3') {
         currentAmount = totalDebts === 0 ? 1 : 0
         return { ...q, currentAmount, targetAmount: totalDebts === 0 ? 1 : 1 }
@@ -48,7 +54,6 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
     })
   }, [store])
 
-  // Conseil du moment
   const conseil = useMemo(() => {
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
     const lep = store.accounts.find(a => a.id === 'lep')?.currentBalance || 0
@@ -71,7 +76,7 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
 
   const groupedQuests = useMemo(() => {
     const groups: Record<string, Quest[]> = {}
-    const order: QuestCategory[] = ['assainissement', 'securisation', 'croissance', 'liberte', 'liberte2', 'liberte3', 'custom']
+    const order: QuestCategory[] = ['assainissement', 'securisation', 'croissance', 'liberte', 'liberte2', 'custom']
     order.forEach(cat => {
       const items = quests.filter(q => q.category === cat)
       if (items.length > 0) groups[cat] = items
@@ -107,6 +112,18 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
   return (
     <div className="page-container pt-6 pb-24 gap-5">
       <h1 className="text-xl font-bold text-foreground">Guide de Plan</h1>
+
+      {/* Pilotage Mode */}
+      <FinanceCard className={`${modeStyle.border} ${modeStyle.bg}`}>
+        <div className="flex items-start gap-3">
+          <span className="text-xl mt-0.5">{modeStyle.emoji}</span>
+          <div className="flex-1">
+            <p className={`text-xs font-semibold uppercase tracking-wider ${modeStyle.text}`}>Mode {modeStyle.label}</p>
+            <p className="text-xs text-muted-foreground mt-1">{pilotage.reason}</p>
+            <p className="text-xs text-foreground mt-1.5">{pilotage.adjustment}</p>
+          </div>
+        </div>
+      </FinanceCard>
 
       {/* Conseil du moment */}
       <FinanceCard className="border-primary/30 bg-primary/5">
@@ -190,20 +207,11 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
               })}
             </div>
 
-            {/* Liberté 2.0 / 3.0 links */}
             {cat === 'liberte' && (
               <FinanceCard className="mt-3" onClick={() => navigate('/liberte2')}>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-primary">🏁 Road to 100 000 € →</span>
+                  <span className="text-sm font-semibold text-primary">🏁 Road to 100 000 € — Solidité →</span>
                   <ChevronRight className="w-4 h-4 text-primary" />
-                </div>
-              </FinanceCard>
-            )}
-            {cat === 'liberte2' && (
-              <FinanceCard className="mt-3" onClick={() => navigate('/liberte3')}>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-amber-300">👑 Road to 1 000 000 € →</span>
-                  <ChevronRight className="w-4 h-4 text-amber-300" />
                 </div>
               </FinanceCard>
             )}

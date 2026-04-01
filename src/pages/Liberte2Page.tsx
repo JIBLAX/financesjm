@@ -1,10 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getRendementForProfile } from '@/lib/constants'
 import type { FinanceStore } from '@/types/finance'
-import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts'
 
 interface Props {
   store: FinanceStore
@@ -16,7 +15,7 @@ export const Liberte2Page: React.FC<Props> = ({ store }) => {
 
   const stats = useMemo(() => {
     const totalAccounts = store.accounts.filter(a => a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
-    const totalAssets = store.assets.reduce((s, a) => s + a.value, 0)
+    const totalAssets = store.assets.filter(a => a.type !== 'dette').reduce((s, a) => s + a.value, 0)
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
     const netWorth = totalAccounts + totalAssets - totalDebts
     const pct = Math.min(100, (netWorth / target) * 100)
@@ -25,33 +24,30 @@ export const Liberte2Page: React.FC<Props> = ({ store }) => {
       ? (store.monthlySnapshots[store.monthlySnapshots.length - 1].netWorth - store.monthlySnapshots[store.monthlySnapshots.length - 2].netWorth)
       : 200
     const yearsToTarget = monthlyGrowth > 0 ? Math.ceil((target - netWorth) / (monthlyGrowth * 12)) : 99
-    return { netWorth, pct, rendement, yearsToTarget, monthlyGrowth }
+    return { netWorth, pct, rendement, yearsToTarget }
   }, [store])
 
-  const profile = store.settings.investorProfile
   const q = store.settings.investorQuestionnaire
 
   const blocks = useMemo(() => {
     const b = [
-      { id: 'bourse', emoji: '📈', title: 'Bourse — ETF & PEA', desc: 'DCA mensuel, ETF World, objectifs intermédiaires 1K / 5K / 20K / 50K', effort: '200-500 €/mois', rendement: '7% annualisé', risk: 'Modéré', active: true },
+      { id: 'bourse', emoji: '📈', title: 'Bourse — ETF & PEA', desc: 'DCA mensuel, ETF World, objectifs intermédiaires', effort: '200-500 €/mois', rendement: '7% annualisé', risk: 'Modéré', active: true },
       { id: 'assurance', emoji: '💡', title: 'Assurance vie', desc: 'Avantages fiscaux, fonds euros + UC, objectif 10K', effort: '100-300 €/mois', rendement: '3-5%', risk: 'Faible', active: true },
     ]
     if (q.realEstate === 'soon' || q.realEstate === 'later') {
-      if (q.realEstate === 'soon') {
-        b.push({ id: 'immo', emoji: '🏠', title: 'Immobilier locatif', desc: 'Checklist apport, simulation crédit, cashflow locatif', effort: 'Apport 10% + mensualité', rendement: '5-8%', risk: 'Modéré-élevé', active: true })
-      } else {
-        b.push({ id: 'scpi', emoji: '🏠', title: 'SCPI — Immobilier papier', desc: 'Ticket d\'entrée faible, rendement 4-5%, pas de gestion', effort: '500-2000 €', rendement: '4-5%', risk: 'Modéré', active: true })
-      }
+      b.push(q.realEstate === 'soon'
+        ? { id: 'immo', emoji: '🏠', title: 'Immobilier locatif', desc: 'Apport, simulation crédit, cashflow locatif', effort: 'Apport 10% + mensualité', rendement: '5-8%', risk: 'Modéré-élevé', active: true }
+        : { id: 'scpi', emoji: '🏠', title: 'SCPI — Immobilier papier', desc: 'Ticket faible, rendement 4-5%, sans gestion', effort: '500-2000 €', rendement: '4-5%', risk: 'Modéré', active: true }
+      )
     }
     if (q.income === 'variable' || q.income === 'growing') {
-      b.push({ id: 'scaling', emoji: '💼', title: 'Scaling revenus pro', desc: 'Augmenter CA, diversifier offres, créer produit passif', effort: 'Temps + investissement', rendement: 'Variable', risk: 'Variable', active: true })
+      b.push({ id: 'scaling', emoji: '💼', title: 'Scaling revenus pro', desc: 'Augmenter CA, diversifier offres', effort: 'Temps', rendement: 'Variable', risk: 'Variable', active: true })
     }
     if (q.crypto !== 'none') {
-      b.push({ id: 'crypto', emoji: '🪙', title: 'Crypto consolidation', desc: 'Plafond 5% du patrimoine, stratégie de sortie progressive', effort: 'Variable', rendement: 'Variable', risk: 'Élevé', active: true })
+      b.push({ id: 'crypto', emoji: '🪙', title: 'Crypto consolidation', desc: 'Plafond 5% patrimoine, sortie progressive', effort: 'Variable', rendement: 'Variable', risk: 'Élevé', active: true })
     }
-    b.push({ id: 'per', emoji: '🏦', title: 'PER — Retraite', desc: 'Déductibilité fiscale, intérêt pour auto-entrepreneur', effort: '50-200 €/mois', rendement: '3-5%', risk: 'Faible', active: profile === 'prudent' || profile === 'equilibre' })
     return b
-  }, [profile, q])
+  }, [q])
 
   return (
     <div className="page-container pt-6 pb-24 gap-5">
@@ -59,17 +55,17 @@ export const Liberte2Page: React.FC<Props> = ({ store }) => {
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-bold text-foreground">Liberté 2.0</h1>
+        <h1 className="text-xl font-bold text-foreground">Solidité financière</h1>
       </div>
 
       <FinanceCard className="text-center border-primary/30">
-        <p className="text-xs text-primary uppercase tracking-wider font-semibold">Road to</p>
+        <p className="text-xs text-primary uppercase tracking-wider font-semibold">Objectif solidité</p>
         <p className="text-3xl font-bold text-foreground">{formatCurrency(target)}</p>
         <p className="text-sm text-muted-foreground mt-1">Patrimoine actuel : {formatCurrency(stats.netWorth)}</p>
         <div className="mt-3 w-full bg-muted/50 rounded-full h-3">
           <div className="h-3 rounded-full bg-primary transition-all" style={{ width: `${stats.pct}%` }} />
         </div>
-        <p className="text-xs text-muted-foreground mt-2">À ce rythme : objectif dans ~{stats.yearsToTarget} ans</p>
+        <p className="text-xs text-muted-foreground mt-2">À ce rythme : ~{stats.yearsToTarget} ans</p>
         <p className="text-[10px] text-muted-foreground italic mt-1">Projection estimée basée sur tes données actuelles</p>
       </FinanceCard>
 
@@ -91,9 +87,9 @@ export const Liberte2Page: React.FC<Props> = ({ store }) => {
         </FinanceCard>
       ))}
 
-      <FinanceCard onClick={() => navigate('/liberte3')} className="border-amber-300/30">
-        <p className="text-sm font-semibold text-amber-300 text-center">👑 Aller plus loin — Road to 1 000 000 € →</p>
-      </FinanceCard>
+      <p className="text-[10px] text-muted-foreground text-center italic">
+        Les recommandations ne sont pas prescriptives. Projection estimée basée sur tes données actuelles.
+      </p>
     </div>
   )
 }

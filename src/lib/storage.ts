@@ -1,5 +1,5 @@
 import type { FinanceStore } from '@/types/finance'
-import { DEFAULT_SETTINGS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, DEFAULT_CASH_ENVELOPES, DEFAULT_QUESTS } from './constants'
+import { DEFAULT_SETTINGS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, DEFAULT_CASH_ENVELOPES, DEFAULT_QUESTS, DEFAULT_PROFILE_REGULATION } from './constants'
 
 const STORE_KEY = 'finances_jm_store'
 const PIN_SESSION_KEY = 'finances_jm_session'
@@ -29,8 +29,18 @@ export function loadStore(): FinanceStore {
     return {
       ...defaults,
       ...parsed,
-      settings: { ...defaults.settings, ...parsed.settings, allocationRules: { ...defaults.settings.allocationRules, ...(parsed.settings?.allocationRules || {}) }, investorQuestionnaire: { ...defaults.settings.investorQuestionnaire, ...(parsed.settings?.investorQuestionnaire || {}) } },
-      quests: parsed.quests?.length ? parsed.quests : defaults.quests,
+      settings: {
+        ...defaults.settings,
+        ...parsed.settings,
+        allocationRules: { ...defaults.settings.allocationRules, ...(parsed.settings?.allocationRules || {}) },
+        investorQuestionnaire: { ...defaults.settings.investorQuestionnaire, ...(parsed.settings?.investorQuestionnaire || {}) },
+        profileRegulation: { ...DEFAULT_PROFILE_REGULATION, ...(parsed.settings?.profileRegulation || {}) },
+        beActivConnection: parsed.settings?.beActivConnection || 'not_connected',
+        activeScenario: null, // remove old scenario
+      },
+      quests: parsed.quests?.length
+        ? parsed.quests.filter((q: any) => q.category !== 'liberte3') // remove liberte3 quests
+        : defaults.quests,
       dismissedAlerts: parsed.dismissedAlerts || [],
       monthlyJournals: parsed.monthlyJournals || {},
     }

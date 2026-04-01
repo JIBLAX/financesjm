@@ -7,8 +7,37 @@ export interface Account {
   currency: string
   currentBalance: number
   isActive: boolean
-  group?: string // 'bunq' | 'main' etc
+  group?: string
   note?: string
+}
+
+// Revenue source
+export type RevenueSource = 'be_activ' | 'client_direct' | 'salaire' | 'caf' | 'ami_famille' | 'remboursement' | 'vente' | 'prime' | 'revenus_financiers' | 'virement_interne' | 'autre'
+
+// Revenue type
+export type RevenueType = 'revenu_pro_recurrent' | 'revenu_pro_exceptionnel' | 'salaire' | 'cadeau' | 'remboursement' | 'aide_soutien' | 'aide_sociale' | 'virement_amical' | 'vente_exceptionnelle' | 'cashback' | 'interets' | 'dividendes' | 'plus_value' | 'transfert_interne' | 'autre_revenu'
+
+export type RevenueRecurrence = 'unique' | 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'annuelle' | 'irreguliere'
+
+// Types that should NOT count as real revenue
+export const NON_REAL_REVENUE_TYPES: RevenueType[] = ['cadeau', 'remboursement', 'transfert_interne', 'virement_amical']
+
+// Be Activ specific
+export type BeActivOffer = 'jm_pass_coaching' | 'coaching_a_la_carte' | 'activ_program_essentiel' | 'activ_reset_online' | 'activ_reset_hybride' | 'cardio_mouv' | 'activ_training' | 'boutique'
+export type BeActivChannel = 'banque' | 'especes' | 'qonto' | 'autre'
+export type BeActivPaymentMode = 'virement' | 'carte' | 'especes' | 'plateforme' | 'autre'
+export type BeActivStatus = 'prevu' | 'en_attente' | 'recu'
+
+export interface BeActivDetails {
+  client: string
+  offer: BeActivOffer | ''
+  channel: BeActivChannel | ''
+  paymentMode: BeActivPaymentMode | ''
+  status: BeActivStatus
+  // For installment payments
+  isInstallment: boolean
+  totalAmount?: number
+  installmentLabel?: string // e.g. "1/2", "2/3"
 }
 
 export interface Transaction {
@@ -23,6 +52,12 @@ export interface Transaction {
   monthKey: string
   note: string
   isRecurring: boolean
+  // V2 Revenue typing
+  revenueSource?: RevenueSource
+  revenueType?: RevenueType
+  revenueRecurrence?: RevenueRecurrence
+  isRealRevenue?: boolean // computed from revenueType
+  beActivDetails?: BeActivDetails
 }
 
 export interface AllocationRules {
@@ -36,13 +71,36 @@ export interface AllocationRules {
   cashVoyagePercent: number
 }
 
+// Enhanced Asset types
+export type AssetType = 'compte_bancaire' | 'livret_epargne' | 'actions' | 'etf' | 'crypto' | 'immobilier' | 'vehicule' | 'objet_valeur' | 'autre_actif' | 'dette'
+
+export type AssetClass = 'cash' | 'epargne' | 'marches' | 'crypto' | 'immobilier' | 'autres' | 'dettes'
+
 export interface Asset {
   id: string
   name: string
-  type: 'compte' | 'livret' | 'crypto' | 'assurance_vie' | 'immobilier' | 'pea' | 'per' | 'autre'
-  value: number
+  type: AssetType
+  value: number // total value (computed for some types)
   platform: string
   notes: string
+  currency: string
+  updatedAt: string
+  // Actions / ETF / Crypto
+  ticker?: string
+  symbol?: string
+  quantity?: number
+  unitPrice?: number
+  priceCurrency?: string
+  manualExchangeRate?: number
+  // Immobilier
+  propertyType?: string
+  estimatedValue?: number
+  outstandingMortgage?: number
+  // Debt
+  lender?: string
+  outstandingBalance?: number
+  monthlyPayment?: number
+  rate?: number
 }
 
 export interface Debt {
@@ -53,6 +111,7 @@ export interface Debt {
   monthlyPayment: number
   rate: number
   notes: string
+  updatedAt?: string
 }
 
 export interface MonthlySnapshot {
@@ -84,7 +143,7 @@ export interface CashEnvelope {
   targetBalance: number
 }
 
-// V2 — Alerts & Insights
+// Alerts & Insights
 export type AlertSeverity = 'critical' | 'warning' | 'info' | 'positive'
 
 export interface Alert {
@@ -96,8 +155,8 @@ export interface Alert {
   createdAt: string
 }
 
-// V2 — Quests
-export type QuestCategory = 'assainissement' | 'securisation' | 'croissance' | 'liberte' | 'liberte2' | 'liberte3' | 'custom'
+// Quests
+export type QuestCategory = 'assainissement' | 'securisation' | 'croissance' | 'liberte' | 'liberte2' | 'custom'
 export type QuestStatus = 'active' | 'paused' | 'completed' | 'locked'
 
 export interface QuestStep {
@@ -122,7 +181,7 @@ export interface Quest {
   order: number
 }
 
-// V2 — Health Score
+// Health Score
 export interface HealthScore {
   total: number
   debtRatio: number
@@ -134,7 +193,7 @@ export interface HealthScore {
   advice: string
 }
 
-// V3 — Investor Profile
+// Investor Profile
 export type InvestorProfile = 'prudent' | 'equilibre' | 'dynamique' | 'entrepreneur' | null
 
 export interface InvestorQuestionnaire {
@@ -147,8 +206,22 @@ export interface InvestorQuestionnaire {
   completed: boolean
 }
 
-// V4 — Liberty Scenario
-export type LibertyScenario = 'bourse' | 'immo_bourse' | 'business' | null
+// Profile Regulation
+export type LifeSituation = 'solo' | 'couple' | 'famille'
+export type RevenueStability = 'stable' | 'variable' | 'fragile'
+export type PilotageMode = 'acceleration' | 'regulation' | 'protection'
+
+export interface ProfileRegulation {
+  lifeSituation: LifeSituation
+  childrenCount: number
+  monthlyFamilyCharges: number
+  revenueStability: RevenueStability
+  desiredSecurityLevel: number // 1-5
+  financialStressTolerance: number // 1-5
+}
+
+// Be Activ connection
+export type BeActivConnectionStatus = 'not_connected' | 'coming_soon' | 'connected'
 
 export interface AppSettings {
   pin: string
@@ -158,9 +231,11 @@ export interface AppSettings {
   allocationRules: AllocationRules
   investorProfile: InvestorProfile
   investorQuestionnaire: InvestorQuestionnaire
-  activeScenario: LibertyScenario
+  activeScenario: null // simplified, no more 1M scenarios
   level: number
   xp: number
+  profileRegulation: ProfileRegulation
+  beActivConnection: BeActivConnectionStatus
 }
 
 export interface FinanceStore {
@@ -174,5 +249,5 @@ export interface FinanceStore {
   cashEnvelopes: CashEnvelope[]
   quests: Quest[]
   dismissedAlerts: string[]
-  monthlyJournals: Record<string, string> // monthKey -> note
+  monthlyJournals: Record<string, string>
 }

@@ -1,4 +1,13 @@
-import type { Account, AllocationRules, Category, CashEnvelope, AppSettings, Quest, InvestorQuestionnaire } from '@/types/finance'
+import type { Account, AllocationRules, Category, CashEnvelope, AppSettings, Quest, InvestorQuestionnaire, ProfileRegulation, RevenueSource, RevenueType, RevenueRecurrence, BeActivOffer, BeActivChannel, BeActivPaymentMode, BeActivStatus, AssetType } from '@/types/finance'
+
+export const DEFAULT_PROFILE_REGULATION: ProfileRegulation = {
+  lifeSituation: 'solo',
+  childrenCount: 0,
+  monthlyFamilyCharges: 0,
+  revenueStability: 'variable',
+  desiredSecurityLevel: 3,
+  financialStressTolerance: 3,
+}
 
 export const DEFAULT_INVESTOR_QUESTIONNAIRE: InvestorQuestionnaire = {
   riskTolerance: null, horizon: null, realEstate: null, crypto: null, income: null, priority: null, completed: false,
@@ -16,6 +25,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   investorQuestionnaire: DEFAULT_INVESTOR_QUESTIONNAIRE,
   activeScenario: null,
   level: 1, xp: 0,
+  profileRegulation: DEFAULT_PROFILE_REGULATION,
+  beActivConnection: 'not_connected',
 }
 
 export const DEFAULT_ACCOUNTS: Account[] = [
@@ -26,7 +37,6 @@ export const DEFAULT_ACCOUNTS: Account[] = [
   { id: 'cash-liberte', name: 'Cash liberté', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
   { id: 'cash-securite', name: 'Fonds sécurité liquide', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
   { id: 'cash-voyage', name: 'Voyage', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
-  // BUNQ accounts
   { id: 'bunq-voyage', name: 'Voyages BUNQ', institution: 'BUNQ', type: 'epargne_projet', subtype: 'épargne projet', currency: 'EUR', currentBalance: 0, isActive: true, group: 'bunq', note: 'Intégration complète au système prévue en V3' },
   { id: 'bunq-fiscal', name: 'Réserve Fiscale BUNQ', institution: 'BUNQ', type: 'pro', subtype: 'réserve fiscale', currency: 'EUR', currentBalance: 0, isActive: true, group: 'bunq' },
   { id: 'bunq-projet', name: 'Projet BUNQ', institution: 'BUNQ', type: 'epargne_projet', subtype: 'projet', currency: 'EUR', currentBalance: 0, isActive: true, group: 'bunq', note: '2 retraits maximum par mois' },
@@ -81,22 +91,14 @@ export const DEFAULT_QUESTS: Quest[] = [
   { id: 'q12', title: 'PEA > 3 000 €', emoji: '👑', category: 'liberte', description: 'Saisie manuelle du solde PEA', targetAmount: 3000, currentAmount: 0, steps: [], xpReward: 1000, status: 'locked', isCustom: false, order: 12 },
   { id: 'q13', title: 'Patrimoine 20 000 €', emoji: '👑', category: 'liberte', description: 'Calculé en temps réel', targetAmount: 20000, currentAmount: 0, steps: [], xpReward: 2000, status: 'locked', isCustom: false, order: 13 },
   { id: 'q14', title: 'Maître financier 👑', emoji: '👑', category: 'liberte', description: 'Toutes conditions du niveau 5 remplies', targetAmount: 0, currentAmount: 0, steps: [], xpReward: 5000, status: 'locked', isCustom: false, order: 14 },
-  // 🏁 LIBERTÉ 2.0
+  // 🏁 LIBERTÉ 2.0 — Road to 100K (solidité)
   { id: 'q15', title: 'Premier investissement — 100 € en ETF World', emoji: '🏁', category: 'liberte2', description: '', targetAmount: 100, currentAmount: 0, steps: [], xpReward: 300, status: 'locked', isCustom: false, order: 15 },
   { id: 'q16', title: 'PEA > 1 000 €', emoji: '🏁', category: 'liberte2', description: '', targetAmount: 1000, currentAmount: 0, steps: [], xpReward: 500, status: 'locked', isCustom: false, order: 16 },
   { id: 'q17', title: 'Assurance vie ouverte', emoji: '🏁', category: 'liberte2', description: '', targetAmount: 0, currentAmount: 0, steps: [{ label: 'Ouvrir une assurance vie', completed: false }], xpReward: 300, status: 'locked', isCustom: false, order: 17 },
   { id: 'q18', title: 'Taux d\'épargne moyen > 25% sur 3 mois', emoji: '🏁', category: 'liberte2', description: '', targetAmount: 25, currentAmount: 0, steps: [], xpReward: 600, status: 'locked', isCustom: false, order: 18 },
   { id: 'q19', title: 'Patrimoine 25 000 €', emoji: '🏁', category: 'liberte2', description: '', targetAmount: 25000, currentAmount: 0, steps: [], xpReward: 1000, status: 'locked', isCustom: false, order: 19 },
   { id: 'q20', title: 'Patrimoine 50 000 €', emoji: '🏁', category: 'liberte2', description: '', targetAmount: 50000, currentAmount: 0, steps: [], xpReward: 2000, status: 'locked', isCustom: false, order: 20 },
-  { id: 'q21', title: 'Patrimoine 100 000 € — Liberté 2.0 🎯', emoji: '🎯', category: 'liberte2', description: '', targetAmount: 100000, currentAmount: 0, steps: [], xpReward: 10000, status: 'locked', isCustom: false, order: 21 },
-  // 👑 LIBERTÉ 3.0
-  { id: 'q22', title: 'Patrimoine 150 000 €', emoji: '👑', category: 'liberte3', description: '', targetAmount: 150000, currentAmount: 0, steps: [], xpReward: 3000, status: 'locked', isCustom: false, order: 22 },
-  { id: 'q23', title: 'Revenus passifs > 1 000 €/mois', emoji: '👑', category: 'liberte3', description: '', targetAmount: 1000, currentAmount: 0, steps: [], xpReward: 3000, status: 'locked', isCustom: false, order: 23 },
-  { id: 'q24', title: 'Patrimoine 250 000 €', emoji: '👑', category: 'liberte3', description: '', targetAmount: 250000, currentAmount: 0, steps: [], xpReward: 5000, status: 'locked', isCustom: false, order: 24 },
-  { id: 'q25', title: 'Revenus passifs couvrent charges fixes', emoji: '👑', category: 'liberte3', description: '', targetAmount: 0, currentAmount: 0, steps: [], xpReward: 8000, status: 'locked', isCustom: false, order: 25 },
-  { id: 'q26', title: 'Patrimoine 500 000 €', emoji: '👑', category: 'liberte3', description: '', targetAmount: 500000, currentAmount: 0, steps: [], xpReward: 10000, status: 'locked', isCustom: false, order: 26 },
-  { id: 'q27', title: 'Indépendance financière totale', emoji: '👑', category: 'liberte3', description: 'Revenus passifs > dépenses totales', targetAmount: 0, currentAmount: 0, steps: [], xpReward: 15000, status: 'locked', isCustom: false, order: 27 },
-  { id: 'q28', title: 'Patrimoine 1 000 000 € — Liberté 3.0 👑', emoji: '👑', category: 'liberte3', description: '', targetAmount: 1000000, currentAmount: 0, steps: [], xpReward: 50000, status: 'locked', isCustom: false, order: 28 },
+  { id: 'q21', title: 'Patrimoine 100 000 € — Solidité 🎯', emoji: '🎯', category: 'liberte2', description: '', targetAmount: 100000, currentAmount: 0, steps: [], xpReward: 10000, status: 'locked', isCustom: false, order: 21 },
 ]
 
 export const LEVELS = [
@@ -112,17 +114,82 @@ export const QUEST_CATEGORY_META: Record<string, { label: string; emoji: string;
   securisation: { label: 'Sécurisation', emoji: '🛡️', color: 'text-blue-400' },
   croissance: { label: 'Croissance', emoji: '🚀', color: 'text-emerald-400' },
   liberte: { label: 'Liberté', emoji: '👑', color: 'text-purple-400' },
-  liberte2: { label: 'Liberté 2.0', emoji: '🏁', color: 'text-primary' },
-  liberte3: { label: 'Liberté 3.0', emoji: '👑', color: 'text-amber-300' },
+  liberte2: { label: 'Liberté 2.0 — Solidité', emoji: '🏁', color: 'text-primary' },
   custom: { label: 'Personnalisée', emoji: '🎯', color: 'text-muted-foreground' },
 }
 
-export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount)
+export const REVENUE_SOURCE_LABELS: Record<RevenueSource, string> = {
+  be_activ: 'Be Activ', client_direct: 'Client direct', salaire: 'Salaire', caf: 'CAF',
+  ami_famille: 'Ami / famille', remboursement: 'Remboursement', vente: 'Vente', prime: 'Prime',
+  revenus_financiers: 'Revenus financiers', virement_interne: 'Virement interne', autre: 'Autre',
 }
 
-export const formatCurrencyFull = (amount: number): string => {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount)
+export const REVENUE_TYPE_LABELS: Record<RevenueType, string> = {
+  revenu_pro_recurrent: 'Revenu pro récurrent', revenu_pro_exceptionnel: 'Revenu pro exceptionnel',
+  salaire: 'Salaire', cadeau: 'Cadeau', remboursement: 'Remboursement', aide_soutien: 'Aide / soutien',
+  aide_sociale: 'Aide sociale', virement_amical: 'Virement amical', vente_exceptionnelle: 'Vente exceptionnelle',
+  cashback: 'Cashback', interets: 'Intérêts', dividendes: 'Dividendes', plus_value: 'Plus-value',
+  transfert_interne: 'Transfert interne', autre_revenu: 'Autre revenu',
+}
+
+export const REVENUE_RECURRENCE_LABELS: Record<RevenueRecurrence, string> = {
+  unique: 'Unique', hebdomadaire: 'Hebdomadaire', mensuelle: 'Mensuelle',
+  trimestrielle: 'Trimestrielle', annuelle: 'Annuelle', irreguliere: 'Irrégulière',
+}
+
+export const BE_ACTIV_OFFER_LABELS: Record<BeActivOffer, string> = {
+  jm_pass_coaching: 'JM Pass Coaching', coaching_a_la_carte: 'Coaching À la carte',
+  activ_program_essentiel: 'Activ Program Essentiel', activ_reset_online: 'Activ Reset Online',
+  activ_reset_hybride: 'Activ Reset Hybride', cardio_mouv: 'Cardio Mouv',
+  activ_training: 'Activ Training', boutique: 'Boutique',
+}
+
+export const BE_ACTIV_CHANNEL_LABELS: Record<BeActivChannel, string> = {
+  banque: 'Banque', especes: 'Espèces', qonto: 'Qonto', autre: 'Autre',
+}
+
+export const BE_ACTIV_PAYMENT_LABELS: Record<BeActivPaymentMode, string> = {
+  virement: 'Virement', carte: 'Carte', especes: 'Espèces', plateforme: 'Plateforme', autre: 'Autre',
+}
+
+export const BE_ACTIV_STATUS_LABELS: Record<BeActivStatus, string> = {
+  prevu: 'Prévu', en_attente: 'En attente', recu: 'Reçu',
+}
+
+export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+  compte_bancaire: 'Compte bancaire', livret_epargne: 'Livret / épargne', actions: 'Actions',
+  etf: 'ETF', crypto: 'Crypto', immobilier: 'Immobilier', vehicule: 'Véhicule',
+  objet_valeur: 'Objet de valeur', autre_actif: 'Autre actif', dette: 'Dette',
+}
+
+export const ASSET_TYPE_ICONS: Record<AssetType, string> = {
+  compte_bancaire: '🏦', livret_epargne: '💰', actions: '📈', etf: '📊',
+  crypto: '🪙', immobilier: '🏠', vehicule: '🚗', objet_valeur: '💎',
+  autre_actif: '📦', dette: '💳',
+}
+
+export const ASSET_CLASS_MAP: Record<AssetType, string> = {
+  compte_bancaire: 'cash', livret_epargne: 'epargne', actions: 'marches', etf: 'marches',
+  crypto: 'crypto', immobilier: 'immobilier', vehicule: 'autres', objet_valeur: 'autres',
+  autre_actif: 'autres', dette: 'dettes',
+}
+
+export const ASSET_CLASS_LABELS: Record<string, { label: string; color: string }> = {
+  cash: { label: 'Cash / Comptes', color: 'hsl(165 60% 45%)' },
+  epargne: { label: 'Épargne', color: 'hsl(38 70% 55%)' },
+  marches: { label: 'Actions / ETF', color: 'hsl(210 70% 55%)' },
+  crypto: { label: 'Crypto', color: 'hsl(280 60% 55%)' },
+  immobilier: { label: 'Immobilier', color: 'hsl(25 80% 50%)' },
+  autres: { label: 'Autres actifs', color: 'hsl(0 0% 55%)' },
+  dettes: { label: 'Dettes', color: 'hsl(0 65% 52%)' },
+}
+
+export const formatCurrency = (amount: number, currency: string = 'EUR'): string => {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount)
+}
+
+export const formatCurrencyFull = (amount: number, currency: string = 'EUR'): string => {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount)
 }
 
 export const getCurrentMonthKey = (): string => {

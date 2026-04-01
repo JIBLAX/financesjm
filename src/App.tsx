@@ -22,7 +22,6 @@ import { PlanPage } from '@/pages/PlanPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { QuestionnairePage } from '@/pages/QuestionnairePage'
 import { Liberte2Page } from '@/pages/Liberte2Page'
-import { Liberte3Page } from '@/pages/Liberte3Page'
 import { TrajectoryPage } from '@/pages/TrajectoryPage'
 import { SnapshotModal } from '@/components/SnapshotModal'
 
@@ -61,11 +60,10 @@ const App: React.FC = () => {
               <Route path="/transactions/new" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} />} />
               <Route path="/depenses" element={<ExpensesPage store={store} />} />
               <Route path="/export" element={<ExportPage onImport={handleImport} onReset={handleReset} />} />
-              <Route path="/parametres" element={<SettingsPage settings={store.settings} onUpdate={finance.updateSettings} onLock={handleLock} />} />
+              <Route path="/parametres" element={<SettingsPage settings={store.settings} onUpdate={finance.updateSettings} onUpdateRegulation={finance.updateProfileRegulation} onLock={handleLock} />} />
               <Route path="/profil" element={<ProfilePage store={store} />} />
               <Route path="/questionnaire" element={<QuestionnairePage questionnaire={store.settings.investorQuestionnaire} onUpdate={finance.updateSettings} />} />
               <Route path="/liberte2" element={<Liberte2Page store={store} />} />
-              <Route path="/liberte3" element={<Liberte3Page store={store} onUpdate={finance.updateSettings} />} />
               <Route path="/trajectoire" element={<TrajectoryPage store={store} />} />
             </Routes>
           </div>

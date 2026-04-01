@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowUpRight, ArrowDownRight, Plus, X, ChevronRight, TrendingDown, Sparkles } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel, getLevelForXp, getNextLevel } from '@/lib/constants'
-import { generateAlerts, generateInsights, calculateHealthScore } from '@/lib/analytics'
+import { generateAlerts, generateInsights, calculateHealthScore, calculatePilotageMode, getRealIncome } from '@/lib/analytics'
 import type { FinanceStore } from '@/types/finance'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 
@@ -26,6 +26,12 @@ const severityText = {
   positive: 'text-emerald-400',
 }
 
+const MODE_BADGE = {
+  acceleration: { label: '🚀 Accélération', bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
+  regulation: { label: '⚙️ Régulation', bg: 'bg-amber-500/10', text: 'text-amber-400' },
+  protection: { label: '🛑 Protection', bg: 'bg-destructive/10', text: 'text-destructive' },
+}
+
 export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const navigate = useNavigate()
   const monthKey = getCurrentMonthKey()
@@ -33,20 +39,23 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const stats = useMemo(() => {
     const totalAccounts = store.accounts.filter(a => a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
     const totalCash = store.accounts.filter(a => a.type === 'liquide').reduce((s, a) => s + a.currentBalance, 0)
-    const totalAssets = store.assets.reduce((s, a) => s + a.value, 0)
-    const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
+    const totalAssets = store.assets.filter(a => a.type !== 'dette').reduce((s, a) => s + a.value, 0)
+    const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0) + store.assets.filter(a => a.type === 'dette').reduce((s, a) => s + (a.outstandingBalance || a.value), 0)
     const netWorth = totalAccounts + totalAssets - totalDebts
     const monthTx = store.transactions.filter(t => t.monthKey === monthKey)
-    const monthIncome = monthTx.filter(t => t.direction === 'income').reduce((s, t) => s + t.amount, 0)
+    const monthIncome = getRealIncome(store, monthKey)
+    const monthIncomeTotal = monthTx.filter(t => t.direction === 'income').reduce((s, t) => s + t.amount, 0)
     const monthExpenses = monthTx.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
-    return { totalAccounts, totalCash, totalAssets, totalDebts, netWorth, monthIncome, monthExpenses }
+    return { totalAccounts, totalCash, totalAssets, totalDebts, netWorth, monthIncome, monthIncomeTotal, monthExpenses }
   }, [store, monthKey])
 
   const alerts = useMemo(() => generateAlerts(store), [store])
   const insights = useMemo(() => generateInsights(store), [store])
   const healthScore = useMemo(() => calculateHealthScore(store), [store])
+  const pilotageMode = useMemo(() => calculatePilotageMode(store), [store])
   const level = getLevelForXp(store.settings.xp)
   const nextLevel = getNextLevel(level.level)
+  const modeBadge = MODE_BADGE[pilotageMode]
 
   const sparkData = useMemo(() => {
     const snapshots = store.monthlySnapshots.slice(-6)
@@ -73,6 +82,11 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
             <Plus className="w-5 h-5" />
           </button>
         </div>
+      </div>
+
+      {/* Pilotage mode badge */}
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${modeBadge.bg}`}>
+        <span className={`text-xs font-semibold ${modeBadge.text}`}>{modeBadge.label}</span>
       </div>
 
       {/* Alerts */}
@@ -153,7 +167,7 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
               </div>
               <span className="text-xs text-muted-foreground">Entrant</span>
             </div>
-            <p className="text-lg font-bold text-emerald-500">{formatCurrency(stats.monthIncome)}</p>
+            <p className="text-lg font-bold text-emerald-500">{formatCurrency(stats.monthIncomeTotal)}</p>
           </FinanceCard>
           <FinanceCard className="flex-1" onClick={() => navigate('/mois')}>
             <div className="flex items-center gap-2 mb-1">
@@ -202,7 +216,7 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
         <FinanceCard className="border-destructive/30 bg-destructive/5">
           <div className="flex items-center gap-2">
             <TrendingDown className="w-4 h-4 text-destructive" />
-            <p className="text-sm text-destructive font-medium">Dépenses supérieures aux revenus ce mois</p>
+            <p className="text-sm text-destructive font-medium">Dépenses supérieures aux revenus réels ce mois</p>
           </div>
         </FinanceCard>
       )}
