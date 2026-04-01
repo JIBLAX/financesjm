@@ -18,45 +18,34 @@ interface Props {
   onRemoveOpSubcategory: (id: string) => void
 }
 
-type FamilyTab = OperationFamily
+type FamilyTab = OperationFamily | 'journal'
 type ScopeTab = OperationScope
 
 const FAMILY_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
-  { key: 'charge_fixe',    label: 'Fixes',    icon: '🔒' },
-  { key: 'charge_variable', label: 'Variables', icon: '📊' },
-  { key: 'revenu',          label: 'Revenus',   icon: '💰' },
+  { key: 'charge_fixe',     label: 'Fixes',     icon: '🔒' },
+  { key: 'charge_variable', label: 'Variables',  icon: '📊' },
+  { key: 'revenu',          label: 'Revenus',    icon: '💰' },
+  { key: 'journal',         label: 'Journal',    icon: '📋' },
 ]
 
-const SCOPE_TABS: { key: ScopeTab; label: string }[] = [
-  { key: 'perso', label: 'Perso' },
-  { key: 'pro',   label: 'Pro'   },
-]
+const FAMILY_LABEL: Record<OperationFamily, string> = {
+  charge_fixe: 'Fixe', charge_variable: 'Variable', revenu: 'Revenu',
+}
+const FAMILY_COLOR: Record<OperationFamily, string> = {
+  charge_fixe: 'text-blue-400', charge_variable: 'text-amber-400', revenu: 'text-emerald-400',
+}
 
-type ModalState =
-  | { mode: 'add' }
-  | { mode: 'edit'; op: Operation }
-  | { mode: 'cat_manage' }
-  | null
+type ModalState = { mode: 'add' } | { mode: 'edit'; op: Operation } | { mode: 'cat_manage' } | null
 
 const todayISO = () => new Date().toISOString().split('T')[0]
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 
-function emptyForm(family: FamilyTab, scope: ScopeTab, monthKey: string): Omit<Operation, 'id'> {
+function emptyForm(family: OperationFamily, scope: ScopeTab, monthKey: string): Omit<Operation, 'id'> {
   return { monthKey, family, scope, label: '', categoryId: '', subcategoryId: '', forecast: 0, actual: 0, isTemplate: family === 'charge_fixe', note: '', date: todayISO() }
 }
 
-const deltaColor = (forecast: number, actual: number) => {
-  if (actual === 0) return 'text-muted-foreground'
-  const diff = actual - forecast
-  if (forecast === 0) return 'text-muted-foreground'
-  if (diff > 0) return 'text-destructive'    // overspent / underearned
-  return 'text-emerald-400'
-}
-const deltaColorRev = (forecast: number, actual: number) => {
-  if (actual === 0) return 'text-muted-foreground'
-  const diff = actual - forecast
-  if (forecast === 0) return 'text-muted-foreground'
-  return diff >= 0 ? 'text-emerald-400' : 'text-destructive'
-}
+const deltaColor  = (f: number, a: number) => !a || !f ? 'text-muted-foreground' : a - f > 0 ? 'text-destructive' : 'text-emerald-400'
+const deltaColorR = (f: number, a: number) => !a || !f ? 'text-muted-foreground' : a - f >= 0 ? 'text-emerald-400' : 'text-destructive'
 
 export const OperationsPage: React.FC<Props> = ({
   store, onAdd, onUpdate, onRemove, onInitMonth,
@@ -74,41 +63,55 @@ export const OperationsPage: React.FC<Props> = ({
   const [newCatIcon, setNewCatIcon] = useState('')
   const currentMonthKey = getCurrentMonthKey()
 
-  // Auto-init month from templates when switching to a new month
-  useEffect(() => {
-    onInitMonth(monthKey)
-  }, [monthKey, onInitMonth])
+  useEffect(() => { onInitMonth(monthKey) }, [monthKey, onInitMonth])
+
+  const activeFamily = family !== 'journal' ? family as OperationFamily : 'charge_fixe'
 
   const categories = useMemo(
-    () => store.opCategories.filter(c => c.family === family).sort((a, b) => a.order - b.order),
-    [store.opCategories, family]
-  )
-
-  const subcategories = useMemo(
-    () => (catId: string) => store.opSubcategories.filter(s => s.categoryId === catId),
-    [store.opSubcategories]
+    () => store.opCategories.filter(c => c.family === activeFamily).sort((a, b) => a.order - b.order),
+    [store.opCategories, activeFamily]
   )
 
   const operations = useMemo(
-    () => store.operations.filter(op => op.monthKey === monthKey && op.family === family && op.scope === scope),
+    () => family === 'journal'
+      ? store.operations
+          .filter(op => op.monthKey === monthKey && op.scope === scope)
+          .sort((a, b) => (b.date || b.monthKey).localeCompare(a.date || a.monthKey))
+      : store.operations.filter(op => op.monthKey === monthKey && op.family === (family as OperationFamily) && op.scope === scope),
     [store.operations, monthKey, family, scope]
   )
 
   const totals = useMemo(() => {
-    const forecast = operations.reduce((s, op) => s + op.forecast, 0)
-    const actual = operations.reduce((s, op) => s + op.actual, 0)
-    return { forecast, actual, delta: actual - forecast }
-  }, [operations])
+    const src = family === 'journal'
+      ? store.operations.filter(op => op.monthKey === monthKey && op.scope === scope)
+      : operations
+    return {
+      forecast: src.reduce((s, op) => s + op.forecast, 0),
+      actual:   src.reduce((s, op) => s + op.actual, 0),
+      delta:    src.reduce((s, op) => s + (op.actual - op.forecast), 0),
+    }
+  }, [operations, store.operations, monthKey, scope, family])
 
-  const openAdd = (categoryId?: string) => {
-    setScopePicker({ categoryId })
-  }
+  const grouped = useMemo(() => {
+    const map = new Map<string, Operation[]>()
+    if (family !== 'journal') {
+      operations.forEach(op => {
+        const list = map.get(op.categoryId) || []
+        list.push(op)
+        map.set(op.categoryId, list)
+      })
+    }
+    return map
+  }, [operations, family])
+
+  const openAdd = (categoryId?: string) => setScopePicker({ categoryId })
 
   const confirmScope = (s: ScopeTab) => {
     const pending = scopePicker
     setScopePicker(null)
     setScope(s)
-    const base = emptyForm(family, s, monthKey)
+    const fam = family !== 'journal' ? family as OperationFamily : 'charge_fixe'
+    const base = emptyForm(fam, s, monthKey)
     setForm(pending?.categoryId ? { ...base, categoryId: pending.categoryId } : base)
     setModal({ mode: 'add' })
   }
@@ -122,7 +125,7 @@ export const OperationsPage: React.FC<Props> = ({
 
   const handleSave = () => {
     if (!form.label.trim() || !form.categoryId) return
-    const clean = { ...form, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined, clientName: form.clientName || undefined }
+    const clean = { ...form, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined }
     if (modal?.mode === 'add') {
       onAdd({ ...clean, id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })
     } else if (modal?.mode === 'edit') {
@@ -138,33 +141,51 @@ export const OperationsPage: React.FC<Props> = ({
 
   const handleAddCategory = () => {
     if (!newCatName.trim()) return
-    const maxOrder = Math.max(0, ...store.opCategories.filter(c => c.family === family).map(c => c.order))
-    onAddOpCategory({ id: `opc_custom_${Date.now()}`, family, name: newCatName.trim(), icon: newCatIcon.trim() || '📦', order: maxOrder + 1 })
+    const maxOrder = Math.max(0, ...store.opCategories.filter(c => c.family === activeFamily).map(c => c.order))
+    onAddOpCategory({ id: `opc_custom_${Date.now()}`, family: activeFamily, name: newCatName.trim(), icon: newCatIcon.trim() || '📦', order: maxOrder + 1 })
     setNewCatName(''); setNewCatIcon('')
   }
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, Operation[]>()
-    operations.forEach(op => {
-      const list = map.get(op.categoryId) || []
-      list.push(op)
-      map.set(op.categoryId, list)
-    })
-    return map
-  }, [operations])
-
   const isRevenu = family === 'revenu'
+  const isPerso  = scope === 'perso'
+
+  // Form categories = all families when editing from Journal
+  const formCategories = useMemo(
+    () => store.opCategories.filter(c => c.family === form.family).sort((a, b) => a.order - b.order),
+    [store.opCategories, form.family]
+  )
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">Opérations</h1>
-        <div className="flex gap-2">
+      {/* Header — title + neon scope toggle + settings + add */}
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl font-bold text-foreground shrink-0">Opérations</h1>
+
+        {/* Neon Perso / Pro toggle */}
+        <div className="flex items-center bg-muted/30 rounded-xl p-0.5 gap-0.5 flex-1 max-w-[140px] mx-auto">
+          <button
+            onClick={() => setScope('perso')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${isPerso
+              ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.35)]'
+              : 'text-muted-foreground'}`}
+          >
+            Perso
+          </button>
+          <button
+            onClick={() => setScope('pro')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${!isPerso
+              ? 'bg-violet-500/20 text-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.35)]'
+              : 'text-muted-foreground'}`}
+          >
+            Pro
+          </button>
+        </div>
+
+        <div className="flex gap-2 shrink-0">
           <button onClick={() => setModal({ mode: 'cat_manage' })} className="w-9 h-9 rounded-xl bg-muted/30 text-muted-foreground flex items-center justify-center active:bg-muted/50">
             <Settings2 className="w-4 h-4" />
           </button>
-          <button onClick={() => openAdd()} className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:bg-primary/20">
+          <button onClick={() => openAdd()} className={`w-9 h-9 rounded-xl flex items-center justify-center text-white ${isPerso ? 'bg-cyan-500' : 'bg-violet-500'}`}>
             <Plus className="w-4 h-4" />
           </button>
         </div>
@@ -181,14 +202,11 @@ export const OperationsPage: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Family switch */}
+      {/* Family + Journal tabs */}
       <SegmentedSwitch options={FAMILY_TABS} value={family} onChange={setFamily} />
 
-      {/* Scope switch */}
-      <SegmentedSwitch options={SCOPE_TABS} value={scope} onChange={setScope} className="max-w-[180px]" />
-
       {/* Totals bar */}
-      {operations.length > 0 && (
+      {store.operations.filter(op => op.monthKey === monthKey && op.scope === scope).length > 0 && (
         <div className="grid grid-cols-3 gap-2">
           <FinanceCard className="!py-2 text-center">
             <p className="text-[10px] text-muted-foreground">Prévision</p>
@@ -200,82 +218,137 @@ export const OperationsPage: React.FC<Props> = ({
           </FinanceCard>
           <FinanceCard className="!py-2 text-center">
             <p className="text-[10px] text-muted-foreground">Écart</p>
-            <p className={`text-sm font-bold ${isRevenu ? deltaColorRev(totals.forecast, totals.actual) : deltaColor(totals.forecast, totals.actual)}`}>
+            <p className={`text-sm font-bold ${totals.delta >= 0 ? 'text-emerald-400' : 'text-destructive'}`}>
               {totals.delta >= 0 ? '+' : ''}{formatCurrency(totals.delta)}
             </p>
           </FinanceCard>
         </div>
       )}
 
-      {/* Operations grouped by category */}
-      {categories.map(cat => {
-        const ops = grouped.get(cat.id) || []
-        const orphans = operations.filter(op => op.categoryId === cat.id)
-        // Only show categories that have operations OR always show all with the + action to add
-        if (ops.length === 0 && orphans.length === 0) return null
-        return (
-          <div key={cat.id}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-base">{cat.icon}</span>
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">{cat.name}</h2>
-              <button onClick={() => openAdd(cat.id)}
-                className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+      {/* ── JOURNAL VIEW ── */}
+      {family === 'journal' && (
+        <div className="space-y-2">
+          {operations.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground">Aucune opération ce mois</p>
+              <p className="text-xs text-muted-foreground">Appuyez sur + pour ajouter</p>
             </div>
-            <div className="space-y-1.5">
-              {ops.map(op => {
-                const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
-                const gap = op.actual - op.forecast
-                const gapColor = isRevenu ? deltaColorRev(op.forecast, op.actual) : deltaColor(op.forecast, op.actual)
-                return (
-                  <div key={op.id} className="bg-card/60 rounded-xl border border-border/30 px-3 py-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{op.label}</p>
-                        {sub && <p className="text-[10px] text-muted-foreground">{sub.icon} {sub.name}</p>}
-                        {op.clientName && <p className="text-[10px] text-muted-foreground italic">{op.clientName}</p>}
-                        {op.isTemplate && <span className="text-[9px] text-primary/60">↻ récurrent</span>}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openEdit(op)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => handleDelete(op.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center active:bg-muted/50 ${deleteConfirm === op.id ? 'text-destructive' : 'text-muted-foreground'}`}>
-                          {deleteConfirm === op.id ? <Check className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs">
-                      <span className="text-muted-foreground">Prév <span className="font-medium text-foreground">{formatCurrency(op.forecast)}</span></span>
-                      <span className="text-muted-foreground">Réel <span className={`font-medium ${op.actual > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{op.actual > 0 ? formatCurrency(op.actual) : '—'}</span></span>
-                      {op.forecast > 0 && op.actual > 0 && (
-                        <span className={`font-semibold ml-auto ${gapColor}`}>{gap >= 0 ? '+' : ''}{formatCurrency(gap)}</span>
-                      )}
-                    </div>
-                    {deleteConfirm === op.id && (
-                      <div className="mt-2 flex gap-2 items-center">
-                        <p className="text-xs text-destructive flex-1">Confirmer la suppression ?</p>
-                        <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 rounded-lg text-xs bg-muted/50 text-foreground">Annuler</button>
-                      </div>
-                    )}
+          )}
+          {operations.map(op => {
+            const cat = store.opCategories.find(c => c.id === op.categoryId)
+            const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
+            const amt = op.actual > 0 ? op.actual : op.forecast
+            const isRev = op.family === 'revenu'
+            return (
+              <FinanceCard key={op.id}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-base ${isRev ? 'bg-emerald-500/10' : 'bg-muted/30'}`}>
+                    {cat?.icon || '📦'}
                   </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })}
-
-      {/* Empty state */}
-      {operations.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-sm text-muted-foreground mb-1">Aucune opération pour ce mois</p>
-          <p className="text-xs text-muted-foreground">Appuyez sur + pour ajouter une ligne</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{op.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {op.date ? fmtDate(op.date) : '—'} · {cat?.name || ''}{sub ? ` · ${sub.name}` : ''}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`text-[9px] font-semibold ${FAMILY_COLOR[op.family]}`}>{FAMILY_LABEL[op.family]}</span>
+                      {op.isTemplate && <span className="text-[9px] text-primary/60">↻ récurrent</span>}
+                      {op.actual === 0 && op.forecast > 0 && <span className="text-[9px] text-muted-foreground/60">prévision</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <p className={`text-sm font-bold ${isRev ? 'text-emerald-400' : op.actual > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {isRev ? '+' : '-'}{formatCurrency(amt)}
+                    </p>
+                    <button onClick={() => openEdit(op)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => handleDelete(op.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center active:bg-muted/50 ${deleteConfirm === op.id ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      {deleteConfirm === op.id ? <Check className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />}
+                    </button>
+                  </div>
+                </div>
+                {deleteConfirm === op.id && (
+                  <div className="mt-2 flex gap-2 items-center border-t border-border/30 pt-2">
+                    <p className="text-xs text-destructive flex-1">Confirmer la suppression ?</p>
+                    <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 rounded-lg text-xs bg-muted/50">Annuler</button>
+                  </div>
+                )}
+              </FinanceCard>
+            )
+          })}
         </div>
       )}
 
-      {/* Perso / Pro picker */}
+      {/* ── BUDGET VIEW (Fixes / Variables / Revenus) ── */}
+      {family !== 'journal' && (
+        <>
+          {categories.map(cat => {
+            const ops = grouped.get(cat.id) || []
+            if (ops.length === 0) return null
+            return (
+              <div key={cat.id}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base">{cat.icon}</span>
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">{cat.name}</h2>
+                  <button onClick={() => openAdd(cat.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {ops.map(op => {
+                    const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
+                    const gap = op.actual - op.forecast
+                    const gapColor = isRevenu ? deltaColorR(op.forecast, op.actual) : deltaColor(op.forecast, op.actual)
+                    return (
+                      <div key={op.id} className="bg-card/60 rounded-xl border border-border/30 px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{op.label}</p>
+                            {sub && <p className="text-[10px] text-muted-foreground">{sub.icon} {sub.name}</p>}
+                            {op.date && <p className="text-[10px] text-muted-foreground/60">{fmtDate(op.date)}</p>}
+                            {op.isTemplate && <span className="text-[9px] text-primary/60">↻ récurrent</span>}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => openEdit(op)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => handleDelete(op.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center active:bg-muted/50 ${deleteConfirm === op.id ? 'text-destructive' : 'text-muted-foreground'}`}>
+                              {deleteConfirm === op.id ? <Check className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1.5 text-xs">
+                          <span className="text-muted-foreground">Prév <span className="font-medium text-foreground">{formatCurrency(op.forecast)}</span></span>
+                          <span className="text-muted-foreground">Réel <span className={`font-medium ${op.actual > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{op.actual > 0 ? formatCurrency(op.actual) : '—'}</span></span>
+                          {op.forecast > 0 && op.actual > 0 && (
+                            <span className={`font-semibold ml-auto ${gapColor}`}>{gap >= 0 ? '+' : ''}{formatCurrency(gap)}</span>
+                          )}
+                        </div>
+                        {deleteConfirm === op.id && (
+                          <div className="mt-2 flex gap-2 items-center">
+                            <p className="text-xs text-destructive flex-1">Confirmer la suppression ?</p>
+                            <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 rounded-lg text-xs bg-muted/50 text-foreground">Annuler</button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
+          {operations.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground mb-1">Aucune opération pour ce mois</p>
+              <p className="text-xs text-muted-foreground">Appuyez sur + pour ajouter une ligne</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Perso / Pro picker ── */}
       {scopePicker !== null && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={() => setScopePicker(null)}>
           <div className="w-full bg-background rounded-t-2xl px-5 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]" onClick={e => e.stopPropagation()}>
@@ -297,7 +370,7 @@ export const OperationsPage: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Add/Edit modal */}
+      {/* ── Add / Edit modal ── */}
       {(modal?.mode === 'add' || modal?.mode === 'edit') && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={closeModal}>
           <div className="w-full bg-background rounded-t-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -319,7 +392,7 @@ export const OperationsPage: React.FC<Props> = ({
                 <label className="text-xs text-muted-foreground">Libellé *</label>
                 <input
                   className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
-                  placeholder={family === 'revenu' ? 'Nom Prénom / Libellé' : 'Ex: Loyer, Netflix, Coaching…'}
+                  placeholder={form.family === 'revenu' ? 'Nom Prénom / Libellé' : 'Ex: Loyer, Netflix, Coaching…'}
                   value={form.label}
                   onChange={e => setForm(f => ({ ...f, label: e.target.value.replace(/\b\w/g, c => c.toUpperCase()) }))}
                 />
@@ -341,7 +414,7 @@ export const OperationsPage: React.FC<Props> = ({
               <div>
                 <label className="text-xs text-muted-foreground">Catégorie *</label>
                 <div className="flex flex-wrap gap-2 mt-1">
-                  {categories.map(cat => (
+                  {formCategories.map(cat => (
                     <button key={cat.id} onClick={() => setForm(f => ({ ...f, categoryId: cat.id, subcategoryId: '' }))}
                       className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.categoryId === cat.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
                       {cat.icon} {cat.name}
@@ -350,7 +423,7 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Subcategory (for revenus) */}
+              {/* Subcategory */}
               {form.categoryId && store.opSubcategories.filter(s => s.categoryId === form.categoryId).length > 0 && (
                 <div>
                   <label className="text-xs text-muted-foreground">Offre / Sous-catégorie</label>
@@ -400,7 +473,7 @@ export const OperationsPage: React.FC<Props> = ({
               </div>
 
               <button onClick={handleSave} disabled={!form.label.trim() || !form.categoryId}
-                className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40">
+                className={`w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-40 ${form.scope === 'perso' ? 'bg-cyan-500' : 'bg-violet-500'}`}>
                 {modal?.mode === 'add' ? 'Ajouter' : 'Enregistrer'}
               </button>
             </div>
@@ -408,12 +481,12 @@ export const OperationsPage: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Category management modal */}
+      {/* ── Category management modal ── */}
       {modal?.mode === 'cat_manage' && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={closeModal}>
           <div className="w-full bg-background rounded-t-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border/50">
-              <h2 className="text-base font-bold text-foreground">Catégories — {family === 'charge_fixe' ? 'Fixes' : family === 'charge_variable' ? 'Variables' : 'Revenus'}</h2>
+              <h2 className="text-base font-bold text-foreground">Catégories — {activeFamily === 'charge_fixe' ? 'Fixes' : activeFamily === 'charge_variable' ? 'Variables' : 'Revenus'}</h2>
               <button onClick={closeModal} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-4 space-y-3 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">

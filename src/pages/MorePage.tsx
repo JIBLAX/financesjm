@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRightLeft, SlidersHorizontal, FileDown, Settings, PieChart, BarChart3, TrendingUp, User, Rocket } from 'lucide-react'
+import { SlidersHorizontal, FileDown, Settings, PieChart, BarChart3, TrendingUp, User, Rocket } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 
 export const MorePage: React.FC = () => {
@@ -10,7 +10,6 @@ export const MorePage: React.FC = () => {
     { label: 'Mois / Cashflow', desc: 'Revenus, dépenses, répartition mensuelle', icon: PieChart, path: '/mois', color: 'text-primary' },
     { label: 'Répartition', desc: 'Calculer la répartition mensuelle', icon: BarChart3, path: '/repartition', color: 'text-primary' },
     { label: 'Patrimoine', desc: 'Actifs, dettes, patrimoine net', icon: TrendingUp, path: '/patrimoine', color: 'text-amber-400' },
-    { label: 'Transactions', desc: 'Historique et saisie', icon: ArrowRightLeft, path: '/transactions', color: 'text-emerald-400' },
     { label: 'Profil', desc: 'Niveau, score santé, profil investisseur', icon: User, path: '/profil', color: 'text-blue-400' },
     { label: 'Liberté 2.0', desc: 'Road to 100 000 € — Solidité', icon: Rocket, path: '/liberte2', color: 'text-primary' },
     { label: 'Export', desc: 'Sauvegarder vos données', icon: FileDown, path: '/export', color: 'text-blue-400' },
