@@ -46,8 +46,8 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
   const [revenueSource, setRevenueSource] = useState<RevenueSource>('autre')
   const [revenueType, setRevenueType] = useState<RevenueType>('autre_revenu')
   const [revenueRecurrence, setRevenueRecurrence] = useState<RevenueRecurrence>('unique')
-  // Installment mode (replaces recurrence)
-  const [installmentMode, setInstallmentMode] = useState(false)
+  // Payment mode for revenues
+  const [paymentMode, setPaymentMode] = useState<'unique' | 'recurrent' | 'installment'>('unique')
   const [installmentTotal, setInstallmentTotal] = useState('')
   const [installmentCount, setInstallmentCount] = useState('')
 
@@ -82,16 +82,16 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
       accountId,
       categoryId,
       monthKey: getCurrentMonthKey(),
-      note: installmentMode && installmentCount
+      note: paymentMode === 'installment' && installmentCount
         ? `${note ? note + ' · ' : ''}${installmentCount} versements · total ${formatCurrency(Number(installmentTotal))}`
         : note,
-      isRecurring: installmentMode || revenueRecurrence === 'mensuelle' || revenueRecurrence === 'hebdomadaire',
+      isRecurring: paymentMode === 'recurrent' || paymentMode === 'installment',
     }
 
     if (direction === 'income') {
       tx.revenueSource = revenueSource
       tx.revenueType = revenueType
-      tx.revenueRecurrence = installmentMode ? 'mensuelle' : revenueRecurrence
+      tx.revenueRecurrence = paymentMode === 'unique' ? 'unique' : revenueRecurrence
       tx.isRealRevenue = isRealRevenue
 
       if (revenueSource === 'be_activ') {
@@ -129,7 +129,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
   const resetForm = () => {
     setLabel(''); setAmount(''); setNote(''); setShowForm(false); setScope(null)
     setRevenueSource('autre'); setRevenueType('autre_revenu'); setRevenueRecurrence('unique')
-    setInstallmentMode(false); setInstallmentTotal(''); setInstallmentCount('')
+    setPaymentMode('unique'); setInstallmentTotal(''); setInstallmentCount('')
     setBaClient(''); setBaOffer(''); setBaChannel(''); setBaPayment(''); setBaStatus('recu')
     setBaIsInstallment(false); setBaTotalAmount(''); setBaInstallmentLabel('')
   }
@@ -206,23 +206,43 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
                 {Object.entries(REVENUE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
 
-              {/* Paiement : unique ou en x fois */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { setInstallmentMode(false); setRevenueRecurrence('unique') }}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium ${!installmentMode ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}
-                >
-                  Paiement unique
-                </button>
-                <button
-                  onClick={() => { setInstallmentMode(true); setRevenueRecurrence('mensuelle') }}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium ${installmentMode ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}
-                >
-                  En plusieurs fois
-                </button>
+              {/* Mode de paiement — 3 modes */}
+              <div className="relative flex bg-muted/40 rounded-xl p-1">
+                <div
+                  className="absolute top-1 bottom-1 rounded-lg bg-primary/20 transition-all duration-200"
+                  style={{
+                    left: `calc(4px + ${['unique','recurrent','installment'].indexOf(paymentMode)} * (100% - 8px) / 3)`,
+                    width: 'calc((100% - 8px) / 3)',
+                  }}
+                />
+                {([
+                  { key: 'unique', label: 'Unique' },
+                  { key: 'recurrent', label: '🔄 Récurrent' },
+                  { key: 'installment', label: '📊 En x fois' },
+                ] as const).map(m => (
+                  <button
+                    key={m.key}
+                    onClick={() => {
+                      setPaymentMode(m.key)
+                      if (m.key === 'unique') setRevenueRecurrence('unique')
+                      if (m.key === 'recurrent') setRevenueRecurrence('mensuelle')
+                      if (m.key === 'installment') setRevenueRecurrence('mensuelle')
+                    }}
+                    className={`relative flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors z-10 ${paymentMode === m.key ? 'text-primary' : 'text-muted-foreground'}`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
               </div>
 
-              {installmentMode ? (
+              {paymentMode === 'recurrent' && (
+                <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={revenueRecurrence} onChange={e => setRevenueRecurrence(e.target.value as RevenueRecurrence)}>
+                  <option value="mensuelle">Mensuelle</option>
+                  <option value="hebdomadaire">Hebdomadaire</option>
+                </select>
+              )}
+
+              {paymentMode === 'installment' && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -236,7 +256,8 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
                         onChange={e => {
                           setInstallmentTotal(e.target.value)
                           const n = Number(installmentCount) || 0
-                          if (n > 0 && Number(e.target.value) > 0) setAmount(String(Math.round((Number(e.target.value) / n) * 100) / 100))
+                          if (n > 0 && Number(e.target.value) > 0)
+                            setAmount(String(Math.round((Number(e.target.value) / n) * 100) / 100))
                         }}
                       />
                     </div>
@@ -252,24 +273,24 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
                           setInstallmentCount(e.target.value)
                           const total = Number(installmentTotal) || 0
                           const n = Number(e.target.value) || 0
-                          if (n > 0 && total > 0) setAmount(String(Math.round((total / n) * 100) / 100))
+                          if (n > 0 && total > 0)
+                            setAmount(String(Math.round((total / n) * 100) / 100))
                         }}
                       />
                     </div>
                   </div>
                   {Number(installmentTotal) > 0 && Number(installmentCount) > 0 && (
-                    <div className="bg-emerald-500/10 rounded-xl px-3 py-2 flex justify-between items-center">
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5 flex justify-between items-center">
                       <span className="text-xs text-muted-foreground">Ce versement</span>
-                      <span className="text-sm font-bold text-emerald-400">
-                        {formatCurrency(Math.round((Number(installmentTotal) / Number(installmentCount)) * 100) / 100)} × {installmentCount}
-                      </span>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-emerald-400">
+                          {formatCurrency(Math.round((Number(installmentTotal) / Number(installmentCount)) * 100) / 100)}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-1.5">× {installmentCount} = {formatCurrency(Number(installmentTotal))}</span>
+                      </div>
                     </div>
                   )}
                 </div>
-              ) : (
-                <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={revenueRecurrence} onChange={e => setRevenueRecurrence(e.target.value as RevenueRecurrence)}>
-                  {Object.entries(REVENUE_RECURRENCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
               )}
 
               {/* Real revenue indicator */}
