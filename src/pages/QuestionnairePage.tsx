@@ -115,7 +115,7 @@ export const QuestionnairePage: React.FC<Props> = ({ questionnaire, onUpdate }) 
   }
 
   return (
-    <div className="page-container pt-6 pb-24 gap-6">
+    <div className="page-container pt-6 page-bottom-pad gap-6">
       <div className="flex items-center gap-3">
         <button onClick={() => step > 0 ? setStep(step - 1) : navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50">
           <ArrowLeft className="w-5 h-5" />

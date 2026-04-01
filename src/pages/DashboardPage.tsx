@@ -37,8 +37,8 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const monthKey = getCurrentMonthKey()
 
   const stats = useMemo(() => {
-    const totalAccounts = store.accounts.filter(a => a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
-    const totalCash = store.accounts.filter(a => a.type === 'liquide').reduce((s, a) => s + a.currentBalance, 0)
+    const totalAccounts = store.accounts.filter(a => a.isActive && a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
+    const totalCash = store.accounts.filter(a => a.isActive && a.type === 'liquide').reduce((s, a) => s + a.currentBalance, 0)
     const totalAssets = store.assets.filter(a => a.type !== 'dette').reduce((s, a) => s + a.value, 0)
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0) + store.assets.filter(a => a.type === 'dette').reduce((s, a) => s + (a.outstandingBalance || a.value), 0)
     const netWorth = totalAccounts + totalAssets - totalDebts
@@ -67,7 +67,7 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const scoreBg = healthScore.total >= 75 ? 'bg-emerald-500/10' : healthScore.total >= 60 ? 'bg-amber-300/10' : healthScore.total >= 40 ? 'bg-amber-500/10' : 'bg-destructive/10'
 
   return (
-    <div className="page-container pt-6 pb-24 gap-4">
+    <div className="page-container pt-6 page-bottom-pad gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

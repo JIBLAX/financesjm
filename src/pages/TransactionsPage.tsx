@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react'
-import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useMemo, useEffect } from 'react'
+import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
-import { formatCurrency, getCurrentMonthKey, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, REVENUE_RECURRENCE_LABELS, BE_ACTIV_OFFER_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS } from '@/lib/constants'
+import { formatCurrency, getCurrentMonthKey, getMonthLabel, getPreviousMonthKey, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, REVENUE_RECURRENCE_LABELS, BE_ACTIV_OFFER_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS } from '@/lib/constants'
 import { NON_REAL_REVENUE_TYPES } from '@/types/finance'
 import type { FinanceStore, Transaction, RevenueSource, RevenueType, RevenueRecurrence, BeActivDetails, BeActivOffer, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
 
@@ -14,9 +14,23 @@ interface Props {
 
 export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [showForm, setShowForm] = useState(false)
   const [filterMonth, setFilterMonth] = useState(getCurrentMonthKey())
   const [filterAccount, setFilterAccount] = useState('')
+
+  // Auto-open form when navigating to /transactions/new
+  useEffect(() => {
+    if (location.pathname === '/transactions/new') {
+      setShowForm(true)
+    }
+  }, [location.pathname])
+
+  const navigateMonth = (dir: number) => {
+    const [y, m] = filterMonth.split('-').map(Number)
+    const d = new Date(y, m - 1 + dir)
+    setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
 
   // Form state
   const [label, setLabel] = useState('')
@@ -105,7 +119,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
   }
 
   return (
-    <div className="page-container pt-6 pb-24 gap-4">
+    <div className="page-container pt-6 page-bottom-pad gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50">
@@ -211,7 +225,18 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
         </FinanceCard>
       )}
 
-      {/* Filters */}
+      {/* Month navigation */}
+      <div className="flex items-center justify-between">
+        <button onClick={() => navigateMonth(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <span className="text-sm font-semibold text-foreground capitalize">{getMonthLabel(filterMonth)}</span>
+        <button onClick={() => navigateMonth(1)} disabled={filterMonth >= getCurrentMonthKey()} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50 disabled:opacity-30">
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Account filter */}
       <div className="flex gap-2">
         <select className="flex-1 bg-card border border-border/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={filterAccount} onChange={e => setFilterAccount(e.target.value)}>
           <option value="">Tous les comptes</option>

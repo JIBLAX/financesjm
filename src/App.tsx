@@ -46,7 +46,7 @@ const App: React.FC = () => {
       <BrowserRouter>
         <div className="flex flex-col h-full bg-background">
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
-            <SnapshotModal store={store} onDismiss={(monthKey) => finance.saveSnapshot({ ...store.monthlySnapshots.find(s => s.monthKey === monthKey)!, dismissed: true })} />
+            <SnapshotModal store={store} onDismiss={(snapshot) => finance.saveSnapshot(snapshot)} />
             <Routes>
               <Route path="/" element={<DashboardPage store={store} onDismissAlert={finance.dismissAlert} />} />
               <Route path="/mois" element={<MonthPage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} />} />
