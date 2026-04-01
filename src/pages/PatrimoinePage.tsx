@@ -237,8 +237,8 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
 
       {/* Detail modal */}
       {detailClass && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center" onClick={() => setDetailClass(null)}>
-          <div className="bg-card w-full max-w-lg rounded-t-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] max-h-[75vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-end justify-center" onClick={() => setDetailClass(null)}>
+          <div className="bg-card w-full max-w-lg rounded-t-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-foreground">{ASSET_CLASS_LABELS[detailClass]?.label}</h3>
               <button onClick={() => setDetailClass(null)}><X className="w-5 h-5 text-muted-foreground" /></button>
@@ -343,8 +343,8 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
 
       {/* Add modal */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center" onClick={resetForm}>
-          <div className="bg-card w-full max-w-lg rounded-t-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] max-h-[88vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-end justify-center" onClick={resetForm}>
+          <div className="bg-card w-full max-w-lg rounded-t-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-foreground">{selectedType ? `Ajouter — ${ASSET_TYPE_LABELS[selectedType]}` : 'Choisir un type d\'actif'}</h3>
               <button onClick={resetForm}><X className="w-5 h-5 text-muted-foreground" /></button>
