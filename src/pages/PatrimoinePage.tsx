@@ -18,6 +18,8 @@ interface Props {
 const ASSET_TYPES: AssetType[] = ['compte_bancaire', 'livret_epargne', 'actions', 'etf', 'crypto', 'immobilier', 'vehicule', 'objet_valeur', 'autre_actif', 'dette']
 const numInput = 'w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none'
 
+type DetailItem = { name: string; value: number; detail?: string; extra?: string }
+
 export const PatrimoinePage: React.FC<Props> = ({
   store, onAddAsset, onUpdateAsset, onRemoveAsset, onAddDebt, onUpdateDebt, onRemoveDebt,
 }) => {
@@ -82,7 +84,7 @@ export const PatrimoinePage: React.FC<Props> = ({
       .sort((a, b) => b.value - a.value)
   }, [store, stats])
 
-  const detailAssets = useMemo(() => {
+  const detailAssets = useMemo((): DetailItem[] => {
     if (!detailClass) return []
     if (detailClass === 'cash') {
       return store.accounts.filter(a => a.isActive && a.type !== 'dette').map(a => ({
@@ -320,7 +322,7 @@ export const PatrimoinePage: React.FC<Props> = ({
                       <div>
                         <p className="text-sm font-medium text-foreground">{a.name}</p>
                         {a.detail && <p className="text-[10px] text-muted-foreground">{a.detail}</p>}
-                        {(a as any).extra && <p className="text-[10px] text-primary">{(a as any).extra}</p>}
+                        {a.extra && <p className="text-[10px] text-primary">{a.extra}</p>}
                       </div>
                       <p className={`text-sm font-bold ${detailClass === 'dettes' ? 'text-destructive' : 'text-foreground'}`}>{formatCurrency(a.value)}</p>
                     </div>

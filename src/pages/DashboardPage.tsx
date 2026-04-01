@@ -212,11 +212,11 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
         )}
       </FinanceCard>
 
-      {stats.monthExpenses > stats.monthIncome && stats.monthIncome > 0 && (
+      {stats.monthExpenses > stats.monthIncomeTotal && stats.monthIncomeTotal > 0 && (
         <FinanceCard className="border-destructive/30 bg-destructive/5">
           <div className="flex items-center gap-2">
             <TrendingDown className="w-4 h-4 text-destructive" />
-            <p className="text-sm text-destructive font-medium">Dépenses supérieures aux revenus réels ce mois</p>
+            <p className="text-sm text-destructive font-medium">Dépenses supérieures aux revenus ce mois</p>
           </div>
         </FinanceCard>
       )}
