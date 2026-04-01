@@ -180,24 +180,28 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
-      <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider">Patrimoine net</p>
-        <h1 className="text-3xl font-bold text-foreground">{formatCurrency(stats.net)}</h1>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <FinanceCard>
-          <p className="text-[10px] text-muted-foreground">Brut</p>
-          <p className="text-sm font-bold text-foreground">{formatCurrency(stats.brut)}</p>
-        </FinanceCard>
-        <FinanceCard>
-          <p className="text-[10px] text-muted-foreground">Dettes</p>
-          <p className="text-sm font-bold text-destructive">{formatCurrency(stats.debtsTotal)}</p>
-        </FinanceCard>
-        <FinanceCard>
-          <p className="text-[10px] text-muted-foreground">Net</p>
-          <p className={`text-sm font-bold ${stats.net >= 0 ? 'text-foreground' : 'text-destructive'}`}>{formatCurrency(stats.net)}</p>
-        </FinanceCard>
+      {/* Hero */}
+      <div className="p-px rounded-3xl bg-gradient-to-br from-amber-500/40 via-primary/30 to-emerald-500/20">
+        <div className="rounded-[calc(1.5rem-1px)] bg-card px-5 py-5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Patrimoine net</p>
+          <p className="text-4xl font-extrabold text-gradient-gold leading-none mb-3">{formatCurrency(stats.net)}</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-muted/30 rounded-xl px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">Brut</p>
+              <p className="text-sm font-bold text-amber-400">{formatCurrency(stats.brut)}</p>
+            </div>
+            <div className="bg-muted/30 rounded-xl px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">Dettes</p>
+              <p className="text-sm font-bold text-rose-400">{formatCurrency(stats.debtsTotal)}</p>
+            </div>
+            <div className="bg-muted/30 rounded-xl px-3 py-2">
+              <p className="text-[10px] text-muted-foreground">Taux</p>
+              <p className="text-sm font-bold text-emerald-400">
+                {stats.brut > 0 ? `${Math.round((stats.net / stats.brut) * 100)}%` : '—'}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {stats.lastUpdate && (
@@ -207,30 +211,65 @@ export const PatrimoinePage: React.FC<Props> = ({ store, onAddAsset, onRemoveAss
       {/* Donut chart — Répartition des actifs */}
       {donutData.length > 0 && (
         <FinanceCard>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Répartition des actifs</h3>
-          <div className="flex items-center gap-4">
-            <ResponsiveContainer width={120} height={120}>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Répartition du patrimoine</h3>
+          {/* Donut with center label */}
+          <div className="relative mb-4">
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={donutData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} dataKey="value" stroke="none">
+                <Pie
+                  data={donutData}
+                  cx="50%" cy="50%"
+                  innerRadius={68} outerRadius={90}
+                  dataKey="value"
+                  stroke="none"
+                  paddingAngle={2}
+                >
                   {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-            <div className="flex-1 space-y-1.5">
-              {classBreakdown.map(c => (
-                <button key={c.class} onClick={() => setDetailClass(c.class)} className="flex items-center justify-between w-full text-left group">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
-                    <span className="text-[11px] text-muted-foreground group-hover:text-foreground">{c.label}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-medium text-foreground">{formatCurrency(c.value)}</span>
-                    <span className="text-[10px] text-muted-foreground">{c.pct}%</span>
-                    <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                  </div>
-                </button>
-              ))}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Brut</p>
+              <p className="text-lg font-bold text-foreground leading-tight">{formatCurrency(stats.brut)}</p>
+              {stats.debtsTotal > 0 && (
+                <p className="text-[10px] text-rose-400 mt-0.5">−{formatCurrency(stats.debtsTotal)}</p>
+              )}
             </div>
+          </div>
+
+          {/* Actifs vs Dettes ratio bar */}
+          {stats.debtsTotal > 0 && stats.brut > 0 && (
+            <div className="mb-4">
+              <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                <span>Actifs {Math.round((stats.brut / (stats.brut + stats.debtsTotal)) * 100)}%</span>
+                <span>Dettes {Math.round((stats.debtsTotal / (stats.brut + stats.debtsTotal)) * 100)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-rose-500/30 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all"
+                  style={{ width: `${Math.round((stats.brut / (stats.brut + stats.debtsTotal)) * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Legend rows — clickable */}
+          <div className="space-y-2">
+            {classBreakdown.map(c => (
+              <button key={c.class} onClick={() => setDetailClass(c.class)} className="flex items-center justify-between w-full text-left group">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
+                  <span className="text-[11px] text-muted-foreground group-hover:text-foreground truncate">{c.label}</span>
+                </div>
+                <div className="flex items-center gap-2 ml-2">
+                  <div className="w-20 h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${c.pct}%`, background: c.color }} />
+                  </div>
+                  <span className="text-[11px] font-medium text-foreground w-20 text-right">{formatCurrency(c.value)}</span>
+                  <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                </div>
+              </button>
+            ))}
           </div>
         </FinanceCard>
       )}
