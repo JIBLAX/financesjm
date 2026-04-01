@@ -105,6 +105,44 @@
   .page-bottom-pad {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
+
+  /* ── Gradient text ─────────────────────────────────────────────── */
+  .text-gradient-emerald {
+    background: linear-gradient(135deg, #0fba81 0%, #34d399 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-orange {
+    background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #d97706 0%, #fbbf24 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-sky {
+    background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-red {
+    background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-primary {
+    background: linear-gradient(135deg, hsl(165 60% 45%) 0%, hsl(165 70% 62%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
 
 /* Desktop — no fixed bottom nav, reduce bottom padding */

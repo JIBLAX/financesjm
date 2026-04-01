@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Check, Settings2 } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
+import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
 import type { FinanceStore, Operation, OperationFamily, OperationScope, OpCategory, OpSubcategory } from '@/types/finance'
 
@@ -20,15 +21,15 @@ interface Props {
 type FamilyTab = OperationFamily
 type ScopeTab = OperationScope
 
-const FAMILY_TABS: { key: FamilyTab; label: string }[] = [
-  { key: 'charge_fixe', label: 'Fixes' },
-  { key: 'charge_variable', label: 'Variables' },
-  { key: 'revenu', label: 'Revenus' },
+const FAMILY_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
+  { key: 'charge_fixe',    label: 'Fixes',    icon: '🔒' },
+  { key: 'charge_variable', label: 'Variables', icon: '📊' },
+  { key: 'revenu',          label: 'Revenus',   icon: '💰' },
 ]
 
 const SCOPE_TABS: { key: ScopeTab; label: string }[] = [
   { key: 'perso', label: 'Perso' },
-  { key: 'pro', label: 'Pro' },
+  { key: 'pro',   label: 'Pro'   },
 ]
 
 type ModalState =
@@ -169,25 +170,11 @@ export const OperationsPage: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Family tabs */}
-      <div className="flex gap-2">
-        {FAMILY_TABS.map(tab => (
-          <button key={tab.key} onClick={() => setFamily(tab.key)}
-            className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${family === tab.key ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground'}`}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Family switch */}
+      <SegmentedSwitch options={FAMILY_TABS} value={family} onChange={setFamily} />
 
-      {/* Scope sub-tabs */}
-      <div className="flex gap-2">
-        {SCOPE_TABS.map(tab => (
-          <button key={tab.key} onClick={() => setScope(tab.key)}
-            className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-colors ${scope === tab.key ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Scope switch */}
+      <SegmentedSwitch options={SCOPE_TABS} value={scope} onChange={setScope} className="max-w-[180px]" />
 
       {/* Totals bar */}
       {operations.length > 0 && (

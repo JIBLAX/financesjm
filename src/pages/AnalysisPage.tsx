@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { FinanceCard } from '@/components/FinanceCard'
+import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey } from '@/lib/constants'
 import type { FinanceStore } from '@/types/finance'
 
@@ -92,26 +93,26 @@ export const AnalysisPage: React.FC<Props> = ({ store }) => {
     <div className="page-container pt-6 page-bottom-pad gap-5">
       <h1 className="text-xl font-bold text-foreground">Analyse</h1>
 
-      {/* Tab selector */}
-      <div className="flex gap-2">
-        <button onClick={() => setTab('analyse')} className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-colors ${tab === 'analyse' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground'}`}>
-          Analyse
-        </button>
-        <button onClick={() => setTab('charges')} className={`px-4 py-1.5 rounded-xl text-xs font-medium transition-colors ${tab === 'charges' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground'}`}>
-          Charges
-        </button>
-      </div>
+      {/* Tab switch */}
+      <SegmentedSwitch
+        options={[{ key: 'analyse', label: 'Analyse' }, { key: 'charges', label: 'Charges' }]}
+        value={tab}
+        onChange={setTab}
+      />
 
       {tab === 'analyse' && (
         <>
-          {/* Period tabs */}
-          <div className="flex gap-2">
-            {([['month', 'Ce mois'], ['3months', '3 mois'], ['6months', '6 mois'], ['12months', '12 mois']] as [Period, string][]).map(([p, label]) => (
-              <button key={p} onClick={() => setPeriod(p)} className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${period === p ? 'bg-primary/20 text-primary' : 'bg-muted/50 text-muted-foreground'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* Period switch */}
+          <SegmentedSwitch
+            options={[
+              { key: 'month',    label: 'Mois'  },
+              { key: '3months',  label: '3 mois' },
+              { key: '6months',  label: '6 mois' },
+              { key: '12months', label: '12 mois' },
+            ]}
+            value={period}
+            onChange={setPeriod}
+          />
 
           {/* Bubble chart */}
           <FinanceCard className="p-4">
