@@ -16,6 +16,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
   const navigate = useNavigate()
   const location = useLocation()
   const [showForm, setShowForm] = useState(false)
+  const [scope, setScope] = useState<'pro' | 'perso' | null>(null)
   const [filterMonth, setFilterMonth] = useState(getCurrentMonthKey())
   const [filterAccount, setFilterAccount] = useState('')
 
@@ -45,6 +46,10 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
   const [revenueSource, setRevenueSource] = useState<RevenueSource>('autre')
   const [revenueType, setRevenueType] = useState<RevenueType>('autre_revenu')
   const [revenueRecurrence, setRevenueRecurrence] = useState<RevenueRecurrence>('unique')
+  // Installment mode (replaces recurrence)
+  const [installmentMode, setInstallmentMode] = useState(false)
+  const [installmentTotal, setInstallmentTotal] = useState('')
+  const [installmentCount, setInstallmentCount] = useState('')
 
   // Be Activ fields
   const [baClient, setBaClient] = useState('')
@@ -77,14 +82,16 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
       accountId,
       categoryId,
       monthKey: getCurrentMonthKey(),
-      note,
-      isRecurring: revenueRecurrence === 'mensuelle' || revenueRecurrence === 'hebdomadaire',
+      note: installmentMode && installmentCount
+        ? `${note ? note + ' · ' : ''}${installmentCount} versements · total ${formatCurrency(Number(installmentTotal))}`
+        : note,
+      isRecurring: installmentMode || revenueRecurrence === 'mensuelle' || revenueRecurrence === 'hebdomadaire',
     }
 
     if (direction === 'income') {
       tx.revenueSource = revenueSource
       tx.revenueType = revenueType
-      tx.revenueRecurrence = revenueRecurrence
+      tx.revenueRecurrence = installmentMode ? 'mensuelle' : revenueRecurrence
       tx.isRealRevenue = isRealRevenue
 
       if (revenueSource === 'be_activ') {
@@ -105,9 +112,24 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
     resetForm()
   }
 
+  const scopedAccounts = scope === 'pro'
+    ? store.accounts.filter(a => a.type === 'pro')
+    : scope === 'perso'
+    ? store.accounts.filter(a => a.type !== 'pro')
+    : store.accounts
+
+  const handleScopeSelect = (s: 'pro' | 'perso') => {
+    setScope(s)
+    const filtered = s === 'pro'
+      ? store.accounts.filter(a => a.type === 'pro')
+      : store.accounts.filter(a => a.type !== 'pro')
+    if (filtered.length > 0) setAccountId(filtered[0].id)
+  }
+
   const resetForm = () => {
-    setLabel(''); setAmount(''); setNote(''); setShowForm(false)
+    setLabel(''); setAmount(''); setNote(''); setShowForm(false); setScope(null)
     setRevenueSource('autre'); setRevenueType('autre_revenu'); setRevenueRecurrence('unique')
+    setInstallmentMode(false); setInstallmentTotal(''); setInstallmentCount('')
     setBaClient(''); setBaOffer(''); setBaChannel(''); setBaPayment(''); setBaStatus('recu')
     setBaIsInstallment(false); setBaTotalAmount(''); setBaInstallmentLabel('')
   }
@@ -132,10 +154,34 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
         </button>
       </div>
 
-      {showForm && (
+      {showForm && scope === null && (
+        <FinanceCard>
+          <p className="text-sm font-semibold text-foreground mb-4 text-center">C'est pour...</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => handleScopeSelect('perso')}
+              className="flex flex-col items-center gap-2 py-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 active:bg-emerald-500/20">
+              <span className="text-3xl">👤</span>
+              <span className="text-sm font-semibold">Perso</span>
+            </button>
+            <button onClick={() => handleScopeSelect('pro')}
+              className="flex flex-col items-center gap-2 py-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 active:bg-blue-500/20">
+              <span className="text-3xl">💼</span>
+              <span className="text-sm font-semibold">Pro</span>
+            </button>
+          </div>
+          <button onClick={() => setShowForm(false)} className="w-full mt-3 py-2 rounded-xl text-sm text-muted-foreground bg-muted/30">Annuler</button>
+        </FinanceCard>
+      )}
+
+      {showForm && scope !== null && (
         <FinanceCard className="space-y-3">
+          <div className="flex items-center gap-2 pb-1">
+            <span className="text-lg">{scope === 'pro' ? '💼' : '👤'}</span>
+            <span className="text-sm font-semibold text-foreground">{scope === 'pro' ? 'Professionnel' : 'Personnel'}</span>
+            <button onClick={() => setScope(null)} className="ml-auto text-xs text-muted-foreground px-2 py-0.5 rounded-lg bg-muted/30">Changer</button>
+          </div>
           <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Libellé" value={label} onChange={e => setLabel(e.target.value)} />
-          <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Montant €" type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+          <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Montant €" type="number" inputMode="decimal" value={amount} onFocus={e => e.target.select()} onChange={e => setAmount(e.target.value)} />
 
           <div className="flex gap-2">
             {(['income', 'expense'] as const).map(d => (
@@ -160,9 +206,71 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
                 {Object.entries(REVENUE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
 
-              <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={revenueRecurrence} onChange={e => setRevenueRecurrence(e.target.value as RevenueRecurrence)}>
-                {Object.entries(REVENUE_RECURRENCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
+              {/* Paiement : unique ou en x fois */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setInstallmentMode(false); setRevenueRecurrence('unique') }}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium ${!installmentMode ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}
+                >
+                  Paiement unique
+                </button>
+                <button
+                  onClick={() => { setInstallmentMode(true); setRevenueRecurrence('mensuelle') }}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium ${installmentMode ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}
+                >
+                  En plusieurs fois
+                </button>
+              </div>
+
+              {installmentMode ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Total €</p>
+                      <input
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                        placeholder="ex: 900"
+                        type="number" inputMode="decimal"
+                        value={installmentTotal}
+                        onFocus={e => e.target.select()}
+                        onChange={e => {
+                          setInstallmentTotal(e.target.value)
+                          const n = Number(installmentCount) || 0
+                          if (n > 0 && Number(e.target.value) > 0) setAmount(String(Math.round((Number(e.target.value) / n) * 100) / 100))
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Nb de versements</p>
+                      <input
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                        placeholder="ex: 3"
+                        type="number" inputMode="numeric"
+                        value={installmentCount}
+                        onFocus={e => e.target.select()}
+                        onChange={e => {
+                          setInstallmentCount(e.target.value)
+                          const total = Number(installmentTotal) || 0
+                          const n = Number(e.target.value) || 0
+                          if (n > 0 && total > 0) setAmount(String(Math.round((total / n) * 100) / 100))
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {Number(installmentTotal) > 0 && Number(installmentCount) > 0 && (
+                    <div className="bg-emerald-500/10 rounded-xl px-3 py-2 flex justify-between items-center">
+                      <span className="text-xs text-muted-foreground">Ce versement</span>
+                      <span className="text-sm font-bold text-emerald-400">
+                        {formatCurrency(Math.round((Number(installmentTotal) / Number(installmentCount)) * 100) / 100)} × {installmentCount}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={revenueRecurrence} onChange={e => setRevenueRecurrence(e.target.value as RevenueRecurrence)}>
+                  {Object.entries(REVENUE_RECURRENCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              )}
 
               {/* Real revenue indicator */}
               <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${isRealRevenue ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
@@ -215,7 +323,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
           </div>
 
           <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={accountId} onChange={e => setAccountId(e.target.value)}>
-            {store.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {scopedAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
           <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
             {store.categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
