@@ -15,7 +15,7 @@ interface Props {
   onRemoveDebt: (id: string) => void
 }
 
-const ASSET_TYPES: AssetType[] = ['compte_bancaire', 'livret_epargne', 'actions', 'etf', 'crypto', 'immobilier', 'vehicule', 'objet_valeur', 'autre_actif', 'dette']
+const ASSET_TYPES: AssetType[] = ['compte_bancaire', 'livret_epargne', 'assurance_vie', 'actions', 'etf', 'crypto', 'immobilier', 'vehicule', 'objet_valeur', 'autre_actif', 'dette']
 const numInput = 'w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none'
 
 type DetailItem = { name: string; value: number; detail?: string; extra?: string }
@@ -461,6 +461,14 @@ export const PatrimoinePage: React.FC<Props> = ({
                   <input className={numInput} placeholder="Solde actuel" type="number" inputMode="decimal" value={value} onFocus={e => e.target.select()} onChange={e => setValue(e.target.value)} />
                   <select className={numInput} value={currency} onChange={e => setCurrency(e.target.value)}>
                     <option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option>
+                  </select>
+                </>)}
+
+                {selectedType === 'assurance_vie' && (<>
+                  <input className={numInput} placeholder="Assureur (ex: Linxea, Boursorama…)" value={platform} onChange={e => setPlatform(e.target.value)} />
+                  <input className={numInput} placeholder="Valeur actuelle du contrat €" type="number" inputMode="decimal" value={value} onFocus={e => e.target.select()} onChange={e => setValue(e.target.value)} />
+                  <select className={numInput} value={currency} onChange={e => setCurrency(e.target.value)}>
+                    <option value="EUR">EUR</option>
                   </select>
                 </>)}
 
