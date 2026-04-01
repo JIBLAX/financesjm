@@ -25,6 +25,9 @@ import { QuestionnairePage } from '@/pages/QuestionnairePage'
 import { Liberte2Page } from '@/pages/Liberte2Page'
 import { TrajectoryPage } from '@/pages/TrajectoryPage'
 import { SnapshotModal } from '@/components/SnapshotModal'
+import { MonthlyCheckinModal, shouldShowCheckin } from '@/components/MonthlyCheckinModal'
+import { SideNav } from '@/components/SideNav'
+import type { MonthlyCheckIn } from '@/types/finance'
 
 const App: React.FC = () => {
   const finance = useFinanceStore()
@@ -37,17 +40,40 @@ const App: React.FC = () => {
   const handleImport = useCallback((imported: typeof store) => { finance.persist(imported) }, [finance])
   const handleReset = useCallback(() => { const fresh = loadStore(); finance.persist(fresh) }, [finance])
 
+  const [showCheckin, setShowCheckin] = useState(false)
+  const handleCheckinComplete = useCallback((c: MonthlyCheckIn) => {
+    finance.saveCheckIn(c)
+    setShowCheckin(false)
+  }, [finance])
+
   if (!unlocked) {
     return <PinLock correctPin={store.settings.pin} pinConfigured={store.settings.pinConfigured} onUnlock={handleUnlock} onSetupPin={handleSetupPin} />
   }
+
+  // Show check-in on mount if conditions met (done here to avoid calling shouldShowCheckin in useState which runs before store migration)
+  React.useEffect(() => {
+    if (unlocked && shouldShowCheckin(store)) setShowCheckin(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlocked])
 
   return (
     <TooltipProvider>
       <Toaster />
       <BrowserRouter>
-        <div className="flex flex-col h-full bg-background">
+        <div className="flex h-full bg-background">
+          <SideNav />
+          <div className="flex flex-col flex-1 min-w-0 lg:ml-56">
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
-            <SnapshotModal store={store} onDismiss={(snapshot) => finance.saveSnapshot(snapshot)} />
+            {!showCheckin && <SnapshotModal store={store} onDismiss={(snapshot) => finance.saveSnapshot(snapshot)} />}
+            {showCheckin && (
+              <MonthlyCheckinModal
+                store={store}
+                onSaveCheckIn={handleCheckinComplete}
+                onUpdateAccount={finance.updateAccount}
+                onUpdateAsset={finance.updateAsset}
+                onUpdateDebt={finance.updateDebt}
+              />
+            )}
             <Routes>
               <Route path="/" element={<DashboardPage store={store} onDismissAlert={finance.dismissAlert} />} />
               <Route path="/mois" element={<MonthPage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} />} />
@@ -70,6 +96,7 @@ const App: React.FC = () => {
             </Routes>
           </div>
           <BottomNav />
+          </div>
         </div>
       </BrowserRouter>
     </TooltipProvider>

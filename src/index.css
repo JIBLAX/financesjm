@@ -52,6 +52,9 @@
   @media (min-width: 640px) {
     :root { --page-max-width: 480px; --page-px: 28px; }
   }
+  @media (min-width: 1024px) {
+    :root { --page-max-width: 680px; --page-px: 32px; }
+  }
 }
 
 @layer base {
@@ -101,6 +104,13 @@
 @layer utilities {
   .page-bottom-pad {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Desktop — no fixed bottom nav, reduce bottom padding */
+@media (min-width: 1024px) {
+  .page-bottom-pad {
+    padding-bottom: 2.5rem;
   }
 }
 

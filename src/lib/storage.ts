@@ -20,6 +20,7 @@ function getDefaultStore(): FinanceStore {
     operations: [],
     opCategories: DEFAULT_OP_CATEGORIES.map(c => ({ ...c })),
     opSubcategories: DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
+    monthlyCheckIns: [],
   }
 }
 
@@ -49,6 +50,7 @@ export function loadStore(): FinanceStore {
       operations: parsed.operations || [],
       opCategories: parsed.opCategories?.length ? parsed.opCategories : DEFAULT_OP_CATEGORIES.map(c => ({ ...c })),
       opSubcategories: parsed.opSubcategories?.length ? parsed.opSubcategories : DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
+      monthlyCheckIns: parsed.monthlyCheckIns || [],
     }
   } catch {
     return getDefaultStore()

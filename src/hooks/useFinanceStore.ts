@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory } from '@/types/finance'
+import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory, MonthlyCheckIn } from '@/types/finance'
 import { loadStore, saveStore } from '@/lib/storage'
 import { getPreviousMonthKey } from '@/lib/constants'
 
@@ -190,6 +190,13 @@ export function useFinanceStore() {
     update(prev => ({ ...prev, opSubcategories: prev.opSubcategories.filter(s => s.id !== id) }))
   }, [update])
 
+  const saveCheckIn = useCallback((c: MonthlyCheckIn) => {
+    update(prev => ({
+      ...prev,
+      monthlyCheckIns: [...(prev.monthlyCheckIns || []).filter(x => x.monthKey !== c.monthKey), c],
+    }))
+  }, [update])
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   return {
@@ -202,5 +209,6 @@ export function useFinanceStore() {
     addOperation, updateOperation, removeOperation, initMonthOperations,
     addOpCategory, updateOpCategory, removeOpCategory,
     addOpSubcategory, removeOpSubcategory,
+    saveCheckIn,
   }
 }

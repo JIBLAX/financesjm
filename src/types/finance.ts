@@ -238,6 +238,15 @@ export interface AppSettings {
   beActivConnection: BeActivConnectionStatus
 }
 
+export interface MonthlyCheckIn {
+  id: string
+  monthKey: string
+  doneAt: string
+  accountBalances: Record<string, number>
+  assetValues: Record<string, number>
+  debtBalances: Record<string, number>
+}
+
 // ─── Budget Operations ───────────────────────────────────────────────────────
 
 export type OperationFamily = 'charge_fixe' | 'charge_variable' | 'revenu'
@@ -291,4 +300,5 @@ export interface FinanceStore {
   operations: Operation[]
   opCategories: OpCategory[]
   opSubcategories: OpSubcategory[]
+  monthlyCheckIns: MonthlyCheckIn[]
 }
