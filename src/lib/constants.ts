@@ -185,7 +185,7 @@ export const ASSET_CLASS_LABELS: Record<string, { label: string; color: string }
 }
 
 export const formatCurrency = (amount: number, currency: string = 'EUR'): string => {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount)
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
 }
 
 export const formatCurrencyFull = (amount: number, currency: string = 'EUR'): string => {
