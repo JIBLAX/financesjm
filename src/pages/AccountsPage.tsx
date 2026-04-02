@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { Building2, Banknote, PiggyBank, Briefcase, Star, Plus, Pencil, Trash2, X, Check } from 'lucide-react'
+import { Building2, Banknote, PiggyBank, Briefcase, Star, Plus, X, Check, ChevronDown, TrendingUp, Settings2 } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency } from '@/lib/constants'
 import type { FinanceStore, Account } from '@/types/finance'
@@ -12,156 +12,146 @@ interface Props {
   onRemove: (id: string) => void
 }
 
-const typeConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  pro: { label: 'Professionnel', icon: <Briefcase className="w-4 h-4" />, color: 'text-blue-400' },
-  courant: { label: 'Courant', icon: <Building2 className="w-4 h-4" />, color: 'text-emerald-400' },
-  livret: { label: 'Épargne', icon: <PiggyBank className="w-4 h-4" />, color: 'text-amber-400' },
-  liquide: { label: 'Espèces', icon: <Banknote className="w-4 h-4" />, color: 'text-violet-400' },
-  epargne_projet: { label: 'Épargne Projet', icon: <Star className="w-4 h-4" />, color: 'text-cyan-400' },
-  investissement: { label: 'Investissement', icon: <Star className="w-4 h-4" />, color: 'text-primary' },
-  dette: { label: 'Dette', icon: <Banknote className="w-4 h-4" />, color: 'text-destructive' },
+// Each type: label, icon, Tailwind color class, hex color for chart
+const TYPE_CFG: Record<string, { label: string; icon: React.ReactNode; tw: string; hex: string }> = {
+  pro:            { label: 'Professionnel',  icon: <Briefcase className="w-4 h-4" />,   tw: 'text-indigo-400', hex: '#818cf8' },
+  courant:        { label: 'Courant',        icon: <Building2 className="w-4 h-4" />,   tw: 'text-emerald-400', hex: '#34d399' },
+  livret:         { label: 'Épargne',        icon: <PiggyBank className="w-4 h-4" />,   tw: 'text-amber-400',  hex: '#fbbf24' },
+  liquide:        { label: 'Espèces',        icon: <Banknote className="w-4 h-4" />,    tw: 'text-violet-400', hex: '#a78bfa' },
+  epargne_projet: { label: 'Épargne Projet', icon: <Star className="w-4 h-4" />,        tw: 'text-cyan-400',   hex: '#22d3ee' },
+  investissement: { label: 'Investissement', icon: <TrendingUp className="w-4 h-4" />,  tw: 'text-green-400',  hex: '#4ade80' },
+  dette:          { label: 'Dette',          icon: <Banknote className="w-4 h-4" />,    tw: 'text-rose-400',   hex: '#fb7185' },
 }
 
-const ACCOUNT_TYPES: Account['type'][] = ['courant', 'livret', 'liquide', 'epargne_projet', 'investissement', 'pro', 'dette']
+const TYPE_ORDER = ['pro', 'courant', 'livret', 'liquide', 'epargne_projet', 'investissement', 'dette']
 
 const emptyForm = (): Omit<Account, 'id'> => ({
-  name: '',
-  institution: '',
-  type: 'courant',
-  subtype: '',
-  currency: 'EUR',
-  currentBalance: 0,
-  isActive: true,
-  group: '',
-  note: '',
+  name: '', institution: '', type: 'courant', subtype: '', currency: 'EUR',
+  currentBalance: 0, isActive: true, group: '', note: '',
 })
 
-type ModalState =
-  | { mode: 'add' }
-  | { mode: 'edit'; account: Account }
-  | null
+type ModalState = { mode: 'add' } | { mode: 'edit'; account: Account } | null
 
 export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove }) => {
-  const [modal, setModal] = useState<ModalState>(null)
-  const [form, setForm] = useState<Omit<Account, 'id'>>(emptyForm())
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [modal, setModal]       = useState<ModalState>(null)
+  const [form, setForm]         = useState<Omit<Account, 'id'>>(emptyForm())
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [editMode, setEditMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [deleteStep, setDeleteStep] = useState(false)
 
-  const openAdd = () => {
-    setForm(emptyForm())
-    setModal({ mode: 'add' })
-  }
+  const toggleCollapse = (key: string) => setCollapsed(s => {
+    const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n
+  })
+
+  const toggleSelect = (id: string) => setSelectedIds(s => {
+    const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
+
+  const cancelEdit = () => { setEditMode(false); setSelectedIds(new Set()); setDeleteStep(false) }
+
+  const openAdd = () => { setForm(emptyForm()); setModal({ mode: 'add' }) }
 
   const openEdit = (a: Account) => {
-    setForm({ name: a.name, institution: a.institution, type: a.type, subtype: a.subtype, currency: a.currency, currentBalance: a.currentBalance, isActive: a.isActive, group: a.group || '', note: a.note || '' })
+    setForm({ name: a.name, institution: a.institution, type: a.type, subtype: a.subtype,
+      currency: a.currency, currentBalance: a.currentBalance, isActive: a.isActive,
+      group: a.group || '', note: a.note || '' })
     setModal({ mode: 'edit', account: a })
   }
 
-  const closeModal = () => { setModal(null); setDeleteConfirm(null) }
+  const closeModal = () => setModal(null)
 
   const handleSave = () => {
     if (!form.name.trim()) return
-    if (modal?.mode === 'add') {
-      onAdd({ ...form, id: `acc_${Date.now()}`, group: form.group || undefined, note: form.note || undefined })
-    } else if (modal?.mode === 'edit') {
-      onUpdate(modal.account.id, { ...form, group: form.group || undefined, note: form.note || undefined })
-    }
+    const clean = { ...form, group: form.group || undefined, note: form.note || undefined }
+    if (modal?.mode === 'add') onAdd({ ...clean, id: `acc_${Date.now()}` })
+    else if (modal?.mode === 'edit') onUpdate(modal.account.id, clean)
     closeModal()
+    cancelEdit()
   }
 
-  const handleDelete = (id: string) => {
-    if (deleteConfirm === id) {
-      onRemove(id)
-      setDeleteConfirm(null)
-    } else {
-      setDeleteConfirm(id)
+  const handleEditSelected = () => {
+    if (selectedIds.size === 1) {
+      const acc = store.accounts.find(a => a.id === [...selectedIds][0])
+      if (acc) openEdit(acc)
     }
   }
+
+  const handleDeleteSelected = () => {
+    if (!deleteStep) { setDeleteStep(true); return }
+    selectedIds.forEach(id => onRemove(id))
+    cancelEdit()
+  }
+
+  // Chart data: accounts with same group → merged into one bar
+  const chartData = useMemo(() => {
+    const map = new Map<string, { name: string; value: number; color: string }>()
+    store.accounts.filter(a => a.isActive).forEach(a => {
+      const key = a.group || a.id
+      const name = a.group
+        ? a.group.charAt(0).toUpperCase() + a.group.slice(1)
+        : (a.name.length > 13 ? a.name.slice(0, 13) + '…' : a.name)
+      if (!map.has(key)) map.set(key, { name, value: 0, color: TYPE_CFG[a.type]?.hex || '#6b7280' })
+      map.get(key)!.value += a.currentBalance
+    })
+    return Array.from(map.values()).sort((a, b) => b.value - a.value)
+  }, [store.accounts])
+
+  // Groups: by type, in TYPE_ORDER
+  const groupedByType = useMemo(() => {
+    const map = new Map<string, Account[]>()
+    store.accounts.filter(a => a.isActive).forEach(a => {
+      if (!map.has(a.type)) map.set(a.type, [])
+      map.get(a.type)!.push(a)
+    })
+    return map
+  }, [store.accounts])
 
   const total = store.accounts.filter(a => a.isActive).reduce((s, a) => s + a.currentBalance, 0)
 
-  const chartData = useMemo(() =>
-    store.accounts
-      .filter(a => a.isActive)
-      .sort((a, b) => b.currentBalance - a.currentBalance)
-      .map(a => ({
-        name: a.name.length > 12 ? a.name.slice(0, 12) + '…' : a.name,
-        value: a.currentBalance,
-      })),
-    [store.accounts]
-  )
-  const proAccounts = store.accounts.filter(a => a.isActive && a.type === 'pro')
-  const proTotal = proAccounts.reduce((s, a) => s + a.currentBalance, 0)
-  const mainAccounts = store.accounts.filter(a => a.isActive && a.group !== 'bunq' && a.type !== 'pro')
-  const bunqAccounts = store.accounts.filter(a => a.isActive && a.group === 'bunq' && a.type !== 'pro')
-
-  const grouped = mainAccounts.reduce<Record<string, Account[]>>((acc, a) => {
-    if (!acc[a.type]) acc[a.type] = []
-    acc[a.type].push(a)
-    return acc
-  }, {})
-
-  const renderAccount = (a: Account) => (
-    <FinanceCard key={a.id}>
-      <div className="flex justify-between items-center">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground">{a.name}</p>
-          <p className="text-xs text-muted-foreground">{a.institution}{a.subtype ? ` · ${a.subtype}` : ''}</p>
-          {a.note && <p className="text-[10px] text-muted-foreground italic mt-0.5">{a.note}</p>}
-        </div>
-        <div className="flex items-center gap-2 ml-2">
-          <p className={`text-base font-bold ${a.currentBalance >= 0 ? 'text-foreground' : 'text-destructive'}`}>
-            {formatCurrency(a.currentBalance)}
-          </p>
-          <button onClick={() => openEdit(a)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => handleDelete(a.id)} className={`w-8 h-8 rounded-lg flex items-center justify-center active:bg-muted/50 ${deleteConfirm === a.id ? 'text-destructive' : 'text-muted-foreground'}`}>
-            {deleteConfirm === a.id ? <Check className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-      </div>
-      {deleteConfirm === a.id && (
-        <div className="mt-2 flex gap-2 items-center">
-          <p className="text-xs text-destructive flex-1">Confirmer la suppression ?</p>
-          <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1 rounded-lg text-xs bg-muted/50 text-foreground">Annuler</button>
-        </div>
-      )}
-    </FinanceCard>
-  )
-
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
-      {/* Hero */}
-      <div className="p-px rounded-3xl bg-gradient-to-br from-sky-500/40 via-primary/20 to-cyan-500/10">
-        <div className="rounded-[calc(1.5rem-1px)] bg-card px-5 py-5">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Total comptes</p>
-              <h1 className="text-4xl font-extrabold text-gradient-sky leading-none">{formatCurrency(total)}</h1>
-            </div>
-            <button onClick={openAdd} className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:bg-primary/20">
-              <Plus className="w-5 h-5" />
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold text-white">Comptes</h1>
+        <div className="flex gap-2">
+          {editMode ? (
+            <button onClick={cancelEdit} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted/30 text-muted-foreground">
+              Annuler
             </button>
-          </div>
+          ) : (
+            <>
+              <button onClick={() => setEditMode(true)} className="w-9 h-9 rounded-xl bg-muted/30 text-muted-foreground flex items-center justify-center active:bg-muted/50">
+                <Settings2 className="w-4 h-4" />
+              </button>
+              <button onClick={openAdd} className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center active:bg-primary/20">
+                <Plus className="w-4 h-4" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
-          {chartData.length > 1 && (
-            <ResponsiveContainer width="100%" height={chartData.length * 32 + 8}>
-              <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }} barSize={18}>
+      {/* Total + chart card */}
+      <div className="p-px rounded-3xl bg-gradient-to-br from-sky-500/30 via-primary/20 to-cyan-500/10">
+        <div className="rounded-[calc(1.5rem-1px)] bg-card px-5 py-5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Total comptes</p>
+          <p className="text-4xl font-extrabold text-gradient-sky leading-none mb-4">{formatCurrency(total)}</p>
+
+          {chartData.length > 0 && (
+            <ResponsiveContainer width="100%" height={Math.max(chartData.length * 30 + 8, 60)}>
+              <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }} barSize={16}>
                 <XAxis type="number" hide />
-                <YAxis
-                  type="category" dataKey="name" width={82}
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                  axisLine={false} tickLine={false}
-                />
+                <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                 <Tooltip
                   formatter={(v: number) => [formatCurrency(v), 'Solde']}
                   contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 12 }}
                   itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  cursor={{ fill: 'hsl(var(--muted)/0.2)' }}
+                  cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                 />
                 <Bar dataKey="value" radius={[0, 8, 8, 0]}>
                   {chartData.map((d, i) => (
-                    <Cell key={i} fill={d.value >= 0 ? '#0ea5e9' : '#f43f5e'} fillOpacity={0.85} />
+                    <Cell key={i} fill={d.color} fillOpacity={d.value >= 0 ? 0.85 : 1} />
                   ))}
                 </Bar>
               </BarChart>
@@ -170,55 +160,98 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
         </div>
       </div>
 
-
-      {proAccounts.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-blue-400"><Briefcase className="w-4 h-4" /></span>
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Professionnel</h2>
-          </div>
-          <div className="space-y-2">
-            {proAccounts.map(renderAccount)}
-          </div>
-          {proAccounts.length > 1 && (
-            <div className="mt-2 px-4 py-2 bg-muted/20 rounded-xl flex justify-between items-center">
-              <span className="text-xs font-semibold text-muted-foreground">Trésorerie pro totale</span>
-              <span className="text-sm font-bold text-foreground">{formatCurrency(proTotal)}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {Object.entries(grouped).map(([type, accounts]) => {
-        const cfg = typeConfig[type] || { label: type, icon: null, color: 'text-foreground' }
+      {/* Groups */}
+      {TYPE_ORDER.map(type => {
+        const accounts = groupedByType.get(type)
+        if (!accounts || accounts.length === 0) return null
+        const cfg = TYPE_CFG[type] || { label: type, icon: null, tw: 'text-muted-foreground', hex: '#6b7280' }
         const groupTotal = accounts.reduce((s, a) => s + a.currentBalance, 0)
+        const isCollapsed = collapsed.has(type)
+
         return (
           <div key={type}>
-            <div className="flex items-center justify-between mb-2">
+            {/* Group header — tap to collapse */}
+            <button onClick={() => toggleCollapse(type)} className="flex items-center justify-between w-full mb-2 active:opacity-70">
               <div className="flex items-center gap-2">
-                <span className={cfg.color}>{cfg.icon}</span>
+                <span className={cfg.tw}>{cfg.icon}</span>
                 <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{cfg.label}</h2>
+                <span className="text-[10px] text-muted-foreground/50">{accounts.length}</span>
               </div>
-              <span className="text-sm font-medium text-foreground">{formatCurrency(groupTotal)}</span>
-            </div>
-            <div className="space-y-2">{accounts.map(renderAccount)}</div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">{formatCurrency(groupTotal)}</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
+              </div>
+            </button>
+
+            {/* Account rows */}
+            {!isCollapsed && (
+              <div className="space-y-1.5">
+                {accounts.map(a => {
+                  const isSelected = selectedIds.has(a.id)
+                  return (
+                    <div
+                      key={a.id}
+                      onClick={() => editMode ? toggleSelect(a.id) : undefined}
+                      className={`bg-card/60 rounded-xl border transition-colors px-3 py-2.5 flex items-center gap-3 ${
+                        editMode ? 'cursor-pointer active:bg-muted/30' : ''
+                      } ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border/30'}`}
+                    >
+                      {/* Selection circle */}
+                      {editMode && (
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30'
+                        }`}>
+                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{a.name}</p>
+                        <p className="text-xs text-muted-foreground">{a.institution}{a.subtype ? ` · ${a.subtype}` : ''}</p>
+                        {a.group && <p className="text-[10px] text-muted-foreground/50">🔗 {a.group}</p>}
+                      </div>
+                      <p className={`text-sm font-bold shrink-0 ${a.currentBalance >= 0 ? 'text-foreground' : 'text-destructive'}`}>
+                        {formatCurrency(a.currentBalance)}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )
       })}
 
-      {bunqAccounts.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-cyan-400"><Star className="w-4 h-4" /></span>
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">BUNQ — Comptes annexes</h2>
-          </div>
-          <div className="space-y-2">{bunqAccounts.map(renderAccount)}</div>
-        </div>
-      )}
-
       {store.accounts.filter(a => a.isActive).length === 0 && (
         <div className="text-center py-12">
           <p className="text-sm text-muted-foreground">Aucun compte — appuyez sur + pour en ajouter un</p>
+        </div>
+      )}
+
+      {/* Edit mode bottom action bar */}
+      {editMode && (
+        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-50 px-4">
+          <div className="max-w-lg mx-auto bg-card/95 backdrop-blur-xl border border-border/50 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl">
+            <span className="text-xs text-muted-foreground flex-1">
+              {selectedIds.size === 0 ? 'Sélectionner des comptes' : `${selectedIds.size} sélectionné${selectedIds.size > 1 ? 's' : ''}`}
+            </span>
+            <button
+              onClick={handleEditSelected}
+              disabled={selectedIds.size !== 1}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-primary/20 text-primary disabled:opacity-30"
+            >
+              Modifier
+            </button>
+            <button
+              onClick={handleDeleteSelected}
+              disabled={selectedIds.size === 0}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-30 transition-colors ${
+                deleteStep ? 'bg-destructive text-white' : 'bg-destructive/20 text-destructive'
+              }`}
+            >
+              {deleteStep ? 'Confirmer ?' : 'Supprimer'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -249,9 +282,10 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
               <div>
                 <label className="text-xs text-muted-foreground">Type</label>
                 <div className="flex flex-wrap gap-2 mt-1">
-                  {ACCOUNT_TYPES.map(t => (
-                    <button key={t} onClick={() => setForm(f => ({ ...f, type: t }))} className={`px-3 py-1.5 rounded-xl text-xs font-medium ${form.type === t ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                      {typeConfig[t]?.label || t}
+                  {(Object.keys(TYPE_CFG) as Account['type'][]).map(t => (
+                    <button key={t} onClick={() => setForm(f => ({ ...f, type: t }))}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium ${form.type === t ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                      {TYPE_CFG[t]?.label || t}
                     </button>
                   ))}
                 </div>
@@ -264,12 +298,12 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
 
               <div>
                 <label className="text-xs text-muted-foreground">Solde actuel (€)</label>
-                <input type="number" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.currentBalance} onChange={e => setForm(f => ({ ...f, currentBalance: parseFloat(e.target.value) || 0 }))} />
+                <input type="number" inputMode="decimal" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.currentBalance || ''} onFocus={e => e.target.select()} onChange={e => setForm(f => ({ ...f, currentBalance: parseFloat(e.target.value) || 0 }))} />
               </div>
 
               <div>
-                <label className="text-xs text-muted-foreground">Groupe (ex: bunq) — optionnel</label>
-                <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="Optionnel" value={form.group || ''} onChange={e => setForm(f => ({ ...f, group: e.target.value }))} />
+                <label className="text-xs text-muted-foreground">Lier à un groupe <span className="text-muted-foreground/50">(même nom = fusionnés dans le graphe)</span></label>
+                <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="Ex: voyage, urgence…" value={form.group || ''} onChange={e => setForm(f => ({ ...f, group: e.target.value.toLowerCase() }))} />
               </div>
 
               <div>
@@ -283,6 +317,15 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
                   <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform mx-0.5 ${form.isActive ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
+
+              {modal.mode === 'edit' && (
+                <button
+                  onClick={() => { if (modal.mode === 'edit') { onRemove(modal.account.id); closeModal() } }}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold text-destructive bg-destructive/10"
+                >
+                  Supprimer ce compte
+                </button>
+              )}
 
               <button onClick={handleSave} disabled={!form.name.trim()} className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40">
                 {modal.mode === 'add' ? 'Ajouter le compte' : 'Enregistrer'}

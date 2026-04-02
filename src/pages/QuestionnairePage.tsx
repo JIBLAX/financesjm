@@ -130,7 +130,7 @@ export const QuestionnairePage: React.FC<Props> = ({ questionnaire, onUpdate }) 
 
       <div className="text-center">
         <span className="text-4xl">{current.emoji}</span>
-        <h1 className="text-xl font-bold text-foreground mt-3">{current.title}</h1>
+        <h1 className="text-2xl font-extrabold text-white mt-3">{current.title}</h1>
       </div>
 
       <div className="space-y-3">
