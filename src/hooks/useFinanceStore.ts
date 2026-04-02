@@ -197,6 +197,17 @@ export function useFinanceStore() {
     }))
   }, [update])
 
+  // ─── Monthly Budgets ──────────────────────────────────────────────────────
+  const updateBudget = useCallback((monthKey: string, categoryId: string, amount: number) => {
+    update(prev => ({
+      ...prev,
+      monthlyBudgets: {
+        ...prev.monthlyBudgets,
+        [monthKey]: { ...(prev.monthlyBudgets[monthKey] || {}), [categoryId]: amount },
+      },
+    }))
+  }, [update])
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   return {
@@ -209,6 +220,6 @@ export function useFinanceStore() {
     addOperation, updateOperation, removeOperation, initMonthOperations,
     addOpCategory, updateOpCategory, removeOpCategory,
     addOpSubcategory, removeOpSubcategory,
-    saveCheckIn,
+    saveCheckIn, updateBudget,
   }
 }

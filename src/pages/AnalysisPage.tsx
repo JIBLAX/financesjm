@@ -111,7 +111,7 @@ export const AnalysisPage: React.FC<Props> = ({ store }) => {
               { key: '12months', label: '12 mois' },
             ]}
             value={period}
-            onChange={setPeriod}
+            onChange={(v) => setPeriod(v as Period)}
           />
 
           {/* Bubble chart */}
