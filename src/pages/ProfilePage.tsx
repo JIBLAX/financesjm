@@ -1,13 +1,14 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, TrendingUp, Shield, Award } from 'lucide-react'
+import { ArrowLeft, User, TrendingUp, Shield, Award, ChevronDown } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getLevelForXp, getNextLevel, LEVELS } from '@/lib/constants'
 import { calculateHealthScore } from '@/lib/analytics'
-import type { FinanceStore } from '@/types/finance'
+import type { FinanceStore, ProfileRegulation, LifeSituation, RevenueStability } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
+  onUpdateRegulation?: (patch: Partial<ProfileRegulation>) => void
 }
 
 const PROFILE_LABELS: Record<string, { label: string; desc: string }> = {
@@ -17,11 +18,13 @@ const PROFILE_LABELS: Record<string, { label: string; desc: string }> = {
   entrepreneur: { label: 'Entrepreneur', desc: 'Tu crois en la croissance de tes revenus. Tu investis dans toi-même et dans des actifs à fort potentiel.' },
 }
 
-export const ProfilePage: React.FC<Props> = ({ store }) => {
+export const ProfilePage: React.FC<Props> = ({ store, onUpdateRegulation }) => {
   const navigate = useNavigate()
+  const [showRegulation, setShowRegulation] = useState(false)
   const healthScore = useMemo(() => calculateHealthScore(store), [store])
   const level = getLevelForXp(store.settings.xp)
   const nextLevel = getNextLevel(level.level)
+  const reg = store.settings.profileRegulation
 
   const scoreColor = healthScore.total >= 75 ? 'text-emerald-400' : healthScore.total >= 60 ? 'text-amber-300' : healthScore.total >= 40 ? 'text-amber-500' : 'text-destructive'
   const scoreTrack = healthScore.total >= 75 ? 'bg-emerald-500' : healthScore.total >= 60 ? 'bg-amber-300' : healthScore.total >= 40 ? 'bg-amber-500' : 'bg-destructive'
@@ -114,6 +117,61 @@ export const ProfilePage: React.FC<Props> = ({ store }) => {
           </>
         ) : (
           <button onClick={() => navigate('/questionnaire')} className="w-full py-3 rounded-xl text-sm font-semibold bg-primary/10 text-primary">Découvrir mon profil →</button>
+        )}
+      </FinanceCard>
+
+      {/* Régulation du Profil */}
+      <FinanceCard>
+        <button onClick={() => setShowRegulation(s => !s)} className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <User className="w-4 h-4 text-primary" />
+            <p className="text-sm font-semibold text-foreground">Régulation du profil</p>
+          </div>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showRegulation ? 'rotate-180' : ''}`} />
+        </button>
+        {showRegulation && onUpdateRegulation && (
+          <div className="mt-4 space-y-3 border-t border-border/30 pt-4">
+            <div>
+              <label className="text-xs text-muted-foreground">Situation de vie</label>
+              <div className="flex gap-2 mt-1">
+                {(['solo', 'couple', 'famille'] as LifeSituation[]).map(s => (
+                  <button key={s} onClick={() => onUpdateRegulation({ lifeSituation: s })} className={`flex-1 py-2 rounded-xl text-xs font-medium ${reg.lifeSituation === s ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                    {s === 'solo' ? '👤 Solo' : s === 'couple' ? '👥 Couple' : '👨‍👩‍👧 Famille'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {reg.lifeSituation === 'famille' && (
+              <div>
+                <label className="text-xs text-muted-foreground">Nombre d'enfants</label>
+                <input type="number" min="0" max="10" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" value={reg.childrenCount} onChange={e => onUpdateRegulation({ childrenCount: Number(e.target.value) || 0 })} />
+              </div>
+            )}
+            <div>
+              <label className="text-xs text-muted-foreground">Charges familiales mensuelles estimées</label>
+              <input type="number" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" value={reg.monthlyFamilyCharges} onChange={e => onUpdateRegulation({ monthlyFamilyCharges: Number(e.target.value) || 0 })} placeholder="€" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Stabilité des revenus</label>
+              <div className="flex gap-2 mt-1">
+                {(['stable', 'variable', 'fragile'] as RevenueStability[]).map(s => (
+                  <button key={s} onClick={() => onUpdateRegulation({ revenueStability: s })} className={`flex-1 py-2 rounded-xl text-xs font-medium ${reg.revenueStability === s ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                    {s === 'stable' ? 'Stable' : s === 'variable' ? 'Variable' : 'Fragile'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Niveau de sécurité souhaité (1-5)</label>
+              <input type="range" min="1" max="5" className="w-full mt-1" value={reg.desiredSecurityLevel} onChange={e => onUpdateRegulation({ desiredSecurityLevel: Number(e.target.value) })} />
+              <div className="flex justify-between text-[10px] text-muted-foreground"><span>Min</span><span>{reg.desiredSecurityLevel}/5</span><span>Max</span></div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Tolérance au stress financier (1-5)</label>
+              <input type="range" min="1" max="5" className="w-full mt-1" value={reg.financialStressTolerance} onChange={e => onUpdateRegulation({ financialStressTolerance: Number(e.target.value) })} />
+              <div className="flex justify-between text-[10px] text-muted-foreground"><span>Faible</span><span>{reg.financialStressTolerance}/5</span><span>Élevée</span></div>
+            </div>
+          </div>
         )}
       </FinanceCard>
 

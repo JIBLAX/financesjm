@@ -87,9 +87,11 @@ export const PatrimoinePage: React.FC<Props> = ({
   const detailAssets = useMemo((): DetailItem[] => {
     if (!detailClass) return []
     if (detailClass === 'cash') {
-      return store.accounts.filter(a => a.isActive && a.type !== 'dette').map(a => ({
-        name: a.name, value: a.currentBalance, detail: a.institution,
-      }))
+      const typeOrder: Record<string, number> = { pro: 0, courant: 1, livret: 2, epargne_projet: 3, liquide: 4 }
+      return store.accounts
+        .filter(a => a.isActive && a.type !== 'dette')
+        .sort((a, b) => (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99))
+        .map(a => ({ name: a.name, value: a.currentBalance, detail: a.institution }))
     }
     if (detailClass === 'dettes') {
       return [

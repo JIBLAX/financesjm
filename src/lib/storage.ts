@@ -49,8 +49,13 @@ export function loadStore(): FinanceStore {
       dismissedAlerts: parsed.dismissedAlerts || [],
       monthlyJournals: parsed.monthlyJournals || {},
       operations: parsed.operations || [],
-      opCategories: parsed.opCategories?.length ? parsed.opCategories : DEFAULT_OP_CATEGORIES.map(c => ({ ...c })),
-      opSubcategories: parsed.opSubcategories?.length ? parsed.opSubcategories : DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
+      // Force-reset categories if they don't use the new scope-based IDs
+      opCategories: parsed.opCategories?.some((c: any) => c.id?.startsWith('opc_p_') || c.id?.startsWith('opc_r_'))
+        ? parsed.opCategories
+        : DEFAULT_OP_CATEGORIES.map(c => ({ ...c })),
+      opSubcategories: parsed.opSubcategories?.some((s: any) => s.categoryId === 'opc_r_be_activ')
+        ? parsed.opSubcategories
+        : DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
       monthlyCheckIns: parsed.monthlyCheckIns || [],
       monthlyBudgets: parsed.monthlyBudgets || {},
     }

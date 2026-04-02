@@ -11,6 +11,9 @@ interface Props {
   onUpdateBudget: (monthKey: string, categoryId: string, amount: number) => void
 }
 
+// Account type order for Répartition section
+const TYPE_ORDER: Record<string, number> = { pro: 0, courant: 1, livret: 2, epargne_projet: 3, liquide: 4 }
+
 const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgColor: string; borderColor: string }[] = [
   { key: 'revenu', label: 'Revenus', color: 'text-emerald-400', bgColor: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20' },
   { key: 'charge_fixe', label: 'Charges fixes', color: 'text-blue-400', bgColor: 'bg-blue-500/5', borderColor: 'border-blue-500/15' },
@@ -20,7 +23,6 @@ const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgC
 export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUpdateBudget }) => {
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
   const [scope, setScope] = useState<OperationScope>('perso')
-  const [journalText, setJournalText] = useState(journal[monthKey] || '')
   const [editingBudget, setEditingBudget] = useState<string | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
   const currentMonthKey = getCurrentMonthKey()
@@ -31,7 +33,6 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     const d = new Date(y, m - 1 + dir)
     const newKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     setMonthKey(newKey)
-    setJournalText(journal[newKey] || '')
     setEditingBudget(null)
   }
 
@@ -72,17 +73,15 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     const solde = revActual - chargeActual
     const soldeForecast = revForecast - chargeForecast
 
-    // Bancaire / Liquide from operations
-    const bankOps = operations.filter(op => op.family === 'revenu')
-    // Use a simple heuristic: ops linked to bank-type categories
-    const totalBancaire = bankOps.filter(op => {
-      const cat = store.opCategories.find(c => c.id === op.categoryId)
-      return cat && !['opc_remboursements'].includes(cat.id)
-    }).reduce((s, op) => s + op.actual, 0)
-    const totalLiquide = 0 // will show only if relevant
+    // Bancaire / Liquide split from note field
+    const revOps = operations.filter(op => op.family === 'revenu')
+    const liquideActual = revOps.filter(op => op.note && op.note.toLowerCase().includes('espèces')).reduce((s, op) => s + op.actual, 0)
+    const liquideForecast = revOps.filter(op => op.note && op.note.toLowerCase().includes('espèces')).reduce((s, op) => s + op.forecast, 0)
+    const bancaireActual = revActual - liquideActual
+    const bancaireForecast = revOps.filter(op => !op.note || !op.note.toLowerCase().includes('espèces')).reduce((s, op) => s + op.forecast, 0)
 
-    return { revActual, revForecast, chargeActual, chargeForecast, solde, soldeForecast, totalBancaire, totalLiquide }
-  }, [allCategories, operations, store.opCategories])
+    return { revActual, revForecast, chargeActual, chargeForecast, solde, soldeForecast, bancaireActual, bancaireForecast, liquideActual, liquideForecast }
+  }, [allCategories, operations])
 
   // Allocation auto
   const allocation = useMemo(() => {
@@ -93,8 +92,35 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     const bourso = personalBase * (rules.boursoPercent / 100)
     const livretA = personalBase * (rules.livretAPercent / 100)
     const lep = personalBase * (rules.lepPercent / 100)
-    return { proAmount, bourso, livretA, lep }
+    const cashBase = incomeBank - proAmount - personalBase
+    const cashLiberte = cashBase * (rules.cashLibertePercent / 100)
+    const cashSecurite = cashBase * (rules.cashSecurityPercent / 100)
+    const cashVoyage = cashBase * (rules.cashVoyagePercent / 100)
+    return { proAmount, bourso, livretA, lep, cashLiberte, cashSecurite, cashVoyage }
   }, [store.settings.allocationRules, totals])
+
+  // Répartition — active accounts sorted by type
+  const repartitionAccounts = useMemo(() => {
+    return store.accounts
+      .filter(a => a.isActive && a.type !== 'dette')
+      .sort((a, b) => {
+        const ao = TYPE_ORDER[a.type] ?? 99
+        const bo = TYPE_ORDER[b.type] ?? 99
+        return ao - bo
+      })
+      .map(a => {
+        // Determine allocation amount based on account id/type
+        let prevu = 0
+        if (a.id === 'qonto' || (a.type === 'pro' && a.id !== 'bunq-fiscal')) prevu = allocation.proAmount
+        else if (a.id === 'bourso' || a.type === 'courant') prevu = allocation.bourso
+        else if (a.subtype && a.subtype.toLowerCase().includes('livret a')) prevu = allocation.livretA
+        else if (a.subtype && a.subtype.toLowerCase().includes('lep')) prevu = allocation.lep
+        else if (a.name.toLowerCase().includes('liberté') || a.name.toLowerCase().includes('liberte')) prevu = allocation.cashLiberte
+        else if (a.name.toLowerCase().includes('sécurité') || a.name.toLowerCase().includes('securite')) prevu = allocation.cashSecurite
+        else if (a.group === 'Voyage' && a.type === 'liquide') prevu = allocation.cashVoyage
+        return { account: a, prevu, reel: a.currentBalance }
+      })
+  }, [store.accounts, allocation])
 
   // Over-budget categories
   const overBudgetCats = useMemo(() => {
@@ -116,8 +142,6 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
       setEditingBudget(null)
     }
   }
-
-  const handleJournalSave = () => onUpdateJournal(monthKey, journalText)
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-4">
@@ -181,6 +205,27 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
           <p className="text-xs text-amber-400 font-semibold">⚠ Dépassement : {overBudgetCats.join(', ')}</p>
         </div>
       )}
+
+      {/* Détails Revenus */}
+      <FinanceCard>
+        <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3">Détails Revenus</h3>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Bancaire</span>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="text-muted-foreground">Prévu <span className="font-semibold text-foreground">{formatCurrency(totals.bancaireForecast)}</span></span>
+              <span className="text-muted-foreground">Réel <span className="font-semibold text-emerald-400">{formatCurrency(totals.bancaireActual)}</span></span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Liquide</span>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="text-muted-foreground">Prévu <span className="font-semibold text-foreground">{formatCurrency(totals.liquideForecast)}</span></span>
+              <span className="text-muted-foreground">Réel <span className="font-semibold text-emerald-400">{formatCurrency(totals.liquideActual)}</span></span>
+            </div>
+          </div>
+        </div>
+      </FinanceCard>
 
       {/* Répartition automatique */}
       {(totals.revActual > 0 || totals.revForecast > 0) && isPerso && (
@@ -294,19 +339,27 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         )
       })}
 
-      {/* Journal mensuel */}
-      <FinanceCard>
-        <h3 className="text-sm font-semibold text-foreground mb-2">📝 Note du mois</h3>
-        <textarea
-          className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none resize-none"
-          placeholder="Comment s'est passé ce mois financièrement ?"
-          maxLength={280} rows={3}
-          value={journalText}
-          onChange={e => setJournalText(e.target.value)}
-          onBlur={handleJournalSave}
-        />
-        <p className="text-[10px] text-muted-foreground text-right mt-1">{journalText.length}/280</p>
-      </FinanceCard>
+      {/* Répartition par compte */}
+      {repartitionAccounts.length > 0 && (
+        <FinanceCard>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Répartition</h3>
+          <div className="flex items-center justify-end gap-6 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">
+            <span>Prévu</span>
+            <span>Réel</span>
+          </div>
+          <div className="space-y-2">
+            {repartitionAccounts.map(({ account, prevu, reel }) => (
+              <div key={account.id} className="flex items-center justify-between">
+                <span className="text-xs text-foreground flex-1 truncate">{account.name}</span>
+                <div className="flex items-center gap-6 shrink-0">
+                  <span className="text-xs font-medium text-muted-foreground w-20 text-right">{formatCurrency(prevu)}</span>
+                  <span className={`text-xs font-semibold w-20 text-right ${reel >= 0 ? 'text-foreground' : 'text-rose-400'}`}>{formatCurrency(reel)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </FinanceCard>
+      )}
     </div>
   )
 }

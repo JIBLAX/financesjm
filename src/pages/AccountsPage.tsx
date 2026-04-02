@@ -100,18 +100,23 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
     return Array.from(map.values()).sort((a, b) => b.value - a.value)
   }, [store.accounts])
 
-  // Group by the user-friendly group field
+  // Group by type field
+  const TYPE_SECTION_LABELS: Record<string, string> = {
+    pro: 'PRO', courant: 'COURANT', livret: 'ÉPARGNE', epargne_projet: 'ÉPARGNE', liquide: 'ESPÈCES',
+  }
+  const TYPE_SECTION_ORDER = ['pro', 'courant', 'livret', 'epargne_projet', 'liquide']
+
   const groupedByGroup = useMemo(() => {
     const map = new Map<string, Account[]>()
     store.accounts.filter(a => a.isActive).forEach(a => {
-      const grp = a.group || 'Autre'
-      if (!map.has(grp)) map.set(grp, [])
-      map.get(grp)!.push(a)
+      const section = TYPE_SECTION_LABELS[a.type] || 'AUTRE'
+      if (!map.has(section)) map.set(section, [])
+      map.get(section)!.push(a)
     })
-    // Sort: known groups first, then any custom ones
+    // Sort: known type sections first
+    const orderedKeys = [...new Set(TYPE_SECTION_ORDER.map(t => TYPE_SECTION_LABELS[t] || 'AUTRE')), 'AUTRE']
     const ordered = new Map<string, Account[]>()
-    const knownGroups = [...ACCOUNT_GROUPS, 'Autre']
-    knownGroups.forEach(g => { if (map.has(g)) ordered.set(g, map.get(g)!) })
+    orderedKeys.forEach(k => { if (map.has(k)) ordered.set(k, map.get(k)!) })
     map.forEach((v, k) => { if (!ordered.has(k)) ordered.set(k, v) })
     return ordered
   }, [store.accounts])
@@ -171,8 +176,10 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
 
       {/* Groups */}
       {Array.from(groupedByGroup.entries()).map(([groupName, accounts]) => {
-        const icon = GROUP_ICONS[groupName] || '📁'
-        const colorClass = GROUP_COLORS[groupName] || 'text-muted-foreground'
+        const SECTION_ICONS: Record<string, string> = { PRO: '💼', COURANT: '🏦', 'ÉPARGNE': '🛡️', 'ESPÈCES': '💵', AUTRE: '📁' }
+        const SECTION_COLORS: Record<string, string> = { PRO: 'text-indigo-400', COURANT: 'text-emerald-400', 'ÉPARGNE': 'text-amber-400', 'ESPÈCES': 'text-cyan-400', AUTRE: 'text-muted-foreground' }
+        const icon = SECTION_ICONS[groupName] || '📁'
+        const colorClass = SECTION_COLORS[groupName] || 'text-muted-foreground'
         const groupTotal = accounts.reduce((s, a) => s + a.currentBalance, 0)
         const isCollapsed = collapsed.has(groupName)
 

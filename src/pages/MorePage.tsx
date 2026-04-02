@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileDown, Settings, BarChart2, Map, User, Rocket, Wallet } from 'lucide-react'
+import { FileDown, Settings, Map, User, Wallet } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 
 export const MorePage: React.FC = () => {
@@ -8,10 +8,8 @@ export const MorePage: React.FC = () => {
 
   const items = [
     { label: 'Comptes', desc: 'Gestion et répartition de vos comptes', icon: Wallet, path: '/comptes', color: 'text-muted-foreground' },
-    { label: 'Mois / Cashflow', desc: 'Revenus, dépenses, répartition mensuelle', icon: BarChart2, path: '/mois', color: 'text-primary' },
     { label: 'Plan', desc: 'Quêtes financières, objectifs, progression', icon: Map, path: '/plan', color: 'text-emerald-400' },
     { label: 'Profil', desc: 'Niveau, score santé, profil investisseur', icon: User, path: '/profil', color: 'text-blue-400' },
-    { label: 'Liberté 2.0', desc: 'Road to 100 000 € — Solidité', icon: Rocket, path: '/liberte2', color: 'text-primary' },
     { label: 'Export', desc: 'Sauvegarder vos données', icon: FileDown, path: '/export', color: 'text-blue-400' },
     { label: 'Paramètres', desc: 'PIN, thème, pourcentages, régulation', icon: Settings, path: '/parametres', color: 'text-muted-foreground' },
   ]

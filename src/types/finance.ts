@@ -272,6 +272,7 @@ export interface Operation {
 export interface OpCategory {
   id: string
   family: OperationFamily
+  scope?: OperationScope   // undefined = all scopes, set = scope-specific
   name: string
   icon: string
   order: number
