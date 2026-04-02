@@ -20,10 +20,15 @@ interface Props {
 type FamilyTab = OperationFamily
 type ScopeTab = OperationScope
 
-const FAMILY_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
+// Perso: 3 tabs. Pro: charge_variable hidden (all charges under charge_fixe)
+const PERSO_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
   { key: 'charge_fixe',     label: 'Fixes',    icon: '🔒' },
   { key: 'charge_variable', label: 'Variables', icon: '📊' },
   { key: 'revenu',          label: 'Revenus',   icon: '💰' },
+]
+const PRO_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
+  { key: 'charge_fixe',     label: 'Charges',  icon: '📋' },
+  { key: 'revenu',          label: 'Revenus',  icon: '💰' },
 ]
 
 
@@ -60,9 +65,18 @@ export const OperationsPage: React.FC<Props> = ({
 
   useEffect(() => { onInitMonth(monthKey) }, [monthKey, onInitMonth])
 
+  // When switching scope, reset to first tab of that scope
+  useEffect(() => {
+    if (scope === 'pro' && family === 'charge_variable') setFamily('charge_fixe')
+  }, [scope])
+
+  const familyTabs = scope === 'pro' ? PRO_TABS : PERSO_TABS
+
   const categories = useMemo(
-    () => store.opCategories.filter(c => c.family === family).sort((a, b) => a.order - b.order),
-    [store.opCategories, family]
+    () => store.opCategories
+      .filter(c => c.family === family && (!c.scope || c.scope === scope))
+      .sort((a, b) => a.order - b.order),
+    [store.opCategories, family, scope]
   )
 
   const operations = useMemo(
@@ -189,8 +203,8 @@ export const OperationsPage: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Family tabs */}
-      <SegmentedSwitch options={FAMILY_TABS} value={family} onChange={(v) => setFamily(v as FamilyTab)} />
+      {/* Family tabs — scope-aware */}
+      <SegmentedSwitch options={familyTabs} value={family} onChange={(v) => setFamily(v as FamilyTab)} />
 
       {/* ── BUDGET VIEW (Fixes / Variables / Revenus) ── */}
       <>
@@ -454,7 +468,7 @@ export const OperationsPage: React.FC<Props> = ({
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={closeModal}>
           <div className="w-full bg-background rounded-t-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border/50">
-              <h2 className="text-base font-bold text-foreground">Catégories — {family === 'charge_fixe' ? 'Fixes' : family === 'charge_variable' ? 'Variables' : 'Revenus'}</h2>
+              <h2 className="text-base font-bold text-foreground">Catégories — {family === 'revenu' ? 'Revenus' : scope === 'pro' ? 'Charges' : family === 'charge_fixe' ? 'Fixes' : 'Variables'}</h2>
               <button onClick={closeModal} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-4 space-y-3 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
