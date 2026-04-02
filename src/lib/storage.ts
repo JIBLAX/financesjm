@@ -21,6 +21,7 @@ function getDefaultStore(): FinanceStore {
     opCategories: DEFAULT_OP_CATEGORIES.map(c => ({ ...c })),
     opSubcategories: DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
     monthlyCheckIns: [],
+    monthlyBudgets: {},
   }
 }
 
