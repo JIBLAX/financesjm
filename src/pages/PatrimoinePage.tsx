@@ -291,16 +291,22 @@ export const PatrimoinePage: React.FC<Props> = ({
                   </div>
                 )}
                 <div className="space-y-2">
-                  {detailAssets.map((a, i) => (
-                    <div key={i} className="flex justify-between items-center py-2 border-b border-border/30 last:border-0">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{a.name}</p>
-                        {a.detail && <p className="text-[10px] text-muted-foreground">{a.detail}</p>}
-                        {a.extra && <p className="text-[10px] text-primary">{a.extra}</p>}
+                  {detailAssets.map((a, i) => {
+                    const dotColor = `hsl(${(i * 60 + 165) % 360} 50% 50%)`
+                    return (
+                      <div key={i} className="flex justify-between items-center py-2 border-b border-border/30 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: dotColor }} />
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{a.name}</p>
+                            {a.detail && <p className="text-[10px] text-muted-foreground">{a.detail}</p>}
+                            {a.extra && <p className="text-[10px] text-primary">{a.extra}</p>}
+                          </div>
+                        </div>
+                        <p className={`text-sm font-bold ${detailClass === 'dettes' ? 'text-destructive' : 'text-foreground'}`}>{formatCurrency(a.value)}</p>
                       </div>
-                      <p className={`text-sm font-bold ${detailClass === 'dettes' ? 'text-destructive' : 'text-foreground'}`}>{formatCurrency(a.value)}</p>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
                 <div className="mt-3 pt-3 border-t border-border/50 flex justify-between">
                   <span className="text-xs font-semibold text-muted-foreground">Total</span>

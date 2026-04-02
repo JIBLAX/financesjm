@@ -29,17 +29,19 @@ export const DEFAULT_SETTINGS: AppSettings = {
   beActivConnection: 'not_connected',
 }
 
+export const ACCOUNT_GROUPS = ['Professionnel', 'Vie', 'Réserve', 'Urgence', 'Voyage', 'Cadeaux', 'Projet'] as const
+
 export const DEFAULT_ACCOUNTS: Account[] = [
-  { id: 'qonto', name: 'Activité pro', institution: 'Qonto', type: 'pro', subtype: 'compte courant', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
-  { id: 'bourso', name: 'Vie courante', institution: 'BoursoBank', type: 'courant', subtype: 'compte courant', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
-  { id: 'livret-a', name: 'Tampon bancaire', institution: 'Caisse d\'Épargne', type: 'livret', subtype: 'Livret A', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
-  { id: 'lep', name: 'Fonds d\'urgence', institution: 'Caisse d\'Épargne', type: 'livret', subtype: 'LEP', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
-  { id: 'cash-liberte', name: 'Cash liberté', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
-  { id: 'cash-securite', name: 'Fonds sécurité liquide', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
-  { id: 'cash-voyage', name: 'Voyage', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'main' },
-  { id: 'bunq-voyage', name: 'Voyages BUNQ', institution: 'BUNQ', type: 'epargne_projet', subtype: 'épargne projet', currency: 'EUR', currentBalance: 0, isActive: true, group: 'bunq', note: 'Intégration complète au système prévue en V3' },
-  { id: 'bunq-fiscal', name: 'Réserve Fiscale BUNQ', institution: 'BUNQ', type: 'pro', subtype: 'réserve fiscale', currency: 'EUR', currentBalance: 0, isActive: true, group: 'bunq' },
-  { id: 'bunq-projet', name: 'Projet BUNQ', institution: 'BUNQ', type: 'epargne_projet', subtype: 'projet', currency: 'EUR', currentBalance: 0, isActive: true, group: 'bunq', note: '2 retraits maximum par mois' },
+  { id: 'qonto', name: 'Activité pro', institution: 'Qonto', type: 'pro', subtype: 'compte courant', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Professionnel' },
+  { id: 'bourso', name: 'Vie courante', institution: 'BoursoBank', type: 'courant', subtype: 'compte courant', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Vie' },
+  { id: 'livret-a', name: 'Tampon bancaire', institution: 'Caisse d\'Épargne', type: 'livret', subtype: 'Livret A', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Réserve' },
+  { id: 'lep', name: 'Fonds d\'urgence', institution: 'Caisse d\'Épargne', type: 'livret', subtype: 'LEP', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Urgence' },
+  { id: 'cash-liberte', name: 'Cash liberté', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Vie' },
+  { id: 'cash-securite', name: 'Fonds sécurité liquide', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Réserve' },
+  { id: 'cash-voyage', name: 'Voyage', institution: 'Espèces', type: 'liquide', subtype: '', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Voyage' },
+  { id: 'bunq-voyage', name: 'Voyages BUNQ', institution: 'BUNQ', type: 'epargne_projet', subtype: 'épargne projet', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Voyage' },
+  { id: 'bunq-fiscal', name: 'Réserve Fiscale BUNQ', institution: 'BUNQ', type: 'pro', subtype: 'réserve fiscale', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Professionnel' },
+  { id: 'bunq-projet', name: 'Projet BUNQ', institution: 'BUNQ', type: 'epargne_projet', subtype: 'projet', currency: 'EUR', currentBalance: 0, isActive: true, group: 'Projet', note: '2 retraits maximum par mois' },
 ]
 
 export const DEFAULT_CATEGORIES: Category[] = [

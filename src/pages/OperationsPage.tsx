@@ -190,7 +190,7 @@ const grouped = useMemo(() => {
       </div>
 
       {/* Family + Journal tabs */}
-      <SegmentedSwitch options={FAMILY_TABS} value={family} onChange={setFamily} />
+      <SegmentedSwitch options={FAMILY_TABS} value={family} onChange={(v) => setFamily(v as FamilyTab)} />
 
 
       {/* ── JOURNAL VIEW ── */}
