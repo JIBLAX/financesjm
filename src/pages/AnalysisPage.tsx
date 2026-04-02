@@ -97,7 +97,7 @@ export const AnalysisPage: React.FC<Props> = ({ store }) => {
       <SegmentedSwitch
         options={[{ key: 'analyse', label: 'Analyse' }, { key: 'charges', label: 'Charges' }]}
         value={tab}
-        onChange={setTab}
+        onChange={(v) => setTab(v as Tab)}
       />
 
       {tab === 'analyse' && (
