@@ -73,7 +73,7 @@ export const ExportPage: React.FC<Props> = ({ onImport, onReset }) => {
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-2xl font-extrabold text-white">Export & Import</h1>
+        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Export & Import</h1>
       </div>
 
       <FinanceCard onClick={handleExportJSON}>

@@ -129,7 +129,7 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
-      <h1 className="text-2xl font-extrabold text-white">Guide de Plan</h1>
+      <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Guide de Plan</h1>
 
       {/* Hero Progress */}
       <div className="p-px rounded-3xl bg-gradient-to-br from-primary/40 via-emerald-500/20 to-amber-500/20">

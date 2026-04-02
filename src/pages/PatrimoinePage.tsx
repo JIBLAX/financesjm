@@ -217,7 +217,7 @@ export const PatrimoinePage: React.FC<Props> = ({
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
-      <h1 className="text-2xl font-extrabold text-white">Patrimoine</h1>
+      <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Patrimoine</h1>
 
       {/* Donut chart */}
       {donutData.length > 0 && (

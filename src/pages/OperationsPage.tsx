@@ -44,8 +44,6 @@ function emptyForm(family: OperationFamily, scope: ScopeTab, monthKey: string): 
   return { monthKey, family, scope, label: '', categoryId: '', subcategoryId: '', forecast: 0, actual: 0, isTemplate: family === 'charge_fixe', note: '', date: todayISO() }
 }
 
-const deltaColor  = (f: number, a: number) => !a || !f ? 'text-muted-foreground' : a - f > 0 ? 'text-destructive' : 'text-emerald-400'
-const deltaColorR = (f: number, a: number) => !a || !f ? 'text-muted-foreground' : a - f >= 0 ? 'text-emerald-400' : 'text-destructive'
 
 export const OperationsPage: React.FC<Props> = ({
   store, onAdd, onUpdate, onRemove, onInitMonth,
@@ -81,18 +79,7 @@ export const OperationsPage: React.FC<Props> = ({
     [store.operations, monthKey, family, scope]
   )
 
-  const totals = useMemo(() => {
-    const src = family === 'journal'
-      ? store.operations.filter(op => op.monthKey === monthKey && op.scope === scope)
-      : operations
-    return {
-      forecast: src.reduce((s, op) => s + op.forecast, 0),
-      actual:   src.reduce((s, op) => s + op.actual, 0),
-      delta:    src.reduce((s, op) => s + (op.actual - op.forecast), 0),
-    }
-  }, [operations, store.operations, monthKey, scope, family])
-
-  const grouped = useMemo(() => {
+const grouped = useMemo(() => {
     const map = new Map<string, Operation[]>()
     if (family !== 'journal') {
       operations.forEach(op => {
@@ -159,7 +146,7 @@ export const OperationsPage: React.FC<Props> = ({
     <div className="page-container pt-6 page-bottom-pad gap-4">
       {/* Header — title + neon scope toggle + settings + add */}
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-extrabold text-white shrink-0">Opérations</h1>
+        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider shrink-0">Opérations</h1>
 
         {/* Neon Perso / Pro toggle */}
         <div className="flex items-center bg-muted/30 rounded-xl p-0.5 gap-0.5 flex-1 max-w-[140px] mx-auto">
@@ -205,25 +192,6 @@ export const OperationsPage: React.FC<Props> = ({
       {/* Family + Journal tabs */}
       <SegmentedSwitch options={FAMILY_TABS} value={family} onChange={setFamily} />
 
-      {/* Totals bar */}
-      {store.operations.filter(op => op.monthKey === monthKey && op.scope === scope).length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
-          <FinanceCard className="!py-2 text-center">
-            <p className="text-[10px] text-muted-foreground">Prévision</p>
-            <p className="text-sm font-bold text-foreground">{formatCurrency(totals.forecast)}</p>
-          </FinanceCard>
-          <FinanceCard className="!py-2 text-center">
-            <p className="text-[10px] text-muted-foreground">Réel</p>
-            <p className="text-sm font-bold text-foreground">{formatCurrency(totals.actual)}</p>
-          </FinanceCard>
-          <FinanceCard className="!py-2 text-center">
-            <p className="text-[10px] text-muted-foreground">Écart</p>
-            <p className={`text-sm font-bold ${totals.delta >= 0 ? 'text-emerald-400' : 'text-destructive'}`}>
-              {totals.delta >= 0 ? '+' : ''}{formatCurrency(totals.delta)}
-            </p>
-          </FinanceCard>
-        </div>
-      )}
 
       {/* ── JOURNAL VIEW ── */}
       {family === 'journal' && (
@@ -298,18 +266,28 @@ export const OperationsPage: React.FC<Props> = ({
                 <div className="space-y-1.5">
                   {ops.map(op => {
                     const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
-                    const gap = op.actual - op.forecast
-                    const gapColor = isRevenu ? deltaColorR(op.forecast, op.actual) : deltaColor(op.forecast, op.actual)
                     return (
                       <div key={op.id} className="bg-card/60 rounded-xl border border-border/30 px-3 py-2.5">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{op.label}</p>
-                            {sub && <p className="text-[10px] text-muted-foreground">{sub.icon} {sub.name}</p>}
-                            {op.date && <p className="text-[10px] text-muted-foreground/60">{fmtDate(op.date)}</p>}
-                            {op.isTemplate && <span className="text-[9px] text-primary/60">↻ récurrent</span>}
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {sub && <p className="text-[10px] text-muted-foreground">{sub.icon} {sub.name}</p>}
+                              {op.date && <p className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</p>}
+                              {op.isTemplate && <span className="text-[9px] text-primary/60">↻ récurrent</span>}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {op.actual > 0 ? (
+                              <p className={`text-sm font-bold ${isRevenu ? 'text-emerald-400' : 'text-foreground'}`}>
+                                {isRevenu ? '+' : ''}{formatCurrency(op.actual)}
+                              </p>
+                            ) : (
+                              <div className="text-right">
+                                <p className="text-xs text-muted-foreground/60">{formatCurrency(op.forecast)}</p>
+                                <p className="text-[9px] text-muted-foreground/40 text-right">prévu</p>
+                              </div>
+                            )}
                             <button onClick={() => openEdit(op)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
                               <Pencil className="w-3 h-3" />
                             </button>
@@ -318,15 +296,8 @@ export const OperationsPage: React.FC<Props> = ({
                             </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 mt-1.5 text-xs">
-                          <span className="text-muted-foreground">Prév <span className="font-medium text-foreground">{formatCurrency(op.forecast)}</span></span>
-                          <span className="text-muted-foreground">Réel <span className={`font-medium ${op.actual > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{op.actual > 0 ? formatCurrency(op.actual) : '—'}</span></span>
-                          {op.forecast > 0 && op.actual > 0 && (
-                            <span className={`font-semibold ml-auto ${gapColor}`}>{gap >= 0 ? '+' : ''}{formatCurrency(gap)}</span>
-                          )}
-                        </div>
                         {deleteConfirm === op.id && (
-                          <div className="mt-2 flex gap-2 items-center">
+                          <div className="mt-2 flex gap-2 items-center border-t border-border/30 pt-2">
                             <p className="text-xs text-destructive flex-1">Confirmer la suppression ?</p>
                             <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 rounded-lg text-xs bg-muted/50 text-foreground">Annuler</button>
                           </div>
@@ -394,7 +365,7 @@ export const OperationsPage: React.FC<Props> = ({
                   className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
                   placeholder={form.family === 'revenu' ? 'Nom Prénom / Libellé' : 'Ex: Loyer, Netflix, Coaching…'}
                   value={form.label}
-                  onChange={e => setForm(f => ({ ...f, label: e.target.value.replace(/\b\w/g, c => c.toUpperCase()) }))}
+                  onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
                 />
               </div>
 

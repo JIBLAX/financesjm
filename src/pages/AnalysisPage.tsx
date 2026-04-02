@@ -91,7 +91,7 @@ export const AnalysisPage: React.FC<Props> = ({ store }) => {
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
-      <h1 className="text-2xl font-extrabold text-white">Analyse</h1>
+      <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Analyse</h1>
 
       {/* Tab switch */}
       <SegmentedSwitch

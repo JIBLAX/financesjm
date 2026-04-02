@@ -10,6 +10,7 @@ import { isSessionValid, createSession, clearSession, loadStore } from '@/lib/st
 import { DashboardPage } from '@/pages/DashboardPage'
 import { OperationsPage } from '@/pages/OperationsPage'
 import { MonthPage } from '@/pages/MonthPage'
+import { VuePage } from '@/pages/VuePage'
 import { AccountsPage } from '@/pages/AccountsPage'
 import { PatrimoinePage } from '@/pages/PatrimoinePage'
 import { MorePage } from '@/pages/MorePage'
@@ -75,6 +76,7 @@ const App: React.FC = () => {
             )}
             <Routes>
               <Route path="/" element={<DashboardPage store={store} onDismissAlert={finance.dismissAlert} />} />
+              <Route path="/vue" element={<VuePage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} />} />
               <Route path="/mois" element={<MonthPage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} />} />
               <Route path="/comptes" element={<AccountsPage store={store} onAdd={finance.addAccount} onUpdate={finance.updateAccount} onRemove={finance.removeAccount} />} />
               <Route path="/analyse" element={<AnalysisPage store={store} />} />

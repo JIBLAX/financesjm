@@ -69,7 +69,7 @@ export const TrajectoryPage: React.FC<Props> = ({ store }) => {
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-2xl font-extrabold text-white">Ma trajectoire</h1>
+        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Ma trajectoire</h1>
       </div>
 
       <FinanceCard>

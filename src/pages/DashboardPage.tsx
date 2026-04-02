@@ -293,17 +293,15 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => navigate('/comptes')}
-                className="relative overflow-hidden rounded-2xl bg-sky-500/5 border border-sky-500/20 p-4 text-left active:scale-[0.98] transition-transform">
-                <div className="absolute -top-4 -right-4 w-16 h-16 bg-sky-500/15 rounded-full blur-xl" />
-                <p className="text-[10px] text-sky-400/70 uppercase tracking-wider font-semibold mb-1">Comptes</p>
-                <p className="text-xl font-black text-gradient-sky">{formatCurrency(stats.totalAccounts)}</p>
+                className="rounded-2xl bg-card border border-border/60 p-4 text-left active:scale-[0.98] transition-transform">
+                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-semibold mb-1">Comptes</p>
+                <p className="text-xl font-black text-foreground">{formatCurrency(stats.totalAccounts)}</p>
                 <p className="text-[10px] text-muted-foreground mt-1">Cash {formatCurrency(stats.totalCash)}</p>
               </button>
               <button onClick={() => navigate('/patrimoine')}
-                className="relative overflow-hidden rounded-2xl bg-amber-500/5 border border-amber-500/20 p-4 text-left active:scale-[0.98] transition-transform">
-                <div className="absolute -top-4 -right-4 w-16 h-16 bg-amber-500/15 rounded-full blur-xl" />
-                <p className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold mb-1">Actifs</p>
-                <p className="text-xl font-black text-gradient-gold">{formatCurrency(stats.totalAssets)}</p>
+                className="rounded-2xl bg-muted/20 border border-border/40 p-4 text-left active:scale-[0.98] transition-transform">
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold mb-1">Actifs</p>
+                <p className="text-xl font-black text-foreground/90">{formatCurrency(stats.totalAssets)}</p>
                 <p className="text-[10px] text-muted-foreground mt-1">Patrimoine hors comptes</p>
               </button>
               <button onClick={() => navigate('/operations')}
@@ -506,7 +504,7 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-white">Accueil</h1>
+        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Accueil</h1>
         <button
           onClick={() => { setEditMode(e => !e); setShowAdd(false) }}
           className={`p-2 rounded-xl border transition-colors ${editMode ? 'bg-primary/20 border-primary/50 text-primary' : 'bg-card border-border/40 text-muted-foreground'}`}>

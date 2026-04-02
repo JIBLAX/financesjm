@@ -113,7 +113,7 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
     <div className="page-container pt-6 page-bottom-pad gap-5">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-white">Comptes</h1>
+        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Comptes</h1>
         <div className="flex gap-2">
           {editMode ? (
             <button onClick={cancelEdit} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted/30 text-muted-foreground">
