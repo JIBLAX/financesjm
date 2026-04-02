@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, X, ChevronRight, Sparkles, TrendingDown, GripVertical, Settings2 } from 'lucide-react'
-import { FinanceCard } from '@/components/FinanceCard'
+import { Plus, X, ChevronRight, Sparkles, GripVertical, Settings2 } from 'lucide-react'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel, getLevelForXp, getNextLevel, getPreviousMonthKey } from '@/lib/constants'
 import { generateAlerts, generateInsights, calculateHealthScore, calculatePilotageMode, getRealIncome } from '@/lib/analytics'
 import type { FinanceStore } from '@/types/finance'
@@ -12,17 +11,21 @@ import {
 
 // ── Widget types ──────────────────────────────────────────────────────────────
 
-type WidgetId = 'solde_total' | 'revenus_depenses' | 'dette' | 'profil_mode' | 'quete'
+type WidgetId = 'solde_total' | 'comptes' | 'actifs' | 'entrees' | 'depenses' | 'cashflow' | 'dette' | 'profil_mode' | 'quete'
 
 const WIDGET_META: Record<WidgetId, { label: string; emoji: string }> = {
-  solde_total:      { label: 'Patrimoine net',    emoji: '💎' },
-  revenus_depenses: { label: 'Revenus / Dépenses', emoji: '📊' },
-  dette:            { label: 'Dettes',             emoji: '📉' },
-  profil_mode:      { label: 'Profil & Mode',      emoji: '🎯' },
-  quete:            { label: 'Quêtes & Insights',  emoji: '✨' },
+  solde_total: { label: 'Patrimoine net',    emoji: '💎' },
+  comptes:     { label: 'Comptes',           emoji: '🏦' },
+  actifs:      { label: 'Actifs',            emoji: '📈' },
+  entrees:     { label: 'Revenus',           emoji: '💰' },
+  depenses:    { label: 'Dépenses',          emoji: '💸' },
+  cashflow:    { label: 'Cashflow 6 mois',   emoji: '📊' },
+  dette:       { label: 'Dettes',            emoji: '📉' },
+  profil_mode: { label: 'Profil & Mode',     emoji: '🎯' },
+  quete:       { label: 'Quêtes & Insights', emoji: '✨' },
 }
 
-const DEFAULT_LAYOUT: WidgetId[] = ['profil_mode', 'solde_total', 'revenus_depenses', 'dette', 'quete']
+const DEFAULT_LAYOUT: WidgetId[] = ['profil_mode', 'solde_total', 'comptes', 'actifs', 'entrees', 'depenses', 'cashflow', 'dette', 'quete']
 
 function loadLayout(): WidgetId[] {
   try {
@@ -147,18 +150,6 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
 
   // ── Data ────────────────────────────────────────────────────────────────────
 
-  const budget = useMemo(() => {
-    const ops = store.operations.filter(op => op.monthKey === monthKey)
-    const revOps = ops.filter(op => op.family === 'revenu')
-    const chargeOps = ops.filter(op => op.family !== 'revenu')
-    const revForecast = revOps.reduce((s, op) => s + op.forecast, 0)
-    const revActual = revOps.reduce((s, op) => s + op.actual, 0)
-    const chargeForecast = chargeOps.reduce((s, op) => s + op.forecast, 0)
-    const chargeActual = chargeOps.reduce((s, op) => s + op.actual, 0)
-    const overBudget = chargeOps.filter(op => op.actual > op.forecast * 1.1 && op.forecast > 0)
-    return { revForecast, revActual, chargeForecast, chargeActual, overBudget, hasOps: ops.length > 0 }
-  }, [store.operations, monthKey])
-
   const stats = useMemo(() => {
     const totalAccounts = store.accounts.filter(a => a.isActive && a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
     const totalCash = store.accounts.filter(a => a.isActive && a.type === 'liquide').reduce((s, a) => s + a.currentBalance, 0)
@@ -233,14 +224,6 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <button onClick={() => navigate('/profil')}
-                    className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${healthScore.total >= 75 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : healthScore.total >= 50 ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
-                    {healthScore.total}/100
-                  </button>
-                  <button onClick={() => navigate('/operations')}
-                    className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground active:scale-95 transition-transform shadow-lg shadow-primary/30">
-                    <Plus className="w-5 h-5" />
-                  </button>
                 </div>
               </div>
               <div className="h-[72px] -mx-5 -mb-5 mt-4">
@@ -288,119 +271,70 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
           </div>
         )
 
-      case 'revenus_depenses':
+      case 'comptes':
         return (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => navigate('/comptes')}
-                className="rounded-2xl bg-card border border-border/60 p-4 text-left active:scale-[0.98] transition-transform">
-                <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-semibold mb-1">Comptes</p>
-                <p className="text-xl font-black text-foreground">{formatCurrency(stats.totalAccounts)}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Cash {formatCurrency(stats.totalCash)}</p>
-              </button>
-              <button onClick={() => navigate('/patrimoine')}
-                className="rounded-2xl bg-muted/20 border border-border/40 p-4 text-left active:scale-[0.98] transition-transform">
-                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold mb-1">Actifs</p>
-                <p className="text-xl font-black text-foreground/90">{formatCurrency(stats.totalAssets)}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Patrimoine hors comptes</p>
-              </button>
-              <button onClick={() => navigate('/operations')}
-                className="relative overflow-hidden rounded-2xl bg-emerald-500/5 border border-emerald-500/20 p-4 text-left active:scale-[0.98] transition-transform">
-                <div className="absolute -top-4 -right-4 w-16 h-16 bg-emerald-500/15 rounded-full blur-xl" />
-                <p className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold mb-1">↑ Revenus</p>
-                <p className="text-xl font-black text-gradient-emerald">{formatCurrency(stats.monthIncomeTotal)}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">{getMonthLabel(monthKey)}</p>
-              </button>
-              <button onClick={() => navigate('/operations')}
-                className="relative overflow-hidden rounded-2xl bg-orange-500/5 border border-orange-500/20 p-4 text-left active:scale-[0.98] transition-transform">
-                <div className="absolute -top-4 -right-4 w-16 h-16 bg-orange-500/15 rounded-full blur-xl" />
-                <p className="text-[10px] text-orange-400/70 uppercase tracking-wider font-semibold mb-1">↓ Dépenses</p>
-                <p className="text-xl font-black text-gradient-orange">{formatCurrency(stats.monthExpenses)}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">{getMonthLabel(monthKey)}</p>
-              </button>
-            </div>
+          <button onClick={() => navigate('/comptes')}
+            className="rounded-2xl bg-card border border-border/60 p-4 text-left w-full active:scale-[0.98] transition-transform">
+            <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-semibold mb-1">Comptes</p>
+            <p className="text-xl font-black text-foreground">{formatCurrency(stats.totalAccounts)}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Cash {formatCurrency(stats.totalCash)}</p>
+          </button>
+        )
 
-            {/* Bar chart */}
-            <div className="rounded-2xl bg-card border border-border/40 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Cashflow 6 mois</h2>
-                <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />Revenus
-                  </span>
-                  <span className="flex items-center gap-1.5 text-[10px] text-orange-400 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-orange-400" />Dépenses
-                  </span>
-                </div>
+      case 'actifs':
+        return (
+          <button onClick={() => navigate('/patrimoine')}
+            className="rounded-2xl bg-muted/20 border border-border/40 p-4 text-left w-full active:scale-[0.98] transition-transform">
+            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-semibold mb-1">Actifs</p>
+            <p className="text-xl font-black text-foreground/90">{formatCurrency(stats.totalAssets)}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Patrimoine hors comptes</p>
+          </button>
+        )
+
+      case 'entrees':
+        return (
+          <button onClick={() => navigate('/operations')}
+            className="relative overflow-hidden rounded-2xl bg-emerald-500/5 border border-emerald-500/20 p-4 text-left w-full active:scale-[0.98] transition-transform">
+            <div className="absolute -top-4 -right-4 w-16 h-16 bg-emerald-500/15 rounded-full blur-xl" />
+            <p className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold mb-1">↑ Revenus</p>
+            <p className="text-xl font-black text-gradient-emerald">{formatCurrency(stats.monthIncomeTotal)}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{getMonthLabel(monthKey)}</p>
+          </button>
+        )
+
+      case 'depenses':
+        return (
+          <button onClick={() => navigate('/operations')}
+            className="relative overflow-hidden rounded-2xl bg-orange-500/5 border border-orange-500/20 p-4 text-left w-full active:scale-[0.98] transition-transform">
+            <div className="absolute -top-4 -right-4 w-16 h-16 bg-orange-500/15 rounded-full blur-xl" />
+            <p className="text-[10px] text-orange-400/70 uppercase tracking-wider font-semibold mb-1">↓ Dépenses</p>
+            <p className="text-xl font-black text-gradient-orange">{formatCurrency(stats.monthExpenses)}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{getMonthLabel(monthKey)}</p>
+          </button>
+        )
+
+      case 'cashflow':
+        return (
+          <div className="rounded-2xl bg-card border border-border/40 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Cashflow 6 mois</h2>
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />Revenus
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] text-orange-400 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-orange-400" />Dépenses
+                </span>
               </div>
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={barData} barGap={3} barCategoryGap="30%">
-                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<BarTooltip />} cursor={{ fill: 'hsl(225 12% 16% / 0.5)', radius: 6 }} />
-                  <Bar dataKey="income"  fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                  <Bar dataKey="expense" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                </BarChart>
-              </ResponsiveContainer>
             </div>
-
-            {/* Budget cockpit */}
-            {budget.hasOps && (
-              <div className="rounded-2xl bg-card border border-border/40 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Budget {getMonthLabel(monthKey)}</h2>
-                  <button onClick={() => navigate('/operations')} className="text-[10px] text-primary font-semibold">Détail →</button>
-                </div>
-                {budget.revForecast > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs text-muted-foreground">Revenus</span>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">{formatCurrency(budget.revForecast)}</span>
-                        <span className="font-bold text-emerald-400">{formatCurrency(budget.revActual)}</span>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-muted/40 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-700"
-                        style={{ width: `${Math.min(100, (budget.revActual / budget.revForecast) * 100)}%` }} />
-                    </div>
-                  </div>
-                )}
-                {budget.chargeForecast > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs text-muted-foreground">Charges</span>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">{formatCurrency(budget.chargeForecast)}</span>
-                        <span className={`font-bold ${budget.chargeActual > budget.chargeForecast ? 'text-rose-400' : 'text-orange-400'}`}>
-                          {formatCurrency(budget.chargeActual)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-muted/40 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-700 ${budget.chargeActual > budget.chargeForecast
-                        ? 'bg-gradient-to-r from-rose-600 to-rose-400'
-                        : 'bg-gradient-to-r from-orange-600 to-orange-400'}`}
-                        style={{ width: `${Math.min(100, (budget.chargeActual / budget.chargeForecast) * 100)}%` }} />
-                    </div>
-                  </div>
-                )}
-                {budget.overBudget.length > 0 && (
-                  <div className="rounded-xl bg-amber-500/8 border border-amber-500/25 px-3 py-2">
-                    <p className="text-[10px] text-amber-400 font-semibold">⚠ {budget.overBudget.length} poste{budget.overBudget.length > 1 ? 's' : ''} dépassés</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Dépenses > revenus warning */}
-            {stats.monthExpenses > stats.monthIncomeTotal && stats.monthIncomeTotal > 0 && (
-              <FinanceCard className="border-destructive/30 bg-destructive/5">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="w-4 h-4 text-destructive" />
-                  <p className="text-sm text-destructive font-medium">Dépenses supérieures aux revenus ce mois</p>
-                </div>
-              </FinanceCard>
-            )}
+            <ResponsiveContainer width="100%" height={120}>
+              <BarChart data={barData} barGap={3} barCategoryGap="30%">
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<BarTooltip />} cursor={{ fill: 'hsl(225 12% 16% / 0.5)', radius: 6 }} />
+                <Bar dataKey="income"  fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                <Bar dataKey="expense" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={22} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )
 

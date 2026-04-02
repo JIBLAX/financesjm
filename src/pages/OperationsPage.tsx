@@ -18,14 +18,13 @@ interface Props {
   onRemoveOpSubcategory: (id: string) => void
 }
 
-type FamilyTab = OperationFamily | 'journal'
+type FamilyTab = OperationFamily
 type ScopeTab = OperationScope
 
 const FAMILY_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
-  { key: 'charge_fixe',     label: 'Fixes',     icon: '🔒' },
-  { key: 'charge_variable', label: 'Variables',  icon: '📊' },
-  { key: 'revenu',          label: 'Revenus',    icon: '💰' },
-  { key: 'journal',         label: 'Journal',    icon: '📋' },
+  { key: 'charge_fixe',     label: 'Fixes',    icon: '🔒' },
+  { key: 'charge_variable', label: 'Variables', icon: '📊' },
+  { key: 'revenu',          label: 'Revenus',   icon: '💰' },
 ]
 
 const FAMILY_LABEL: Record<OperationFamily, string> = {
