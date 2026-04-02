@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
-import { Building2, Banknote, PiggyBank, Briefcase, Star, Plus, X, Check, ChevronDown, TrendingUp, Settings2 } from 'lucide-react'
+import { Plus, X, Check, ChevronDown, Settings2 } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
-import { formatCurrency } from '@/lib/constants'
+import { formatCurrency, ACCOUNT_GROUPS } from '@/lib/constants'
 import type { FinanceStore, Account } from '@/types/finance'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from 'recharts'
 
@@ -12,18 +12,25 @@ interface Props {
   onRemove: (id: string) => void
 }
 
-// Each type: label, icon, Tailwind color class, hex color for chart
-const TYPE_CFG: Record<string, { label: string; icon: React.ReactNode; tw: string; hex: string }> = {
-  pro:            { label: 'Professionnel',  icon: <Briefcase className="w-4 h-4" />,   tw: 'text-indigo-400', hex: '#818cf8' },
-  courant:        { label: 'Courant',        icon: <Building2 className="w-4 h-4" />,   tw: 'text-emerald-400', hex: '#34d399' },
-  livret:         { label: 'Épargne',        icon: <PiggyBank className="w-4 h-4" />,   tw: 'text-amber-400',  hex: '#fbbf24' },
-  liquide:        { label: 'Espèces',        icon: <Banknote className="w-4 h-4" />,    tw: 'text-violet-400', hex: '#a78bfa' },
-  epargne_projet: { label: 'Épargne Projet', icon: <Star className="w-4 h-4" />,        tw: 'text-cyan-400',   hex: '#22d3ee' },
-  investissement: { label: 'Investissement', icon: <TrendingUp className="w-4 h-4" />,  tw: 'text-green-400',  hex: '#4ade80' },
-  dette:          { label: 'Dette',          icon: <Banknote className="w-4 h-4" />,    tw: 'text-rose-400',   hex: '#fb7185' },
+const TYPE_CFG: Record<string, { label: string; hex: string }> = {
+  pro:            { label: 'Professionnel', hex: '#818cf8' },
+  courant:        { label: 'Courant',       hex: '#34d399' },
+  livret:         { label: 'Épargne',       hex: '#fbbf24' },
+  liquide:        { label: 'Espèces',       hex: '#a78bfa' },
+  epargne_projet: { label: 'Épargne Projet', hex: '#22d3ee' },
+  investissement: { label: 'Investissement', hex: '#4ade80' },
+  dette:          { label: 'Dette',         hex: '#fb7185' },
 }
 
-const TYPE_ORDER = ['pro', 'courant', 'livret', 'liquide', 'epargne_projet', 'investissement', 'dette']
+const GROUP_ICONS: Record<string, string> = {
+  'Professionnel': '💼', 'Vie': '🏠', 'Réserve': '🛡️', 'Urgence': '🚨',
+  'Voyage': '✈️', 'Cadeaux': '🎁', 'Projet': '🎯',
+}
+
+const GROUP_COLORS: Record<string, string> = {
+  'Professionnel': 'text-indigo-400', 'Vie': 'text-emerald-400', 'Réserve': 'text-amber-400',
+  'Urgence': 'text-rose-400', 'Voyage': 'text-cyan-400', 'Cadeaux': 'text-pink-400', 'Projet': 'text-violet-400',
+}
 
 const emptyForm = (): Omit<Account, 'id'> => ({
   name: '', institution: '', type: 'courant', subtype: '', currency: 'EUR',
@@ -33,8 +40,8 @@ const emptyForm = (): Omit<Account, 'id'> => ({
 type ModalState = { mode: 'add' } | { mode: 'edit'; account: Account } | null
 
 export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove }) => {
-  const [modal, setModal]       = useState<ModalState>(null)
-  const [form, setForm]         = useState<Omit<Account, 'id'>>(emptyForm())
+  const [modal, setModal] = useState<ModalState>(null)
+  const [form, setForm] = useState<Omit<Account, 'id'>>(emptyForm())
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [editMode, setEditMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -83,28 +90,30 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
     cancelEdit()
   }
 
-  // Chart data: accounts with same group → merged into one bar
   const chartData = useMemo(() => {
     const map = new Map<string, { name: string; value: number; color: string }>()
     store.accounts.filter(a => a.isActive).forEach(a => {
-      const key = a.group || a.id
-      const name = a.group
-        ? a.group.charAt(0).toUpperCase() + a.group.slice(1)
-        : (a.name.length > 13 ? a.name.slice(0, 13) + '…' : a.name)
-      if (!map.has(key)) map.set(key, { name, value: 0, color: TYPE_CFG[a.type]?.hex || '#6b7280' })
-      map.get(key)!.value += a.currentBalance
+      const grp = a.group || a.name
+      if (!map.has(grp)) map.set(grp, { name: grp, value: 0, color: TYPE_CFG[a.type]?.hex || '#6b7280' })
+      map.get(grp)!.value += a.currentBalance
     })
     return Array.from(map.values()).sort((a, b) => b.value - a.value)
   }, [store.accounts])
 
-  // Groups: by type, in TYPE_ORDER
-  const groupedByType = useMemo(() => {
+  // Group by the user-friendly group field
+  const groupedByGroup = useMemo(() => {
     const map = new Map<string, Account[]>()
     store.accounts.filter(a => a.isActive).forEach(a => {
-      if (!map.has(a.type)) map.set(a.type, [])
-      map.get(a.type)!.push(a)
+      const grp = a.group || 'Autre'
+      if (!map.has(grp)) map.set(grp, [])
+      map.get(grp)!.push(a)
     })
-    return map
+    // Sort: known groups first, then any custom ones
+    const ordered = new Map<string, Account[]>()
+    const knownGroups = [...ACCOUNT_GROUPS, 'Autre']
+    knownGroups.forEach(g => { if (map.has(g)) ordered.set(g, map.get(g)!) })
+    map.forEach((v, k) => { if (!ordered.has(k)) ordered.set(k, v) })
+    return ordered
   }, [store.accounts])
 
   const total = store.accounts.filter(a => a.isActive).reduce((s, a) => s + a.currentBalance, 0)
@@ -113,7 +122,7 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
     <div className="page-container pt-6 page-bottom-pad gap-5">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Comptes</h1>
+        <h1 className="text-2xl font-extrabold text-foreground uppercase tracking-wider">Comptes</h1>
         <div className="flex gap-2">
           {editMode ? (
             <button onClick={cancelEdit} className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted/30 text-muted-foreground">
@@ -142,7 +151,7 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
             <ResponsiveContainer width="100%" height={Math.max(chartData.length * 30 + 8, 60)}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }} barSize={16}>
                 <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                 <Tooltip
                   formatter={(v: number) => [formatCurrency(v), 'Solde']}
                   contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 12 }}
@@ -161,20 +170,18 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
       </div>
 
       {/* Groups */}
-      {TYPE_ORDER.map(type => {
-        const accounts = groupedByType.get(type)
-        if (!accounts || accounts.length === 0) return null
-        const cfg = TYPE_CFG[type] || { label: type, icon: null, tw: 'text-muted-foreground', hex: '#6b7280' }
+      {Array.from(groupedByGroup.entries()).map(([groupName, accounts]) => {
+        const icon = GROUP_ICONS[groupName] || '📁'
+        const colorClass = GROUP_COLORS[groupName] || 'text-muted-foreground'
         const groupTotal = accounts.reduce((s, a) => s + a.currentBalance, 0)
-        const isCollapsed = collapsed.has(type)
+        const isCollapsed = collapsed.has(groupName)
 
         return (
-          <div key={type}>
-            {/* Group header — tap to collapse */}
-            <button onClick={() => toggleCollapse(type)} className="flex items-center justify-between w-full mb-2 active:opacity-70">
+          <div key={groupName}>
+            <button onClick={() => toggleCollapse(groupName)} className="flex items-center justify-between w-full mb-2 active:opacity-70">
               <div className="flex items-center gap-2">
-                <span className={cfg.tw}>{cfg.icon}</span>
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{cfg.label}</h2>
+                <span>{icon}</span>
+                <h2 className={`text-sm font-semibold uppercase tracking-wider ${colorClass}`}>{groupName}</h2>
                 <span className="text-[10px] text-muted-foreground/50">{accounts.length}</span>
               </div>
               <div className="flex items-center gap-2">
@@ -183,7 +190,6 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
               </div>
             </button>
 
-            {/* Account rows */}
             {!isCollapsed && (
               <div className="space-y-1.5">
                 {accounts.map(a => {
@@ -196,19 +202,16 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
                         editMode ? 'cursor-pointer active:bg-muted/30' : ''
                       } ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border/30'}`}
                     >
-                      {/* Selection circle */}
                       {editMode && (
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                           isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30'
                         }`}>
-                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                          {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
                         </div>
                       )}
-
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">{a.name}</p>
                         <p className="text-xs text-muted-foreground">{a.institution}{a.subtype ? ` · ${a.subtype}` : ''}</p>
-                        {a.group && <p className="text-[10px] text-muted-foreground/50">🔗 {a.group}</p>}
                       </div>
                       <p className={`text-sm font-bold shrink-0 ${a.currentBalance >= 0 ? 'text-foreground' : 'text-destructive'}`}>
                         {formatCurrency(a.currentBalance)}
@@ -235,20 +238,14 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
             <span className="text-xs text-muted-foreground flex-1">
               {selectedIds.size === 0 ? 'Sélectionner des comptes' : `${selectedIds.size} sélectionné${selectedIds.size > 1 ? 's' : ''}`}
             </span>
-            <button
-              onClick={handleEditSelected}
-              disabled={selectedIds.size !== 1}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-primary/20 text-primary disabled:opacity-30"
-            >
+            <button onClick={handleEditSelected} disabled={selectedIds.size !== 1}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-primary/20 text-primary disabled:opacity-30">
               Modifier
             </button>
-            <button
-              onClick={handleDeleteSelected}
-              disabled={selectedIds.size === 0}
+            <button onClick={handleDeleteSelected} disabled={selectedIds.size === 0}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-30 transition-colors ${
-                deleteStep ? 'bg-destructive text-white' : 'bg-destructive/20 text-destructive'
-              }`}
-            >
+                deleteStep ? 'bg-destructive text-primary-foreground' : 'bg-destructive/20 text-destructive'
+              }`}>
               {deleteStep ? 'Confirmer ?' : 'Supprimer'}
             </button>
           </div>
@@ -280,7 +277,19 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
               </div>
 
               <div>
-                <label className="text-xs text-muted-foreground">Type</label>
+                <label className="text-xs text-muted-foreground">Catégorie</label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {ACCOUNT_GROUPS.map(g => (
+                    <button key={g} onClick={() => setForm(f => ({ ...f, group: g }))}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${form.group === g ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                      {GROUP_ICONS[g] || '📁'} {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Type de compte</label>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {(Object.keys(TYPE_CFG) as Account['type'][]).map(t => (
                     <button key={t} onClick={() => setForm(f => ({ ...f, type: t }))}
@@ -299,11 +308,6 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
               <div>
                 <label className="text-xs text-muted-foreground">Solde actuel (€)</label>
                 <input type="number" inputMode="decimal" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.currentBalance || ''} onFocus={e => e.target.select()} onChange={e => setForm(f => ({ ...f, currentBalance: parseFloat(e.target.value) || 0 }))} />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">Lier à un groupe <span className="text-muted-foreground/50">(même nom = fusionnés dans le graphe)</span></label>
-                <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="Ex: voyage, urgence…" value={form.group || ''} onChange={e => setForm(f => ({ ...f, group: e.target.value.toLowerCase() }))} />
               </div>
 
               <div>
