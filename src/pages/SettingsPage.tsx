@@ -58,7 +58,7 @@ export const SettingsPage: React.FC<Props> = ({ settings, onUpdate, onUpdateRegu
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-bold text-foreground">Paramètres</h1>
+        <h1 className="text-2xl font-extrabold text-white">Paramètres</h1>
       </div>
 
       {/* PIN */}

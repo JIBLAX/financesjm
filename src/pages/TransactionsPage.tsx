@@ -171,7 +171,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50 shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-bold text-foreground shrink-0">Transactions</h1>
+        <h1 className="text-2xl font-extrabold text-white shrink-0">Transactions</h1>
 
         {/* Neon Perso / Pro toggle */}
         <div className="flex items-center bg-muted/30 rounded-xl p-0.5 gap-0.5 flex-1 max-w-[140px] mx-auto">

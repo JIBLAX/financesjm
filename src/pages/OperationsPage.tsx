@@ -159,7 +159,7 @@ export const OperationsPage: React.FC<Props> = ({
     <div className="page-container pt-6 page-bottom-pad gap-4">
       {/* Header — title + neon scope toggle + settings + add */}
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold text-foreground shrink-0">Opérations</h1>
+        <h1 className="text-2xl font-extrabold text-white shrink-0">Opérations</h1>
 
         {/* Neon Perso / Pro toggle */}
         <div className="flex items-center bg-muted/30 rounded-xl p-0.5 gap-0.5 flex-1 max-w-[140px] mx-auto">

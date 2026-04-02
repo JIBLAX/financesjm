@@ -217,33 +217,7 @@ export const PatrimoinePage: React.FC<Props> = ({
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
-      {/* Hero */}
-      <div className="p-px rounded-3xl bg-gradient-to-br from-amber-500/40 via-primary/30 to-emerald-500/20">
-        <div className="rounded-[calc(1.5rem-1px)] bg-card px-5 py-5">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Patrimoine net</p>
-          <p className="text-4xl font-extrabold text-gradient-gold leading-none mb-3">{formatCurrency(stats.net)}</p>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-muted/30 rounded-xl px-3 py-2">
-              <p className="text-[10px] text-muted-foreground">Brut</p>
-              <p className="text-sm font-bold text-amber-400">{formatCurrency(stats.brut)}</p>
-            </div>
-            <div className="bg-muted/30 rounded-xl px-3 py-2">
-              <p className="text-[10px] text-muted-foreground">Dettes</p>
-              <p className="text-sm font-bold text-rose-400">{formatCurrency(stats.debtsTotal)}</p>
-            </div>
-            <div className="bg-muted/30 rounded-xl px-3 py-2">
-              <p className="text-[10px] text-muted-foreground">Taux net</p>
-              <p className="text-sm font-bold text-emerald-400">
-                {stats.brut > 0 ? `${Math.round((stats.net / stats.brut) * 100)}%` : '—'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {stats.lastUpdate && (
-        <p className="text-[10px] text-muted-foreground text-right">Dernière MAJ : {new Date(stats.lastUpdate).toLocaleDateString('fr-FR')}</p>
-      )}
+      <h1 className="text-2xl font-extrabold text-white">Patrimoine</h1>
 
       {/* Donut chart */}
       {donutData.length > 0 && (

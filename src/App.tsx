@@ -13,7 +13,6 @@ import { MonthPage } from '@/pages/MonthPage'
 import { AccountsPage } from '@/pages/AccountsPage'
 import { PatrimoinePage } from '@/pages/PatrimoinePage'
 import { MorePage } from '@/pages/MorePage'
-import { AllocationPage } from '@/pages/AllocationPage'
 import { TransactionsPage } from '@/pages/TransactionsPage'
 import { ExpensesPage } from '@/pages/ExpensesPage'
 import { ExportPage } from '@/pages/ExportPage'
@@ -83,7 +82,6 @@ const App: React.FC = () => {
               <Route path="/plan" element={<PlanPage store={store} onUpdateQuest={finance.updateQuest} onAddQuest={finance.addQuest} onAddXp={finance.addXp} />} />
               <Route path="/patrimoine" element={<PatrimoinePage store={store} onAddAsset={finance.addAsset} onUpdateAsset={finance.updateAsset} onRemoveAsset={finance.removeAsset} onAddDebt={finance.addDebt} onUpdateDebt={finance.updateDebt} onRemoveDebt={finance.removeDebt} />} />
               <Route path="/plus" element={<MorePage />} />
-              <Route path="/repartition" element={<AllocationPage rules={store.settings.allocationRules} />} />
               <Route path="/transactions" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} />} />
               <Route path="/transactions/new" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} />} />
               <Route path="/depenses" element={<ExpensesPage store={store} />} />

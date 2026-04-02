@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel } from '@/lib/constants'
 import type { FinanceStore } from '@/types/finance'
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export const MonthPage: React.FC<Props> = ({ store, journal, onUpdateJournal }) => {
+  const navigate = useNavigate()
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
   const [journalText, setJournalText] = useState(journal[monthKey] || '')
 
@@ -60,9 +62,15 @@ export const MonthPage: React.FC<Props> = ({ store, journal, onUpdateJournal }) 
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-2xl font-extrabold text-white flex-1">Mois / Cashflow</h1>
+      </div>
       <div className="flex items-center justify-between">
         <button onClick={() => navigateMonth(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50"><ChevronLeft className="w-5 h-5" /></button>
-        <h1 className="text-lg font-bold text-foreground capitalize">{getMonthLabel(monthKey)}</h1>
+        <span className="text-sm font-semibold text-foreground capitalize">{getMonthLabel(monthKey)}</span>
         <button onClick={() => navigateMonth(1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50"><ChevronRight className="w-5 h-5" /></button>
       </div>
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { SlidersHorizontal, FileDown, Settings, PieChart, BarChart3, TrendingUp, User, Rocket } from 'lucide-react'
+import { FileDown, Settings, PieChart, Map, User, Rocket } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 
 export const MorePage: React.FC = () => {
@@ -8,8 +8,7 @@ export const MorePage: React.FC = () => {
 
   const items = [
     { label: 'Mois / Cashflow', desc: 'Revenus, dépenses, répartition mensuelle', icon: PieChart, path: '/mois', color: 'text-primary' },
-    { label: 'Répartition', desc: 'Calculer la répartition mensuelle', icon: BarChart3, path: '/repartition', color: 'text-primary' },
-    { label: 'Patrimoine', desc: 'Actifs, dettes, patrimoine net', icon: TrendingUp, path: '/patrimoine', color: 'text-amber-400' },
+    { label: 'Plan', desc: 'Quêtes financières, objectifs, progression', icon: Map, path: '/plan', color: 'text-emerald-400' },
     { label: 'Profil', desc: 'Niveau, score santé, profil investisseur', icon: User, path: '/profil', color: 'text-blue-400' },
     { label: 'Liberté 2.0', desc: 'Road to 100 000 € — Solidité', icon: Rocket, path: '/liberte2', color: 'text-primary' },
     { label: 'Export', desc: 'Sauvegarder vos données', icon: FileDown, path: '/export', color: 'text-blue-400' },
@@ -18,7 +17,7 @@ export const MorePage: React.FC = () => {
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-3">
-      <h1 className="text-xl font-bold text-foreground mb-2">Plus</h1>
+      <h1 className="text-2xl font-extrabold text-white mb-2">Plus</h1>
       {items.map(item => (
         <FinanceCard key={item.path} onClick={() => navigate(item.path)}>
           <div className="flex items-center gap-4">
