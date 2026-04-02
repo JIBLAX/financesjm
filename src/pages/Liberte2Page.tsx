@@ -15,7 +15,7 @@ export const Liberte2Page: React.FC<Props> = ({ store }) => {
 
   const stats = useMemo(() => {
     const totalAccounts = store.accounts.filter(a => a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
-    const totalAssets = store.assets.filter(a => a.type !== 'dette').reduce((s, a) => s + a.value, 0)
+    const totalAssets = store.assets.filter(a => a.type !== 'dette' && a.type !== 'assurance_vie').reduce((s, a) => s + a.value, 0)
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
     const netWorth = totalAccounts + totalAssets - totalDebts
     const pct = Math.min(100, (netWorth / target) * 100)

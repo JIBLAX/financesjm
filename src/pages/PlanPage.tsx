@@ -1,11 +1,10 @@
-import React, { useMemo, useState } from 'react'
-import { Plus, ChevronRight, ChevronDown, Check, Sparkles, Shield } from 'lucide-react'
+import React, { useMemo, useState, useRef, useEffect } from 'react'
+import { Plus, ChevronRight, ChevronDown, Sparkles, Shield } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, QUEST_CATEGORY_META, getLevelForXp, getCurrentMonthKey } from '@/lib/constants'
 import { calculatePilotageMode, getPilotageRecommendation } from '@/lib/analytics'
 import type { FinanceStore, Quest, QuestCategory } from '@/types/finance'
 import { useNavigate } from 'react-router-dom'
-import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts'
 
 interface Props {
   store: FinanceStore
@@ -28,6 +27,8 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
   const [newTarget, setNewTarget] = useState('')
   const [newAccountId, setNewAccountId] = useState('')
   const [newDate, setNewDate] = useState('')
+
+  const autoCompletedRef = useRef(new Set<string>())
 
   const pilotage = useMemo(() => getPilotageRecommendation(store), [store])
   const modeStyle = MODE_STYLES[pilotage.mode]
@@ -54,6 +55,19 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
       return { ...q, currentAmount }
     })
   }, [store])
+
+  // Auto-validate quests when they reach their target
+  useEffect(() => {
+    quests.forEach(q => {
+      if (q.status !== 'active' || autoCompletedRef.current.has(q.id)) return
+      const pct = q.targetAmount > 0 ? q.currentAmount / q.targetAmount : 0
+      if (pct >= 1) {
+        autoCompletedRef.current.add(q.id)
+        onUpdateQuest(q.id, { status: 'completed' })
+        onAddXp(q.xpReward)
+      }
+    })
+  }, [quests])
 
   const conseil = useMemo(() => {
     const monthKey = getCurrentMonthKey()
@@ -85,12 +99,6 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
     })
     return groups
   }, [quests])
-
-  const handleComplete = (quest: Quest) => {
-    if (quest.status === 'completed') return
-    onUpdateQuest(quest.id, { status: 'completed' })
-    onAddXp(quest.xpReward)
-  }
 
   const handleCreate = () => {
     if (!newTitle) return
@@ -227,20 +235,22 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
                               <p className="text-xs text-muted-foreground">{formatCurrency(q.currentAmount)} / {formatCurrency(q.targetAmount)}</p>
                             )}
                             {q.targetAmount === 0 && q.steps.length > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                {q.steps.filter(s => s.completed).length}/{q.steps.length} étapes
-                              </p>
+                              <p className="text-xs text-muted-foreground">{q.steps.length} étapes</p>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {q.status === 'completed' && (
+                            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">✓ Validé</span>
+                          )}
                           <span className="text-xs text-primary font-medium">{q.xpReward} XP</span>
                           {isLocked ? null : isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                         </div>
                       </div>
-                      {(q.targetAmount > 0 || (q.targetAmount === 0 && q.steps.length > 0)) && (
+                      {q.targetAmount > 0 && (
                         <div className="mt-2 w-full bg-muted/50 rounded-full h-1.5">
-                          <div className={`h-1.5 rounded-full transition-all ${q.status === 'completed' ? 'bg-emerald-500' : 'bg-primary'}`} style={{ width: `${q.targetAmount === 0 ? (q.steps.filter(s => s.completed).length / q.steps.length) * 100 : pct}%` }} />
+                          <div className={`h-1.5 rounded-full transition-all ${q.status === 'completed' ? 'bg-emerald-500' : 'bg-primary'}`}
+                            style={{ width: `${pct}%` }} />
                         </div>
                       )}
                     </button>
@@ -250,24 +260,17 @@ export const PlanPage: React.FC<Props> = ({ store, onUpdateQuest, onAddQuest, on
                         {q.description && <p className="text-xs text-muted-foreground">{q.description}</p>}
                         {q.steps.length > 0 && (
                           <div className="space-y-1.5">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Étapes</p>
                             {q.steps.map((step, i) => (
-                              <button key={i} onClick={(e) => { e.stopPropagation(); const newSteps = [...q.steps]; newSteps[i] = { ...step, completed: !step.completed }; onUpdateQuest(q.id, { steps: newSteps }) }}
-                                className="flex items-center gap-2 w-full text-left">
-                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${step.completed ? 'bg-primary border-primary' : 'border-border'}`}>
-                                  {step.completed && <Check className="w-3 h-3 text-primary-foreground" />}
-                                </div>
-                                <span className={`text-xs ${step.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{step.label}</span>
-                              </button>
+                              <div key={i} className="flex items-start gap-2">
+                                <span className="text-muted-foreground/50 text-xs mt-0.5 select-none">•</span>
+                                <p className="text-xs text-foreground/80">{step.label}</p>
+                              </div>
                             ))}
                           </div>
                         )}
                         {q.targetAmount > 0 && q.status !== 'completed' && (
-                          <p className="text-xs text-muted-foreground italic">Projection estimée basée sur tes données actuelles</p>
-                        )}
-                        {q.status !== 'completed' && pct >= 100 && (
-                          <button onClick={() => handleComplete(q)} className="w-full py-2 rounded-xl text-sm font-semibold bg-emerald-500/20 text-emerald-400 mt-2">
-                            Compléter (+{q.xpReward} XP)
-                          </button>
+                          <p className="text-xs text-muted-foreground italic">Progression mise à jour automatiquement depuis tes données.</p>
                         )}
                       </div>
                     )}
