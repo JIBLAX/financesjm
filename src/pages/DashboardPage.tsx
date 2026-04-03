@@ -178,17 +178,26 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   }, [store.monthlySnapshots, stats.netWorth])
 
   const barData = useMemo(() => {
-    return Array.from({ length: 6 }, (_, i) => {
-      const key = getPreviousMonthKey(monthKey, 5 - i)
+    // All months from Jan 2026 to current
+    const keys: string[] = []
+    const start = new Date(2026, 0)
+    const [cy, cm] = monthKey.split('-').map(Number)
+    const end = new Date(cy, cm - 1)
+    const d = new Date(start)
+    while (d <= end) {
+      keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+      d.setMonth(d.getMonth() + 1)
+    }
+    return keys.map(key => {
       const [y, m] = key.split('-').map(Number)
-      const label = new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'short' })
+      const label = new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')
       const txs = store.transactions.filter(t => t.monthKey === key)
       const ops = store.operations.filter(op => op.monthKey === key)
       const income = ops.filter(op => op.family === 'revenu').reduce((s, op) => s + op.actual, 0)
         || txs.filter(t => t.direction === 'income').reduce((s, t) => s + t.amount, 0)
       const expense = ops.filter(op => op.family !== 'revenu').reduce((s, op) => s + op.actual, 0)
         || txs.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
-      return { label: label.charAt(0).toUpperCase() + label.slice(1, 4), income, expense }
+      return { label: label.charAt(0).toUpperCase() + label.slice(1, 3), income, expense }
     })
   }, [store, monthKey])
 

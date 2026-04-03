@@ -3,7 +3,7 @@ import { Plus, ChevronRight, X, Pencil, Check } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, ASSET_TYPE_LABELS, ASSET_TYPE_ICONS, ASSET_CLASS_MAP, ASSET_CLASS_LABELS } from '@/lib/constants'
 import type { FinanceStore, Asset, Debt, AssetType } from '@/types/finance'
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, Tooltip } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts'
 
 interface Props {
   store: FinanceStore
@@ -125,24 +125,43 @@ export const PatrimoinePage: React.FC<Props> = ({
     }))
   }, [detailClass, store])
 
+  // Generate all months from Jan 2026 to current
+  const allMonthKeys = useMemo(() => {
+    const keys: string[] = []
+    const start = new Date(2026, 0)
+    const now = new Date()
+    const end = new Date(now.getFullYear(), now.getMonth())
+    const d = new Date(start)
+    while (d <= end) {
+      keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+      d.setMonth(d.getMonth() + 1)
+    }
+    return keys
+  }, [])
+
+  const FR_MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+
   // Monthly evolution chart data from check-ins
   const detailChartData = useMemo(() => {
     if (!detailClass || detailAssets.length === 0) return null
-    const checkIns = [...store.monthlyCheckIns].sort((a, b) => a.monthKey.localeCompare(b.monthKey))
-    if (checkIns.length === 0) return null
-    const data = checkIns.map(ci => {
-      const point: Record<string, any> = { month: ci.monthKey.slice(5) + '/' + ci.monthKey.slice(2, 4) }
+    const checkInMap = new Map(store.monthlyCheckIns.map(ci => [ci.monthKey, ci]))
+    const data = allMonthKeys.map(key => {
+      const ci = checkInMap.get(key)
+      const [, m] = key.split('-').map(Number)
+      const point: Record<string, any> = { month: FR_MONTHS[m - 1] }
       detailAssets.forEach(item => {
         let val: number | null = null
-        if (item.itemType === 'account') val = ci.accountBalances?.[item.id] ?? null
-        else if (item.itemType === 'debt')  val = ci.debtBalances?.[item.id] ?? null
-        else                               val = ci.assetValues?.[item.id] ?? null
+        if (ci) {
+          if (item.itemType === 'account') val = ci.accountBalances?.[item.id] ?? null
+          else if (item.itemType === 'debt')  val = ci.debtBalances?.[item.id] ?? null
+          else                               val = ci.assetValues?.[item.id] ?? null
+        }
         point[item.id] = val
       })
       return point
     })
-    return { data, items: detailAssets }
-  }, [detailClass, detailAssets, store.monthlyCheckIns])
+    return { data, items: detailAssets, monthCount: allMonthKeys.length }
+  }, [detailClass, detailAssets, store.monthlyCheckIns, allMonthKeys])
 
   const computedValue = useMemo(() => {
     if (!selectedType) return 0
@@ -319,28 +338,40 @@ export const PatrimoinePage: React.FC<Props> = ({
             {detailAssets.length > 0 ? (
               <>
                 {/* Monthly evolution chart */}
-                {detailChartData && detailChartData.data.length > 0 ? (
+                {detailChartData ? (
                   <div className="mb-4">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Évolution mensuelle</p>
                     {/* Scrollable container */}
                     <div className="overflow-x-auto -mx-1 px-1 pb-1" style={{ WebkitOverflowScrolling: 'touch' as any }}>
-                      <div style={{ minWidth: Math.max(detailChartData.data.length * 56, 280) }}>
+                      <div style={{ width: Math.max(detailChartData.monthCount * 56, 300) }}>
                         <LineChart
-                          width={Math.max(detailChartData.data.length * 56, 280)}
-                          height={160}
+                          width={Math.max(detailChartData.monthCount * 56, 300)}
+                          height={200}
                           data={detailChartData.data}
-                          margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+                          margin={{ top: 8, right: 12, bottom: 8, left: 8 }}
                         >
                           <XAxis
                             dataKey="month"
                             tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)' }}
                             axisLine={false} tickLine={false}
                           />
+                          <YAxis
+                            tickFormatter={(v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v))}
+                            tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)' }}
+                            axisLine={false} tickLine={false}
+                            width={36}
+                          />
                           <Tooltip
                             formatter={(val: number) => val !== null ? formatCurrency(val) : null}
                             contentStyle={{ background: 'hsl(225 12% 13%)', border: '1px solid hsl(215 10% 22%)', borderRadius: 12, fontSize: 11 }}
                             labelStyle={{ color: 'hsl(215 10% 60%)', marginBottom: 4 }}
                             itemStyle={{ fontWeight: 600 }}
+                          />
+                          <Legend
+                            verticalAlign="bottom"
+                            iconType="square"
+                            iconSize={8}
+                            wrapperStyle={{ fontSize: 10, color: 'hsl(215 10% 55%)', paddingTop: 8 }}
                           />
                           {detailChartData.items.map((item, i) => (
                             <Line
@@ -357,16 +388,6 @@ export const PatrimoinePage: React.FC<Props> = ({
                           ))}
                         </LineChart>
                       </div>
-                    </div>
-                    {/* Legend: dot + initials + short name */}
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                      {detailChartData.items.map((item, i) => (
-                        <div key={item.id} className="flex items-center gap-1">
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
-                          <span className="text-[10px] text-muted-foreground font-semibold">{getInitials(item.name)}</span>
-                          <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">{item.name}</span>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 ) : (
