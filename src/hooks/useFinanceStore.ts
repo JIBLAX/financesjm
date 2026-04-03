@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory, MonthlyCheckIn } from '@/types/finance'
+import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory, MonthlyCheckIn, Project } from '@/types/finance'
 import { loadStore, saveStore } from '@/lib/storage'
 import { getPreviousMonthKey } from '@/lib/constants'
 
