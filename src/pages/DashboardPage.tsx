@@ -212,8 +212,11 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const modeBadge = MODE_BADGE[pilotageMode]
   const xpPct = nextLevel ? Math.min(100, ((store.settings.xp - level.minXp) / (nextLevel.minXp - level.minXp)) * 100) : 100
 
-  const activeQuests = store.quests.filter(q => q.status === 'active')
-  const firstQuest = activeQuests[0]
+  const missions = useMemo(() => computeMissions(store), [store])
+  const topMissions = missions.filter(m => !m.completed).slice(0, 3)
+  const missionsPct = missions.length > 0 ? Math.round((missions.filter(m => m.completed).length / missions.length) * 100) : 0
+  const projects = store.projects || []
+  const activeProjects = projects.filter(p => !p.completedAt).slice(0, 2)
 
   // ── Widget renderers ────────────────────────────────────────────────────────
 
