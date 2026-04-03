@@ -32,16 +32,22 @@ export const MonthPage: React.FC<Props> = ({ store, journal, onUpdateJournal }) 
     const expenses = txs.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
     const totalIncome = incomeBank + incomeCash
     const balance = totalIncome - expenses
-    const rules = store.settings.allocationRules
-    const proAmount = incomeBank * (rules.proPercent / 100)
-    const personalBase = incomeBank * (rules.personalBasePercent / 100)
-    const bourso = personalBase * (rules.boursoPercent / 100)
-    const livretA = personalBase * (rules.livretAPercent / 100)
-    const lep = personalBase * (rules.lepPercent / 100)
-    const cashLib = incomeCash * (rules.cashLibertePercent / 100)
-    const cashSec = incomeCash * (rules.cashSecurityPercent / 100)
-    const cashVoy = incomeCash * (rules.cashVoyagePercent / 100)
-    return { incomeBank, incomeCash, totalIncome, expenses, balance, proAmount, personalBase, bourso, livretA, lep, cashLib, cashSec, cashVoy, txs }
+
+    // Allocation from new hierarchical rules
+    const allocationRows: { label: string; amount: number; isCash: boolean }[] = []
+    store.settings.allocationRules.groups.forEach(group => {
+      const base = group.incomeType === 'bancaire' ? incomeBank : incomeCash
+      group.slots.forEach(slot => {
+        const acc = store.accounts.find(a => a.id === slot.accountId)
+        allocationRows.push({
+          label: acc ? `${acc.name} (${acc.institution})` : slot.label,
+          amount: base * (slot.percent / 100),
+          isCash: group.incomeType === 'cash',
+        })
+      })
+    })
+
+    return { incomeBank, incomeCash, totalIncome, expenses, balance, allocationRows, txs }
   }, [store, monthKey])
 
   const topCats = useMemo(() => {
@@ -111,25 +117,16 @@ export const MonthPage: React.FC<Props> = ({ store, journal, onUpdateJournal }) 
       <FinanceCard>
         <h3 className="text-sm font-semibold text-foreground mb-3">Répartition automatique</h3>
         <div className="space-y-2 text-sm">
-          {[
-            { label: 'Activité pro (Qonto)', amount: stats.proAmount },
-            { label: 'Vie courante (BoursoBank)', amount: stats.bourso },
-            { label: 'Tampon bancaire (Livret A)', amount: stats.livretA },
-            { label: 'Fonds d\'urgence (LEP)', amount: stats.lep },
-          ].map(r => (
+          {stats.allocationRows.filter(r => !r.isCash).map(r => (
             <div key={r.label} className="flex justify-between">
               <span className="text-muted-foreground">{r.label}</span>
               <span className="font-medium text-foreground">{formatCurrency(r.amount)}</span>
             </div>
           ))}
-          {stats.incomeCash > 0 && (
+          {stats.incomeCash > 0 && stats.allocationRows.some(r => r.isCash) && (
             <>
               <div className="border-t border-border/50 pt-2 mt-2" />
-              {[
-                { label: 'Cash liberté', amount: stats.cashLib },
-                { label: 'Fonds sécurité liquide', amount: stats.cashSec },
-                { label: 'Voyage', amount: stats.cashVoy },
-              ].map(r => (
+              {stats.allocationRows.filter(r => r.isCash).map(r => (
                 <div key={r.label} className="flex justify-between">
                   <span className="text-muted-foreground">{r.label}</span>
                   <span className="font-medium text-foreground">{formatCurrency(r.amount)}</span>

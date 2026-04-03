@@ -3,7 +3,7 @@ import { Plus, ChevronRight, X, Pencil, Check } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, ASSET_TYPE_LABELS, ASSET_TYPE_ICONS, ASSET_CLASS_MAP, ASSET_CLASS_LABELS } from '@/lib/constants'
 import type { FinanceStore, Asset, Debt, AssetType } from '@/types/finance'
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, Tooltip } from 'recharts'
 
 interface Props {
   store: FinanceStore
@@ -24,10 +24,19 @@ const DONUT_COLORS = [
   '#f59e0b', // amber
   '#ef4444', // red
   '#84cc16', // lime
+  '#ec4899', // pink
+  '#3b82f6', // blue
+  '#14b8a6', // teal
+  '#a855f7', // purple
+  '#f43f5e', // rose
 ]
 const numInput = 'w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none'
 
-type DetailItem = { name: string; value: number; detail?: string; extra?: string }
+type DetailItem = { id: string; itemType: 'account' | 'debt' | 'asset'; name: string; value: number; detail?: string; extra?: string }
+
+function getInitials(name: string): string {
+  return name.split(/[\s|]+/).filter(Boolean).map(w => w[0]?.toUpperCase() || '').join('').slice(0, 3)
+}
 
 export const PatrimoinePage: React.FC<Props> = ({
   store, onAddAsset, onUpdateAsset, onRemoveAsset, onAddDebt, onUpdateDebt, onRemoveDebt,
@@ -100,21 +109,40 @@ export const PatrimoinePage: React.FC<Props> = ({
       return store.accounts
         .filter(a => a.isActive && a.type !== 'dette')
         .sort((a, b) => (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99))
-        .map(a => ({ name: a.name, value: a.currentBalance, detail: a.institution }))
+        .map(a => ({ id: a.id, itemType: 'account' as const, name: a.name, value: a.currentBalance, detail: a.institution }))
     }
     if (detailClass === 'dettes') {
       return [
-        ...store.debts.map(d => ({ name: d.name, value: d.outstandingBalance, detail: d.lender || `${formatCurrency(d.monthlyPayment)}/mois` })),
-        ...store.assets.filter(a => a.type === 'dette').map(a => ({ name: a.name, value: a.outstandingBalance || a.value, detail: a.lender || '' })),
+        ...store.debts.map(d => ({ id: d.id, itemType: 'debt' as const, name: d.name, value: d.outstandingBalance, detail: d.lender || `${formatCurrency(d.monthlyPayment)}/mois` })),
+        ...store.assets.filter(a => a.type === 'dette').map(a => ({ id: a.id, itemType: 'asset' as const, name: a.name, value: a.outstandingBalance || a.value, detail: a.lender || '' })),
       ]
     }
     const matchingTypes = Object.entries(ASSET_CLASS_MAP).filter(([, cls]) => cls === detailClass).map(([t]) => t)
     return store.assets.filter(a => matchingTypes.includes(a.type)).map(a => ({
-      name: a.name, value: a.value,
+      id: a.id, itemType: 'asset' as const, name: a.name, value: a.value,
       detail: a.ticker || a.symbol || a.platform || a.propertyType || '',
       extra: a.quantity ? `${a.quantity} × ${formatCurrency(a.unitPrice || 0, a.priceCurrency || 'EUR')}` : undefined,
     }))
   }, [detailClass, store])
+
+  // Monthly evolution chart data from check-ins
+  const detailChartData = useMemo(() => {
+    if (!detailClass || detailAssets.length === 0) return null
+    const checkIns = [...store.monthlyCheckIns].sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+    if (checkIns.length === 0) return null
+    const data = checkIns.map(ci => {
+      const point: Record<string, any> = { month: ci.monthKey.slice(5) + '/' + ci.monthKey.slice(2, 4) }
+      detailAssets.forEach(item => {
+        let val: number | null = null
+        if (item.itemType === 'account') val = ci.accountBalances?.[item.id] ?? null
+        else if (item.itemType === 'debt')  val = ci.debtBalances?.[item.id] ?? null
+        else                               val = ci.assetValues?.[item.id] ?? null
+        point[item.id] = val
+      })
+      return point
+    })
+    return { data, items: detailAssets }
+  }, [detailClass, detailAssets, store.monthlyCheckIns])
 
   const computedValue = useMemo(() => {
     if (!selectedType) return 0
@@ -290,37 +318,87 @@ export const PatrimoinePage: React.FC<Props> = ({
             </div>
             {detailAssets.length > 0 ? (
               <>
-                {detailAssets.length > 1 && (
+                {/* Monthly evolution chart */}
+                {detailChartData && detailChartData.data.length > 0 ? (
                   <div className="mb-4">
-                    <ResponsiveContainer width="100%" height={140}>
-                      <PieChart>
-                        <Pie data={detailAssets.map(a => ({ name: a.name, value: a.value }))} cx="50%" cy="50%" innerRadius={40} outerRadius={60} dataKey="value" stroke="none">
-                          {detailAssets.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Évolution mensuelle</p>
+                    {/* Scrollable container */}
+                    <div className="overflow-x-auto -mx-1 px-1 pb-1" style={{ WebkitOverflowScrolling: 'touch' as any }}>
+                      <div style={{ minWidth: Math.max(detailChartData.data.length * 56, 280) }}>
+                        <LineChart
+                          width={Math.max(detailChartData.data.length * 56, 280)}
+                          height={160}
+                          data={detailChartData.data}
+                          margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+                        >
+                          <XAxis
+                            dataKey="month"
+                            tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)' }}
+                            axisLine={false} tickLine={false}
+                          />
+                          <Tooltip
+                            formatter={(val: number) => val !== null ? formatCurrency(val) : null}
+                            contentStyle={{ background: 'hsl(225 12% 13%)', border: '1px solid hsl(215 10% 22%)', borderRadius: 12, fontSize: 11 }}
+                            labelStyle={{ color: 'hsl(215 10% 60%)', marginBottom: 4 }}
+                            itemStyle={{ fontWeight: 600 }}
+                          />
+                          {detailChartData.items.map((item, i) => (
+                            <Line
+                              key={item.id}
+                              dataKey={item.id}
+                              name={item.name}
+                              stroke={DONUT_COLORS[i % DONUT_COLORS.length]}
+                              strokeWidth={2}
+                              dot={{ r: 3, strokeWidth: 0, fill: DONUT_COLORS[i % DONUT_COLORS.length] }}
+                              activeDot={{ r: 5, strokeWidth: 0 }}
+                              connectNulls={false}
+                              type="monotone"
+                            />
+                          ))}
+                        </LineChart>
+                      </div>
+                    </div>
+                    {/* Legend: dot + initials + short name */}
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                      {detailChartData.items.map((item, i) => (
+                        <div key={item.id} className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+                          <span className="text-[10px] text-muted-foreground font-semibold">{getInitials(item.name)}</span>
+                          <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">{item.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-4 rounded-xl bg-muted/20 border border-border/30 px-4 py-5 text-center">
+                    <p className="text-[11px] text-muted-foreground">Aucun historique mensuel</p>
+                    <p className="text-[10px] text-muted-foreground/50 mt-1">Les données apparaîtront après le premier bilan mensuel</p>
                   </div>
                 )}
-                <div className="space-y-2">
+
+                {/* Current values list */}
+                <div className="space-y-0">
                   {detailAssets.map((a, i) => {
-                    const dotColor = DONUT_COLORS[i % DONUT_COLORS.length]
+                    const color = DONUT_COLORS[i % DONUT_COLORS.length]
                     return (
-                      <div key={i} className="flex justify-between items-center py-2 border-b border-border/30 last:border-0">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: dotColor }} />
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{a.name}</p>
+                      <div key={a.id} className="flex justify-between items-center py-2.5 border-b border-border/20 last:border-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{a.name}</p>
                             {a.detail && <p className="text-[10px] text-muted-foreground">{a.detail}</p>}
                             {a.extra && <p className="text-[10px] text-primary">{a.extra}</p>}
                           </div>
                         </div>
-                        <p className={`text-sm font-bold ${detailClass === 'dettes' ? 'text-destructive' : 'text-foreground'}`}>{formatCurrency(a.value)}</p>
+                        <p className={`text-sm font-bold shrink-0 ml-3 ${detailClass === 'dettes' ? 'text-destructive' : 'text-foreground'}`}>
+                          {formatCurrency(a.value)}
+                        </p>
                       </div>
                     )
                   })}
                 </div>
                 <div className="mt-3 pt-3 border-t border-border/50 flex justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground">Total</span>
+                  <span className="text-xs font-semibold text-muted-foreground">Total actuel</span>
                   <span className="text-sm font-bold text-foreground">{formatCurrency(detailAssets.reduce((s, a) => s + a.value, 0))}</span>
                 </div>
               </>
