@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileDown, Settings, Map, User, Wallet } from 'lucide-react'
+import { FileDown, Settings, Map, User, Wallet, Gift } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 
 export const MorePage: React.FC = () => {
