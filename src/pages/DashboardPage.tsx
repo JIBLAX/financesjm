@@ -378,7 +378,6 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
       case 'quete':
         return (
           <div className="space-y-3">
-            {/* Alerts */}
             {alerts.length > 0 && (
               <div className="flex gap-3 overflow-x-auto -mx-5 px-5 pb-1" style={{ scrollSnapType: 'x mandatory' }}>
                 {alerts.slice(0, 3).map(alert => (
@@ -395,37 +394,6 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
                 ))}
               </div>
             )}
-
-            {/* Active quest preview */}
-            {firstQuest && (
-              <button onClick={() => navigate('/plan')}
-                className="w-full rounded-2xl bg-card border border-border/40 p-4 text-left active:scale-[0.98] transition-transform">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{firstQuest.emoji}</span>
-                    <p className="text-sm font-semibold text-foreground">{firstQuest.title}</p>
-                  </div>
-                  <span className="text-xs text-primary font-medium">{firstQuest.xpReward} XP</span>
-                </div>
-                {firstQuest.targetAmount > 0 && (
-                  <>
-                    <p className="text-[10px] text-muted-foreground mb-1.5">
-                      {formatCurrency(firstQuest.currentAmount)} / {formatCurrency(firstQuest.targetAmount)}
-                    </p>
-                    <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-primary transition-all duration-700"
-                        style={{ width: `${Math.min(100, (firstQuest.currentAmount / firstQuest.targetAmount) * 100)}%` }} />
-                    </div>
-                  </>
-                )}
-                <div className="flex items-center justify-between mt-2">
-                  <p className="text-[10px] text-muted-foreground">{activeQuests.length} quête{activeQuests.length > 1 ? 's' : ''} active{activeQuests.length > 1 ? 's' : ''}</p>
-                  <span className="text-[10px] text-primary font-semibold">Voir tout →</span>
-                </div>
-              </button>
-            )}
-
-            {/* Insights */}
             {insights.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
@@ -442,6 +410,67 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
               </div>
             )}
           </div>
+        )
+
+      case 'missions':
+        return (
+          <button onClick={() => navigate('/plan')}
+            className="w-full rounded-2xl bg-card border border-border/40 p-4 text-left active:scale-[0.98] transition-transform">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🗺️</span>
+                <p className="text-xs font-bold text-foreground uppercase tracking-wider">Guide Financier</p>
+              </div>
+              <span className="text-xs text-primary font-bold">{missionsPct}%</span>
+            </div>
+            <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden mb-3">
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-amber-500 transition-all duration-700"
+                style={{ width: `${missionsPct}%` }} />
+            </div>
+            {topMissions.map(m => (
+              <div key={m.id} className="flex items-center gap-2 py-1">
+                <span className="text-sm">{m.emoji}</span>
+                <p className="text-xs text-foreground flex-1 truncate">{m.title}</p>
+                <span className="text-[10px] text-muted-foreground">{Math.round(m.pct)}%</span>
+              </div>
+            ))}
+            <p className="text-[10px] text-primary font-semibold mt-2">Voir le guide →</p>
+          </button>
+        )
+
+      case 'objectifs':
+        return projects.length > 0 ? (
+          <button onClick={() => navigate('/objectifs')}
+            className="w-full rounded-2xl bg-card border border-border/40 p-4 text-left active:scale-[0.98] transition-transform">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎁</span>
+                <p className="text-xs font-bold text-foreground uppercase tracking-wider">Objectifs</p>
+              </div>
+              <span className="text-[10px] text-muted-foreground">{projects.filter(p => !p.completedAt).length} en cours</span>
+            </div>
+            {activeProjects.map(p => {
+              const pct = p.targetAmount > 0 ? Math.min(100, (p.savedAmount / p.targetAmount) * 100) : 0
+              return (
+                <div key={p.id} className="mb-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-foreground truncate flex-1">{p.label}</p>
+                    <span className="text-[10px] text-muted-foreground ml-2">{Math.round(pct)}%</span>
+                  </div>
+                  <div className="h-1 bg-muted/40 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })}
+            <p className="text-[10px] text-primary font-semibold mt-1">Voir tout →</p>
+          </button>
+        ) : (
+          <button onClick={() => navigate('/objectifs')}
+            className="w-full rounded-2xl bg-muted/20 border border-dashed border-border/40 p-4 text-center active:scale-[0.98] transition-transform">
+            <span className="text-2xl">🎁</span>
+            <p className="text-xs text-muted-foreground mt-1">Crée ton premier objectif d'épargne</p>
+          </button>
         )
 
       default:
