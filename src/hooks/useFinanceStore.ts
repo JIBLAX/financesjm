@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory, MonthlyCheckIn } from '@/types/finance'
+import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory, MonthlyCheckIn, Project } from '@/types/finance'
 import { loadStore, saveStore } from '@/lib/storage'
 import { getPreviousMonthKey } from '@/lib/constants'
 
@@ -219,6 +219,20 @@ export function useFinanceStore() {
     }))
   }, [update])
 
+  // ─── Projects ──────────────────────────────────────────────────────────────
+
+  const addProject = useCallback((p: Project) => {
+    update(prev => ({ ...prev, projects: [...(prev.projects || []), p] }))
+  }, [update])
+
+  const updateProject = useCallback((id: string, patch: Partial<Project>) => {
+    update(prev => ({ ...prev, projects: (prev.projects || []).map(p => p.id === id ? { ...p, ...patch } : p) }))
+  }, [update])
+
+  const removeProject = useCallback((id: string) => {
+    update(prev => ({ ...prev, projects: (prev.projects || []).filter(p => p.id !== id) }))
+  }, [update])
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   return {
@@ -232,5 +246,6 @@ export function useFinanceStore() {
     addOpCategory, updateOpCategory, removeOpCategory,
     addOpSubcategory, removeOpSubcategory,
     saveCheckIn, updateBudget, updateAllocationInjection,
+    addProject, updateProject, removeProject,
   }
 }

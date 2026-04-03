@@ -291,6 +291,46 @@ export interface OpSubcategory {
   icon?: string
 }
 
+// ─── Missions (computed, not stored) ─────────────────────────────────────────
+
+export type MissionType = 'amount_target' | 'amount_reduce' | 'count' | 'boolean'
+export type MissionAxis = 'assainir' | 'securiser' | 'structurer' | 'investir' | 'accelerer'
+
+export interface ComputedMission {
+  id: string
+  title: string
+  emoji: string
+  axis: MissionAxis
+  type: MissionType
+  targetValue: number
+  currentValue: number
+  completed: boolean
+  pct: number
+  xpReward: number
+  order: number
+}
+
+// ─── Projects / Objectifs ────────────────────────────────────────────────────
+
+export type ProjectTheme =
+  | 'tech' | 'maison' | 'mobilier' | 'cuisine' | 'mode' | 'beaute' | 'sante'
+  | 'sport' | 'voyage' | 'auto' | 'velo' | 'bureau' | 'etudes' | 'photo'
+  | 'audio' | 'gaming' | 'culture' | 'enfants' | 'animaux' | 'cadeaux'
+  | 'lifestyle' | 'business' | 'immobilier' | 'travaux' | 'abonnements'
+  | 'collectibles' | 'solidarite'
+
+export interface Project {
+  id: string
+  theme: ProjectTheme
+  label: string
+  targetAmount: number
+  savedAmount: number
+  targetDate?: string
+  createdAt: string
+  completedAt?: string
+  milestonesReached: number[] // e.g. [25, 50]
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface FinanceStore {
@@ -309,6 +349,7 @@ export interface FinanceStore {
   opCategories: OpCategory[]
   opSubcategories: OpSubcategory[]
   monthlyCheckIns: MonthlyCheckIn[]
-  monthlyBudgets: Record<string, Record<string, number>>       // monthKey -> categoryId -> forecast
-  allocationInjections: Record<string, Record<string, number>> // monthKey -> accountId -> injected amount
+  monthlyBudgets: Record<string, Record<string, number>>
+  allocationInjections: Record<string, Record<string, number>>
+  projects: Project[]
 }

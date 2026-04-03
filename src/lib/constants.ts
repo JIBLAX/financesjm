@@ -311,3 +311,69 @@ export const DEFAULT_OP_SUBCATEGORIES: OpSubcategory[] = [
   { id: 'ops_cardio_mouv',          categoryId: 'opc_r_be_activ', name: "Cardio Mouv'",            icon: '🏃' },
   { id: 'ops_activ_training',       categoryId: 'opc_r_be_activ', name: "Activ'Training",          icon: '🏋️' },
 ]
+
+// ─── Mission Axis Meta ───────────────────────────────────────────────────────
+
+export const MISSION_AXIS_META: Record<string, { label: string; emoji: string; color: string }> = {
+  assainir: { label: 'Assainir', emoji: '🧹', color: 'text-amber-400' },
+  securiser: { label: 'Sécuriser', emoji: '🛡️', color: 'text-blue-400' },
+  structurer: { label: 'Structurer', emoji: '🏗️', color: 'text-violet-400' },
+  investir: { label: 'Investir', emoji: '📈', color: 'text-emerald-400' },
+  accelerer: { label: 'Accélérer', emoji: '🚀', color: 'text-primary' },
+}
+
+// ─── Project Themes ──────────────────────────────────────────────────────────
+
+export const PROJECT_THEMES: Record<string, { label: string; emoji: string; baseXp: number }> = {
+  tech: { label: 'Tech & numérique', emoji: '💻', baseXp: 40 },
+  maison: { label: 'Maison & aménagement', emoji: '🏠', baseXp: 35 },
+  mobilier: { label: 'Mobilier & déco', emoji: '🛋️', baseXp: 35 },
+  cuisine: { label: 'Cuisine & électroménager', emoji: '🍳', baseXp: 30 },
+  mode: { label: 'Mode & accessoires', emoji: '👗', baseXp: 30 },
+  beaute: { label: 'Beauté & soin', emoji: '✨', baseXp: 25 },
+  sante: { label: 'Santé & bien-être', emoji: '💊', baseXp: 35 },
+  sport: { label: 'Sport & outdoor', emoji: '🏃', baseXp: 35 },
+  voyage: { label: 'Voyage & mobilité', emoji: '✈️', baseXp: 45 },
+  auto: { label: 'Auto & moto', emoji: '🚗', baseXp: 60 },
+  velo: { label: 'Vélo & micromobilité', emoji: '🚲', baseXp: 40 },
+  bureau: { label: 'Bureau & travail', emoji: '🖥️', baseXp: 35 },
+  etudes: { label: 'Études & formation', emoji: '📚', baseXp: 45 },
+  photo: { label: 'Photo & vidéo', emoji: '📷', baseXp: 45 },
+  audio: { label: 'Audio & musique', emoji: '🎵', baseXp: 40 },
+  gaming: { label: 'Gaming & loisirs', emoji: '🎮', baseXp: 30 },
+  culture: { label: 'Culture & livres', emoji: '📖', baseXp: 20 },
+  enfants: { label: 'Enfants & bébé', emoji: '👶', baseXp: 40 },
+  animaux: { label: 'Animaux', emoji: '🐾', baseXp: 25 },
+  cadeaux: { label: 'Cadeaux & événements', emoji: '🎁', baseXp: 20 },
+  lifestyle: { label: 'Lifestyle & luxe', emoji: '💎', baseXp: 55 },
+  business: { label: 'Business & entrepreneuriat', emoji: '💼', baseXp: 50 },
+  immobilier: { label: 'Immobilier & habitat', emoji: '🏢', baseXp: 80 },
+  travaux: { label: 'Travaux & rénovation', emoji: '🔨', baseXp: 60 },
+  abonnements: { label: 'Abonnements & services', emoji: '🔄', baseXp: 15 },
+  collectibles: { label: 'Collectibles & passions', emoji: '🎯', baseXp: 35 },
+  solidarite: { label: 'Solidarité & dons', emoji: '❤️', baseXp: 25 },
+}
+
+export function getProjectXp(theme: string, targetAmount: number): { base: number; bonus: number } {
+  const base = PROJECT_THEMES[theme]?.baseXp || 30
+  let bonus = 5
+  if (targetAmount >= 50) bonus = 10
+  if (targetAmount >= 150) bonus = 20
+  if (targetAmount >= 300) bonus = 35
+  if (targetAmount >= 600) bonus = 50
+  if (targetAmount >= 1000) bonus = 75
+  if (targetAmount >= 2000) bonus = 110
+  if (targetAmount >= 5000) bonus = 160
+  if (targetAmount >= 10000) bonus = 250
+  return { base, bonus }
+}
+
+export function getProjectMilestoneBonus(milestone: number): number {
+  switch (milestone) {
+    case 25: return 10
+    case 50: return 20
+    case 75: return 30
+    case 100: return 50
+    default: return 0
+  }
+}
