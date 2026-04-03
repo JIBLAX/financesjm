@@ -3,43 +3,25 @@ import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency } from '@/lib/constants'
-import type { AllocationRules } from '@/types/finance'
+import type { AllocationRules, Account } from '@/types/finance'
 
 interface Props {
   rules: AllocationRules
+  accounts: Account[]
 }
 
-export const AllocationPage: React.FC<Props> = ({ rules }) => {
+const GROUP_COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-pink-500', 'bg-cyan-500']
+
+export const AllocationPage: React.FC<Props> = ({ rules, accounts }) => {
   const navigate = useNavigate()
   const [bankIncome, setBankIncome] = useState('')
   const [cashIncome, setCashIncome] = useState('')
 
-  const allocation = useMemo(() => {
-    const bank = Number(bankIncome) || 0
-    const cash = Number(cashIncome) || 0
-    const pro = bank * (rules.proPercent / 100)
-    const personalBase = bank * (rules.personalBasePercent / 100)
-    const bourso = personalBase * (rules.boursoPercent / 100)
-    const livretA = personalBase * (rules.livretAPercent / 100)
-    const lep = personalBase * (rules.lepPercent / 100)
-    const cashLib = cash * (rules.cashLibertePercent / 100)
-    const cashSec = cash * (rules.cashSecurityPercent / 100)
-    const cashVoy = cash * (rules.cashVoyagePercent / 100)
-    return { pro, personalBase, bourso, livretA, lep, cashLib, cashSec, cashVoy, total: bank + cash }
-  }, [bankIncome, cashIncome, rules])
+  const bankGroups = rules.groups.filter(g => g.incomeType === 'bancaire')
+  const cashGroups = rules.groups.filter(g => g.incomeType === 'cash')
 
-  const items = [
-    { label: 'Activité pro (Qonto)', amount: allocation.pro, pct: rules.proPercent, note: `${rules.proPercent}% du bancaire`, color: 'bg-blue-500' },
-    { label: 'Vie courante (BoursoBank)', amount: allocation.bourso, pct: rules.boursoPercent * (rules.personalBasePercent / 100), note: `${rules.boursoPercent}% de ${rules.personalBasePercent}%`, color: 'bg-emerald-500' },
-    { label: 'Tampon bancaire (Livret A)', amount: allocation.livretA, pct: rules.livretAPercent * (rules.personalBasePercent / 100), note: `${rules.livretAPercent}% de ${rules.personalBasePercent}%`, color: 'bg-amber-500' },
-    { label: 'Fonds d\'urgence (LEP)', amount: allocation.lep, pct: rules.lepPercent * (rules.personalBasePercent / 100), note: `${rules.lepPercent}% de ${rules.personalBasePercent}%`, color: 'bg-orange-500' },
-  ]
-
-  const cashItems = [
-    { label: 'Cash liberté', amount: allocation.cashLib, pct: rules.cashLibertePercent, color: 'bg-violet-500' },
-    { label: 'Fonds sécurité liquide', amount: allocation.cashSec, pct: rules.cashSecurityPercent, color: 'bg-pink-500' },
-    { label: 'Voyage', amount: allocation.cashVoy, pct: rules.cashVoyagePercent, color: 'bg-cyan-500' },
-  ]
+  const bankTotal = Number(bankIncome) || 0
+  const cashTotal = Number(cashIncome) || 0
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
@@ -53,60 +35,68 @@ export const AllocationPage: React.FC<Props> = ({ rules }) => {
       <FinanceCard className="space-y-3">
         <div>
           <label className="text-xs text-muted-foreground uppercase tracking-wider">Revenus bancaires du mois</label>
-          <input
-            type="number"
-            className="w-full mt-1 bg-muted/50 rounded-xl px-4 py-3 text-lg font-bold text-foreground placeholder:text-muted-foreground outline-none"
-            placeholder="0"
-            value={bankIncome}
-            onChange={e => setBankIncome(e.target.value)}
-          />
+          <input type="number" className="w-full mt-1 bg-muted/50 rounded-xl px-4 py-3 text-lg font-bold text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="0" value={bankIncome} onChange={e => setBankIncome(e.target.value)} />
         </div>
         <div>
           <label className="text-xs text-muted-foreground uppercase tracking-wider">Revenus en liquide</label>
-          <input
-            type="number"
-            className="w-full mt-1 bg-muted/50 rounded-xl px-4 py-3 text-lg font-bold text-foreground placeholder:text-muted-foreground outline-none"
-            placeholder="0"
-            value={cashIncome}
-            onChange={e => setCashIncome(e.target.value)}
-          />
+          <input type="number" className="w-full mt-1 bg-muted/50 rounded-xl px-4 py-3 text-lg font-bold text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="0" value={cashIncome} onChange={e => setCashIncome(e.target.value)} />
         </div>
       </FinanceCard>
 
-      {allocation.total > 0 && (
+      {bankTotal > 0 && (
         <>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Répartition bancaire</h2>
-          {items.map(item => (
-            <FinanceCard key={item.label}>
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.note}</p>
-                </div>
-                <p className="text-lg font-bold text-foreground">{formatCurrency(item.amount)}</p>
-              </div>
-              <div className="w-full bg-muted/50 rounded-full h-2">
-                <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${Math.min(100, (item.amount / (Number(bankIncome) || 1)) * 100)}%` }} />
-              </div>
-            </FinanceCard>
-          ))}
-
-          {Number(cashIncome) > 0 && (
-            <>
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mt-2">Répartition liquide</h2>
-              {cashItems.map(item => (
-                <FinanceCard key={item.label}>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.pct}%</p>
+          {bankGroups.map((group, gi) => (
+            <div key={group.id} className="space-y-2">
+              <p className="text-xs text-muted-foreground font-semibold">{group.label}</p>
+              {group.slots.map((slot, si) => {
+                const amount = bankTotal * (slot.percent / 100)
+                const acc = accounts.find(a => a.id === slot.accountId)
+                return (
+                  <FinanceCard key={si}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{acc?.name || slot.label}</p>
+                        <p className="text-xs text-muted-foreground">{slot.percent}% du bancaire</p>
+                      </div>
+                      <p className="text-lg font-bold text-foreground">{formatCurrency(amount)}</p>
                     </div>
-                    <p className="text-lg font-bold text-foreground">{formatCurrency(item.amount)}</p>
-                  </div>
-                </FinanceCard>
-              ))}
-            </>
-          )}
+                    <div className="w-full bg-muted/50 rounded-full h-2">
+                      <div className={`h-2 rounded-full ${GROUP_COLORS[(gi + si) % GROUP_COLORS.length]}`}
+                        style={{ width: `${Math.min(100, slot.percent)}%` }} />
+                    </div>
+                  </FinanceCard>
+                )
+              })}
+            </div>
+          ))}
+        </>
+      )}
+
+      {cashTotal > 0 && (
+        <>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mt-2">Répartition liquide</h2>
+          {cashGroups.map(group => (
+            <div key={group.id} className="space-y-2">
+              {group.slots.map((slot, si) => {
+                const amount = cashTotal * (slot.percent / 100)
+                const acc = accounts.find(a => a.id === slot.accountId)
+                return (
+                  <FinanceCard key={si}>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{acc?.name || slot.label}</p>
+                        <p className="text-xs text-muted-foreground">{slot.percent}%</p>
+                      </div>
+                      <p className="text-lg font-bold text-foreground">{formatCurrency(amount)}</p>
+                    </div>
+                  </FinanceCard>
+                )
+              })}
+            </div>
+          ))}
         </>
       )}
     </div>
