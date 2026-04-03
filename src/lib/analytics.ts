@@ -1,4 +1,4 @@
-import type { FinanceStore, Alert, HealthScore, PilotageMode } from '@/types/finance'
+import type { FinanceStore, Alert, HealthScore, PilotageMode, ComputedMission, MissionAxis } from '@/types/finance'
 import { NON_REAL_REVENUE_TYPES } from '@/types/finance'
 import { getCurrentMonthKey, getPreviousMonthKey } from './constants'
 
