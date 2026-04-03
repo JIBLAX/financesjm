@@ -95,6 +95,7 @@ const App: React.FC = () => {
               <Route path="/questionnaire" element={<QuestionnairePage questionnaire={store.settings.investorQuestionnaire} onUpdate={finance.updateSettings} />} />
               <Route path="/liberte2" element={<Liberte2Page store={store} />} />
               <Route path="/trajectoire" element={<TrajectoryPage store={store} />} />
+              <Route path="/objectifs" element={<ProjectsPage store={store} onAdd={finance.addProject} onUpdate={finance.updateProject} onRemove={finance.removeProject} onAddXp={finance.addXp} />} />
             </Routes>
           </div>
           <BottomNav />
