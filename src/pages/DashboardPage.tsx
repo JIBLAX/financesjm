@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, X, ChevronRight, Sparkles, GripVertical, Settings2 } from 'lucide-react'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel, getLevelForXp, getNextLevel, getPreviousMonthKey } from '@/lib/constants'
-import { generateAlerts, generateInsights, calculateHealthScore, calculatePilotageMode, getRealIncome } from '@/lib/analytics'
+import { generateAlerts, generateInsights, calculateHealthScore, calculatePilotageMode, getRealIncome, computeMissions } from '@/lib/analytics'
 import type { FinanceStore } from '@/types/finance'
 import {
   AreaChart, Area, ResponsiveContainer,
