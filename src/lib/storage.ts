@@ -23,6 +23,7 @@ function getDefaultStore(): FinanceStore {
     monthlyCheckIns: [],
     monthlyBudgets: {},
     allocationInjections: {},
+    projects: [],
   }
 }
 
