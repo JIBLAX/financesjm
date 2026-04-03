@@ -1,28 +1,28 @@
 import React, { useState } from 'react'
-import { ArrowLeft, Lock, Percent } from 'lucide-react'
+import { ArrowLeft, Lock, Percent, Plus, X, Check, Pencil } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
-import type { AppSettings, AllocationRules, ProfileRegulation } from '@/types/finance'
+import type { AppSettings, AllocationGroup, AllocationSlot, ProfileRegulation, Account } from '@/types/finance'
 import { clearSession } from '@/lib/storage'
 
 interface Props {
   settings: AppSettings
+  accounts: Account[]
   onUpdate: (patch: Partial<AppSettings>) => void
   onUpdateRegulation: (patch: Partial<ProfileRegulation>) => void
   onLock: () => void
 }
 
-export const SettingsPage: React.FC<Props> = ({ settings, onUpdate, onUpdateRegulation: _onUpdateRegulation, onLock }) => {
+export const SettingsPage: React.FC<Props> = ({ settings, accounts, onUpdate, onUpdateRegulation: _onUpdateRegulation, onLock }) => {
   const navigate = useNavigate()
-  const [rules, setRules] = useState<AllocationRules>(settings.allocationRules)
   const [newPin, setNewPin] = useState('')
   const [showPinChange, setShowPinChange] = useState(false)
 
-  const updateRule = (key: keyof AllocationRules, value: string) => {
-    const next = { ...rules, [key]: Number(value) || 0 }
-    setRules(next)
-    onUpdate({ allocationRules: next })
-  }
+  // Allocation edit state
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [editingSlots, setEditingSlots] = useState<AllocationSlot[]>([])
+
+  const rules = settings.allocationRules
 
   const handlePinChange = () => {
     if (newPin.length === 4) {
@@ -37,16 +37,55 @@ export const SettingsPage: React.FC<Props> = ({ settings, onUpdate, onUpdateRegu
     onLock()
   }
 
-  const ruleFields: { key: keyof AllocationRules; label: string }[] = [
-    { key: 'proPercent', label: 'Part pro (% des revenus bancaires)' },
-    { key: 'personalBasePercent', label: 'Base perso (% des revenus bancaires)' },
-    { key: 'boursoPercent', label: 'BoursoBank (% de la base perso)' },
-    { key: 'livretAPercent', label: 'Livret A (% de la base perso)' },
-    { key: 'lepPercent', label: 'LEP (% de la base perso)' },
-    { key: 'cashLibertePercent', label: 'Cash liberté (% du liquide)' },
-    { key: 'cashSecurityPercent', label: 'Fonds sécurité (% du liquide)' },
-    { key: 'cashVoyagePercent', label: 'Voyage (% du liquide)' },
-  ]
+  const startEdit = (group: AllocationGroup) => {
+    setEditingGroupId(group.id)
+    setEditingSlots(group.slots.map(s => ({ ...s })))
+  }
+
+  const cancelEdit = () => {
+    setEditingGroupId(null)
+    setEditingSlots([])
+  }
+
+  const saveEdit = (groupId: string) => {
+    const newGroups = rules.groups.map(g =>
+      g.id === groupId ? { ...g, slots: editingSlots } : g
+    )
+    onUpdate({ allocationRules: { ...rules, groups: newGroups } })
+    setEditingGroupId(null)
+    setEditingSlots([])
+  }
+
+  const updateSlotPercent = (idx: number, value: string) => {
+    setEditingSlots(prev => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], percent: parseFloat(value) || 0 }
+      return next
+    })
+  }
+
+  const updateSlotAccount = (idx: number, accountId: string) => {
+    const acc = accounts.find(a => a.id === accountId)
+    setEditingSlots(prev => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], accountId, label: acc?.name || next[idx].label }
+      return next
+    })
+  }
+
+  const removeSlot = (idx: number) => {
+    setEditingSlots(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  const addSlot = () => {
+    setEditingSlots(prev => [...prev, { accountId: '', label: 'Nouveau compte', percent: 0 }])
+  }
+
+  const bancaireTotal = rules.groups
+    .filter(g => g.incomeType === 'bancaire')
+    .reduce((s, g) => s + g.slots.reduce((ss, sl) => ss + sl.percent, 0), 0)
+
+  const inputCls = 'w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none'
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
@@ -72,7 +111,9 @@ export const SettingsPage: React.FC<Props> = ({ settings, onUpdate, onUpdateRegu
           </button>
         ) : (
           <div className="space-y-2 mt-2">
-            <input type="password" maxLength={4} className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground text-center tracking-[0.5em] placeholder:text-muted-foreground outline-none" placeholder="Nouveau PIN" value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))} />
+            <input type="password" maxLength={4} className={`${inputCls} text-center tracking-[0.5em]`}
+              placeholder="Nouveau PIN" value={newPin}
+              onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))} />
             <div className="flex gap-2">
               <button onClick={() => setShowPinChange(false)} className="flex-1 py-2 rounded-xl text-sm bg-muted/50 text-foreground">Annuler</button>
               <button onClick={handlePinChange} disabled={newPin.length !== 4} className="flex-1 py-2 rounded-xl text-sm bg-primary text-primary-foreground disabled:opacity-40">Valider</button>
@@ -81,83 +122,109 @@ export const SettingsPage: React.FC<Props> = ({ settings, onUpdate, onUpdateRegu
         )}
       </FinanceCard>
 
-      {/* Account Allocation */}
-      <FinanceCard>
-        <div className="flex items-center gap-3 mb-4">
-          <Percent className="w-4 h-4 text-accent" />
-          <h3 className="text-sm font-semibold text-foreground">Répartition des revenus</h3>
-        </div>
+      {/* Allocation header */}
+      <div className="flex items-center gap-3">
+        <Percent className="w-4 h-4 text-accent" />
+        <h3 className="text-sm font-semibold text-foreground">Répartition des revenus</h3>
+        <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full border ${Math.abs(bancaireTotal - 100) < 0.5 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
+          Bancaire {Math.round(bancaireTotal * 10) / 10}% {Math.abs(bancaireTotal - 100) < 0.5 ? '✓' : '≠ 100%'}
+        </span>
+      </div>
 
-        {/* Level 1: Pro + Perso — must total 100% */}
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Répartition principale</p>
-        <div className="flex gap-2 mb-1">
-          <div className="flex-1 bg-muted/20 rounded-xl p-3">
-            <p className="text-[10px] text-muted-foreground mb-1">Activité pro</p>
-            <div className="flex items-center gap-1">
-              <input type="number" min="0" max="100" className="w-full bg-muted/50 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none text-center"
-                value={rules.proPercent} onChange={e => updateRule('proPercent', e.target.value)} />
-              <span className="text-xs text-muted-foreground">%</span>
-            </div>
-          </div>
-          <div className="flex items-center text-xs text-muted-foreground self-center">=</div>
-          <div className="flex-1 bg-muted/20 rounded-xl p-3">
-            <p className="text-[10px] text-muted-foreground mb-1">Base perso</p>
-            <div className="flex items-center gap-1">
-              <input type="number" min="0" max="100" className="w-full bg-muted/50 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none text-center"
-                value={rules.personalBasePercent} onChange={e => updateRule('personalBasePercent', e.target.value)} />
-              <span className="text-xs text-muted-foreground">%</span>
-            </div>
-          </div>
-        </div>
-        <div className="text-right text-[10px] mb-4">
-          <span className={`font-semibold ${rules.proPercent + rules.personalBasePercent === 100 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            Total : {rules.proPercent + rules.personalBasePercent}%
-          </span>
-        </div>
+      {/* Groups */}
+      {rules.groups.map(group => {
+        const groupTotal = group.slots.reduce((s, sl) => s + sl.percent, 0)
+        const isEditing = editingGroupId === group.id
+        const editTotal = editingSlots.reduce((s, sl) => s + sl.percent, 0)
+        const isCashOk = group.incomeType === 'cash' && Math.abs(editTotal - 100) < 0.5
+        const isViewOk = group.incomeType === 'cash' ? Math.abs(groupTotal - 100) < 0.5 : true
 
-        {/* Level 2: Base perso split */}
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Sous-répartition de la base perso</p>
-        <div className="space-y-2 mb-1">
-          {[
-            { key: 'boursoPercent' as keyof AllocationRules, label: 'Vie courante (Bourso)' },
-            { key: 'livretAPercent' as keyof AllocationRules, label: 'Réserve (Livret A)' },
-            { key: 'lepPercent' as keyof AllocationRules, label: 'Urgence (LEP)' },
-          ].map(f => (
-            <div key={f.key} className="flex items-center gap-3">
-              <span className="text-xs text-foreground flex-1">{f.label}</span>
-              <div className="flex items-center gap-1 shrink-0">
-                <input type="number" min="0" max="100" className="w-16 bg-muted/50 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none text-center"
-                  value={rules[f.key]} onChange={e => updateRule(f.key, e.target.value)} />
-                <span className="text-xs text-muted-foreground">%</span>
+        return (
+          <FinanceCard key={group.id}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">{group.label}</h4>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {group.incomeType === 'bancaire' ? '% revenus bancaires' : '% revenus liquide'}
+                  {' · '}
+                  <span className={isViewOk ? 'text-foreground' : 'text-amber-400'}>{Math.round(groupTotal * 10) / 10}% alloué</span>
+                </p>
               </div>
+              {isEditing ? (
+                <div className="flex gap-1.5">
+                  <button onClick={() => saveEdit(group.id)} className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 active:bg-emerald-500/20">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={cancelEdit} className="p-1.5 rounded-lg bg-muted/40 text-muted-foreground">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => startEdit(group)} className="p-1.5 rounded-lg bg-muted/30 text-muted-foreground active:bg-muted/50">
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-        <div className="text-right text-[10px] mb-4">
-          <span className={`font-semibold ${rules.boursoPercent + rules.livretAPercent + rules.lepPercent === 100 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            Total : {rules.boursoPercent + rules.livretAPercent + rules.lepPercent}%
-          </span>
-        </div>
 
-        {/* Level 3: Cash split */}
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Répartition du cash</p>
-        <div className="space-y-2">
-          {[
-            { key: 'cashLibertePercent' as keyof AllocationRules, label: 'Cash Liberté' },
-            { key: 'cashSecurityPercent' as keyof AllocationRules, label: 'Cash Sécurité' },
-            { key: 'cashVoyagePercent' as keyof AllocationRules, label: 'Cash Voyage' },
-          ].map(f => (
-            <div key={f.key} className="flex items-center gap-3">
-              <span className="text-xs text-foreground flex-1">{f.label}</span>
-              <div className="flex items-center gap-1 shrink-0">
-                <input type="number" min="0" max="100" className="w-16 bg-muted/50 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none text-center"
-                  value={rules[f.key]} onChange={e => updateRule(f.key, e.target.value)} />
-                <span className="text-xs text-muted-foreground">%</span>
+            {isEditing ? (
+              <div className="space-y-2">
+                {editingSlots.map((slot, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <select
+                      value={slot.accountId}
+                      onChange={e => updateSlotAccount(i, e.target.value)}
+                      className="flex-1 bg-muted/50 rounded-lg px-2 py-1.5 text-xs text-foreground outline-none min-w-0"
+                    >
+                      <option value="">— Compte —</option>
+                      {accounts.filter(a => a.isActive).map(a => (
+                        <option key={a.id} value={a.id}>{a.name} · {a.institution}</option>
+                      ))}
+                    </select>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <input
+                        type="number" min="0" max="100" step="0.5"
+                        value={slot.percent}
+                        onChange={e => updateSlotPercent(i, e.target.value)}
+                        className="w-14 bg-muted/50 rounded-lg px-2 py-1.5 text-xs text-foreground outline-none text-center"
+                      />
+                      <span className="text-[10px] text-muted-foreground">%</span>
+                    </div>
+                    <button onClick={() => removeSlot(i)} className="p-1 text-rose-400/60 active:text-rose-400 shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-1 border-t border-border/20">
+                  <button onClick={addSlot} className="flex items-center gap-1 text-xs text-primary active:opacity-70">
+                    <Plus className="w-3 h-3" /> Ajouter
+                  </button>
+                  <span className={`text-xs font-bold ${group.incomeType === 'cash' ? (isCashOk ? 'text-emerald-400' : editTotal > 100 ? 'text-rose-400' : 'text-amber-400') : 'text-foreground'}`}>
+                    Total : {Math.round(editTotal * 10) / 10}%{group.incomeType === 'cash' && !isCashOk ? ' ≠ 100%' : ''}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </FinanceCard>
+            ) : (
+              <div className="space-y-1.5">
+                {group.slots.map((slot, i) => {
+                  const acc = accounts.find(a => a.id === slot.accountId)
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 flex-shrink-0" />
+                      <span className="text-xs text-foreground flex-1 truncate min-w-0">
+                        {acc?.name || slot.label}
+                      </span>
+                      {acc && (
+                        <span className="text-[10px] text-muted-foreground/50 shrink-0">{acc.institution}</span>
+                      )}
+                      <span className="text-xs font-semibold text-foreground shrink-0 ml-2">{slot.percent}%</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </FinanceCard>
+        )
+      })}
     </div>
   )
 }

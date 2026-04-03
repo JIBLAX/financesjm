@@ -224,17 +224,7 @@ export const PatrimoinePage: React.FC<Props> = ({
     resetForm()
   }
 
-  // Individual items for donut (one segment per account/asset)
-  const donutData = useMemo(() => {
-    const items: { name: string; value: number }[] = []
-    store.accounts
-      .filter(a => a.isActive && a.type !== 'dette' && a.currentBalance > 0)
-      .forEach(a => items.push({ name: a.name, value: a.currentBalance }))
-    store.assets
-      .filter(a => a.type !== 'dette' && a.value > 0)
-      .forEach(a => items.push({ name: a.name, value: a.value }))
-    return items
-  }, [store.accounts, store.assets])
+  const donutData = classBreakdown.filter(c => c.class !== 'dettes')
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
@@ -305,7 +295,7 @@ export const PatrimoinePage: React.FC<Props> = ({
                     <ResponsiveContainer width="100%" height={140}>
                       <PieChart>
                         <Pie data={detailAssets.map(a => ({ name: a.name, value: a.value }))} cx="50%" cy="50%" innerRadius={40} outerRadius={60} dataKey="value" stroke="none">
-                          {detailAssets.map((_, i) => <Cell key={i} fill={`hsl(${(i * 60 + 165) % 360} 50% 50%)`} />)}
+                          {detailAssets.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
@@ -313,7 +303,7 @@ export const PatrimoinePage: React.FC<Props> = ({
                 )}
                 <div className="space-y-2">
                   {detailAssets.map((a, i) => {
-                    const dotColor = `hsl(${(i * 60 + 165) % 360} 50% 50%)`
+                    const dotColor = DONUT_COLORS[i % DONUT_COLORS.length]
                     return (
                       <div key={i} className="flex justify-between items-center py-2 border-b border-border/30 last:border-0">
                         <div className="flex items-center gap-2">

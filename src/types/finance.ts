@@ -60,15 +60,21 @@ export interface Transaction {
   beActivDetails?: BeActivDetails
 }
 
+export interface AllocationSlot {
+  accountId: string  // references Account.id
+  label: string      // display name
+  percent: number    // absolute % of the income stream (bancaire or cash)
+}
+
+export interface AllocationGroup {
+  id: string
+  label: string
+  incomeType: 'bancaire' | 'cash'
+  slots: AllocationSlot[]
+}
+
 export interface AllocationRules {
-  proPercent: number
-  personalBasePercent: number
-  boursoPercent: number
-  livretAPercent: number
-  lepPercent: number
-  cashLibertePercent: number
-  cashSecurityPercent: number
-  cashVoyagePercent: number
+  groups: AllocationGroup[]
 }
 
 // Enhanced Asset types

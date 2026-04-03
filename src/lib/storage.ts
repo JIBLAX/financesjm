@@ -37,7 +37,9 @@ export function loadStore(): FinanceStore {
       settings: {
         ...defaults.settings,
         ...parsed.settings,
-        allocationRules: { ...defaults.settings.allocationRules, ...(parsed.settings?.allocationRules || {}) },
+        allocationRules: parsed.settings?.allocationRules?.groups
+          ? parsed.settings.allocationRules
+          : defaults.settings.allocationRules,
         investorQuestionnaire: { ...defaults.settings.investorQuestionnaire, ...(parsed.settings?.investorQuestionnaire || {}) },
         profileRegulation: { ...DEFAULT_PROFILE_REGULATION, ...(parsed.settings?.profileRegulation || {}) },
         beActivConnection: parsed.settings?.beActivConnection || 'not_connected',

@@ -14,8 +14,31 @@ export const DEFAULT_INVESTOR_QUESTIONNAIRE: InvestorQuestionnaire = {
 }
 
 export const DEFAULT_ALLOCATION_RULES: AllocationRules = {
-  proPercent: 30, personalBasePercent: 70, boursoPercent: 80, livretAPercent: 10, lepPercent: 10,
-  cashLibertePercent: 50, cashSecurityPercent: 25, cashVoyagePercent: 25,
+  groups: [
+    {
+      id: 'pro', label: 'Bancaire Base Pro', incomeType: 'bancaire',
+      slots: [
+        { accountId: 'qonto',       label: 'JM Be Activ',      percent: 4  },
+        { accountId: 'bunq-fiscal', label: 'Réserve Fiscale',  percent: 26 },
+      ],
+    },
+    {
+      id: 'perso', label: 'Bancaire Base Perso', incomeType: 'bancaire',
+      slots: [
+        { accountId: 'bourso',    label: 'Vie courante',     percent: 56 },
+        { accountId: 'livret-a', label: 'Tampon bancaire',   percent: 7  },
+        { accountId: 'lep',       label: "Fonds d'urgence",  percent: 7  },
+      ],
+    },
+    {
+      id: 'cash', label: 'Cash', incomeType: 'cash',
+      slots: [
+        { accountId: 'cash-liberte',  label: 'Cash Liberté',   percent: 50 },
+        { accountId: 'cash-securite', label: 'Fonds Sécurité', percent: 25 },
+        { accountId: 'cash-voyage',   label: 'Voyage',          percent: 25 },
+      ],
+    },
+  ],
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

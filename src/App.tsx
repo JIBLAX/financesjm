@@ -88,7 +88,7 @@ const App: React.FC = () => {
               <Route path="/transactions/new" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} />} />
               <Route path="/depenses" element={<ExpensesPage store={store} />} />
               <Route path="/export" element={<ExportPage onImport={handleImport} onReset={handleReset} />} />
-              <Route path="/parametres" element={<SettingsPage settings={store.settings} onUpdate={finance.updateSettings} onUpdateRegulation={finance.updateProfileRegulation} onLock={handleLock} />} />
+              <Route path="/parametres" element={<SettingsPage settings={store.settings} accounts={store.accounts} onUpdate={finance.updateSettings} onUpdateRegulation={finance.updateProfileRegulation} onLock={handleLock} />} />
               <Route path="/profil" element={<ProfilePage store={store} onUpdateRegulation={finance.updateProfileRegulation} />} />
               <Route path="/questionnaire" element={<QuestionnairePage questionnaire={store.settings.investorQuestionnaire} onUpdate={finance.updateSettings} />} />
               <Route path="/liberte2" element={<Liberte2Page store={store} />} />

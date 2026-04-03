@@ -11,8 +11,6 @@ interface Props {
   onUpdateBudget: (monthKey: string, categoryId: string, amount: number) => void
 }
 
-// Account type order for Répartition section
-const TYPE_ORDER: Record<string, number> = { pro: 0, courant: 1, livret: 2, epargne_projet: 3, liquide: 4 }
 
 const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgColor: string; borderColor: string }[] = [
   { key: 'revenu', label: 'Revenus', color: 'text-emerald-400', bgColor: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20' },
@@ -84,44 +82,31 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     return { revActual, revForecast, chargeActual, chargeForecast, solde, soldeForecast, bancaireActual, bancaireForecast, liquideActual, liquideForecast }
   }, [allCategories, operations])
 
-  // Allocation auto
-  const allocation = useMemo(() => {
-    const rules = store.settings.allocationRules
-    const incomeBank = totals.revActual || totals.revForecast
-    const proAmount = incomeBank * (rules.proPercent / 100)
-    const personalBase = incomeBank * (rules.personalBasePercent / 100)
-    const bourso = personalBase * (rules.boursoPercent / 100)
-    const livretA = personalBase * (rules.livretAPercent / 100)
-    const lep = personalBase * (rules.lepPercent / 100)
-    const cashBase = incomeBank - proAmount - personalBase
-    const cashLiberte = cashBase * (rules.cashLibertePercent / 100)
-    const cashSecurite = cashBase * (rules.cashSecurityPercent / 100)
-    const cashVoyage = cashBase * (rules.cashVoyagePercent / 100)
-    return { proAmount, bourso, livretA, lep, cashLiberte, cashSecurite, cashVoyage }
-  }, [store.settings.allocationRules, totals])
-
-  // Répartition — active accounts sorted by type
-  const repartitionAccounts = useMemo(() => {
-    return store.accounts
-      .filter(a => a.isActive && a.type !== 'dette')
-      .sort((a, b) => {
-        const ao = TYPE_ORDER[a.type] ?? 99
-        const bo = TYPE_ORDER[b.type] ?? 99
-        return ao - bo
-      })
-      .map(a => {
-        // Determine allocation amount based on account id/type
-        let prevu = 0
-        if (a.id === 'qonto' || (a.type === 'pro' && a.id !== 'bunq-fiscal')) prevu = allocation.proAmount
-        else if (a.id === 'bourso' || a.type === 'courant') prevu = allocation.bourso
-        else if (a.subtype && a.subtype.toLowerCase().includes('livret a')) prevu = allocation.livretA
-        else if (a.subtype && a.subtype.toLowerCase().includes('lep')) prevu = allocation.lep
-        else if (a.name.toLowerCase().includes('liberté') || a.name.toLowerCase().includes('liberte')) prevu = allocation.cashLiberte
-        else if (a.name.toLowerCase().includes('sécurité') || a.name.toLowerCase().includes('securite')) prevu = allocation.cashSecurite
-        else if (a.group === 'Voyage' && a.type === 'liquide') prevu = allocation.cashVoyage
-        return { account: a, prevu, reel: a.currentBalance }
-      })
-  }, [store.accounts, allocation])
+  // Répartition — computed from allocation rules groups
+  const repartitionGroups = useMemo(() => {
+    return store.settings.allocationRules.groups.map(group => {
+      const basePrevu = group.incomeType === 'bancaire' ? totals.bancaireForecast : totals.liquideForecast
+      const baseReel  = group.incomeType === 'bancaire' ? totals.bancaireActual  : totals.liquideActual
+      const groupTotal = group.slots.reduce((s, sl) => s + sl.percent, 0)
+      return {
+        id: group.id,
+        label: group.label,
+        incomeType: group.incomeType,
+        groupTotal,
+        slots: group.slots.map(slot => {
+          const acc = store.accounts.find(a => a.id === slot.accountId)
+          return {
+            accountId: slot.accountId,
+            name: acc?.name || slot.label,
+            institution: acc?.institution || '',
+            percent: slot.percent,
+            prevu: basePrevu * (slot.percent / 100),
+            reel:  baseReel  * (slot.percent / 100),
+          }
+        }),
+      }
+    })
+  }, [store.settings.allocationRules, store.accounts, totals])
 
   // Over-budget categories
   const overBudgetCats = useMemo(() => {
@@ -321,23 +306,35 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
 
       {/* Répartition tab */}
       {viewMode === 'repartition' && (
-        <FinanceCard>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Répartition prévue</h3>
-          <div className="grid grid-cols-[1fr_5rem_5rem] gap-x-2 mb-2">
-            <span className="text-xs text-muted-foreground">Compte</span>
-            <span className="text-xs text-muted-foreground text-right">Prévu</span>
-            <span className="text-xs text-muted-foreground text-right">Réel</span>
-          </div>
-          <div className="space-y-2">
-            {repartitionAccounts.map(({ account, prevu, reel }) => (
-              <div key={account.id} className="grid grid-cols-[1fr_5rem_5rem] gap-x-2 items-center">
-                <span className="text-xs text-foreground truncate">{account.name}</span>
-                <span className="text-xs text-muted-foreground text-right">{formatCurrency(prevu)}</span>
-                <span className={`text-xs font-semibold text-right ${reel >= 0 ? 'text-foreground' : 'text-rose-400'}`}>{formatCurrency(reel)}</span>
+        <div className="space-y-3">
+          {repartitionGroups.map(group => (
+            <FinanceCard key={group.id}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{group.label}</h3>
+                <span className="text-[10px] text-muted-foreground">{Math.round(group.groupTotal * 10) / 10}%</span>
               </div>
-            ))}
-          </div>
-        </FinanceCard>
+              <div className="grid grid-cols-[1fr_5rem_5rem] gap-x-2 mb-2">
+                <span className="text-[10px] text-muted-foreground">Compte</span>
+                <span className="text-[10px] text-muted-foreground text-right">Prévu</span>
+                <span className="text-[10px] text-muted-foreground text-right">À injecter</span>
+              </div>
+              <div className="space-y-2">
+                {group.slots.map((slot, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_5rem_5rem] gap-x-2 items-center">
+                    <div className="min-w-0">
+                      <p className="text-xs text-foreground truncate">{slot.name}</p>
+                      {slot.institution && <p className="text-[10px] text-muted-foreground/50 truncate">{slot.institution}</p>}
+                    </div>
+                    <span className="text-xs text-muted-foreground text-right">{formatCurrency(slot.prevu)}</span>
+                    <span className={`text-xs font-semibold text-right ${slot.reel > 0 ? 'text-emerald-400' : 'text-muted-foreground/40'}`}>
+                      {formatCurrency(slot.reel)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </FinanceCard>
+          ))}
+        </div>
       )}
     </div>
   )
