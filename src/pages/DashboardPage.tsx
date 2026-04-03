@@ -11,7 +11,7 @@ import {
 
 // ── Widget types ──────────────────────────────────────────────────────────────
 
-type WidgetId = 'solde_total' | 'comptes' | 'actifs' | 'entrees' | 'depenses' | 'cashflow' | 'dette' | 'profil_mode' | 'quete'
+type WidgetId = 'solde_total' | 'comptes' | 'actifs' | 'entrees' | 'depenses' | 'cashflow' | 'dette' | 'profil_mode' | 'quete' | 'missions' | 'objectifs'
 
 const WIDGET_META: Record<WidgetId, { label: string; emoji: string }> = {
   solde_total: { label: 'Patrimoine net',    emoji: '💎' },
@@ -22,10 +22,12 @@ const WIDGET_META: Record<WidgetId, { label: string; emoji: string }> = {
   cashflow:    { label: 'Cashflow 6 mois',   emoji: '📊' },
   dette:       { label: 'Dettes',            emoji: '📉' },
   profil_mode: { label: 'Profil & Mode',     emoji: '🎯' },
-  quete:       { label: 'Quêtes & Insights', emoji: '✨' },
+  quete:       { label: 'Alertes & Insights', emoji: '✨' },
+  missions:    { label: 'Guide Financier',   emoji: '🗺️' },
+  objectifs:   { label: 'Objectifs',         emoji: '🎁' },
 }
 
-const DEFAULT_LAYOUT: WidgetId[] = ['solde_total', 'comptes', 'actifs', 'entrees', 'depenses', 'cashflow', 'dette', 'quete']
+const DEFAULT_LAYOUT: WidgetId[] = ['solde_total', 'comptes', 'actifs', 'entrees', 'depenses', 'missions', 'objectifs', 'cashflow', 'dette', 'quete']
 
 function loadLayout(): WidgetId[] {
   const valid = new Set(Object.keys(WIDGET_META) as WidgetId[])
