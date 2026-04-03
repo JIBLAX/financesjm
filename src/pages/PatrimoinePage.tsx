@@ -373,19 +373,25 @@ export const PatrimoinePage: React.FC<Props> = ({
                             iconSize={8}
                             wrapperStyle={{ fontSize: 10, color: 'hsl(215 10% 55%)', paddingTop: 8 }}
                           />
-                          {detailChartData.items.map((item, i) => (
-                            <Line
-                              key={item.id}
-                              dataKey={item.id}
-                              name={item.name}
-                              stroke={DONUT_COLORS[i % DONUT_COLORS.length]}
-                              strokeWidth={2}
-                              dot={{ r: 3, strokeWidth: 0, fill: DONUT_COLORS[i % DONUT_COLORS.length] }}
-                              activeDot={{ r: 5, strokeWidth: 0 }}
-                              connectNulls={false}
-                              type="monotone"
-                            />
-                          ))}
+                          {detailChartData.items.map((item, i) => {
+                            const color = DONUT_COLORS[i % DONUT_COLORS.length]
+                            return (
+                              <Line
+                                key={item.id}
+                                dataKey={item.id}
+                                name={item.name}
+                                stroke={color}
+                                strokeWidth={2}
+                                dot={(props: any) => {
+                                  if (props.value === null || props.value === undefined) return <g key={props.key} />
+                                  return <circle key={props.key} cx={props.cx} cy={props.cy} r={3} fill={color} stroke="none" />
+                                }}
+                                activeDot={{ r: 5, strokeWidth: 0, fill: color }}
+                                connectNulls={false}
+                                type="monotone"
+                              />
+                            )
+                          })}
                         </LineChart>
                       </div>
                     </div>

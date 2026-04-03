@@ -132,6 +132,8 @@ export interface MonthlySnapshot {
   xpGained?: number
   journalNote?: string
   dismissed?: boolean
+  isManual?: boolean
+  assetBreakdown?: Record<string, number> // e.g. { crypto: 500, assurance_vie: 1000 }
 }
 
 export interface Category {

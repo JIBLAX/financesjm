@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight, ArrowLeftRight } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, BE_ACTIV_OFFER_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS } from '@/lib/constants'
@@ -74,6 +74,47 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
   const [baInstallmentLabel, setBaInstallmentLabel] = useState('')
 
   const isRealRevenue = !NON_REAL_REVENUE_TYPES.includes(revenueType)
+
+  // Transfer interne state
+  const [showTransfer, setShowTransfer] = useState(false)
+  const [transferFrom, setTransferFrom] = useState('')
+  const [transferTo, setTransferTo] = useState('')
+  const [transferAmount, setTransferAmount] = useState('')
+  const [transferDate, setTransferDate] = useState(todayISO())
+  const [transferLabel, setTransferLabel] = useState('')
+
+  const resetTransfer = () => {
+    setShowTransfer(false)
+    setTransferFrom(''); setTransferTo('')
+    setTransferAmount(''); setTransferLabel('')
+    setTransferDate(todayISO())
+  }
+
+  const handleTransfer = () => {
+    if (!transferAmount || !transferFrom || !transferTo || transferFrom === transferTo) return
+    const amt = Number(transferAmount)
+    if (!amt) return
+    const dateMonthKey = transferDate.substring(0, 7)
+    const fromAcc = store.accounts.find(a => a.id === transferFrom)
+    const toAcc = store.accounts.find(a => a.id === transferTo)
+    const lbl = transferLabel || `Transfert ${fromAcc?.name || ''} → ${toAcc?.name || ''}`
+    const base: Omit<Transaction, 'id' | 'direction' | 'accountId' | 'label'> = {
+      date: new Date(transferDate + 'T12:00:00').toISOString(),
+      amount: amt,
+      sourceType: 'bank',
+      categoryId: store.categories[0]?.id || '',
+      monthKey: dateMonthKey,
+      note: 'Transfert interne',
+      isRecurring: false,
+      revenueType: 'transfert_interne',
+      isRealRevenue: false,
+    }
+    // Outgoing from source
+    onAdd({ ...base, id: crypto.randomUUID(), direction: 'expense', accountId: transferFrom, label: `${lbl} (sortie)` })
+    // Incoming to destination
+    onAdd({ ...base, id: crypto.randomUUID(), direction: 'income', accountId: transferTo, label: `${lbl} (entrée)`, revenueSource: 'virement_interne' })
+    resetTransfer()
+  }
 
   const scopeAccounts = (s: 'perso' | 'pro') =>
     s === 'pro'
@@ -194,12 +235,94 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
         </div>
 
         <button
-          onClick={() => showForm ? resetForm() : openForm()}
+          onClick={() => { resetForm(); setShowTransfer(v => !v) }}
+          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${showTransfer ? 'bg-amber-500/20 text-amber-400' : 'bg-muted/40 text-muted-foreground'}`}
+          title="Transfert interne"
+        >
+          <ArrowLeftRight className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => { resetTransfer(); showForm ? resetForm() : openForm() }}
           className={`w-9 h-9 rounded-xl flex items-center justify-center text-primary-foreground shrink-0 transition-colors ${isPerso ? 'bg-cyan-500' : 'bg-violet-500'}`}
         >
           <Plus className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Transfert interne */}
+      {showTransfer && (
+        <FinanceCard className="space-y-3 border border-amber-500/20 bg-amber-500/5">
+          <div className="flex items-center gap-2 pb-1 border-b border-amber-500/20">
+            <ArrowLeftRight className="w-4 h-4 text-amber-400" />
+            <span className="text-sm font-semibold text-amber-400">Transfert interne</span>
+            <span className="text-[10px] text-muted-foreground ml-auto">Ne compte pas dans les revenus</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1">De</p>
+              <select
+                className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                value={transferFrom}
+                onChange={e => setTransferFrom(e.target.value)}
+              >
+                <option value="">Compte source</option>
+                {store.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1">Vers</p>
+              <select
+                className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                value={transferTo}
+                onChange={e => setTransferTo(e.target.value)}
+              >
+                <option value="">Compte destination</option>
+                {store.accounts.filter(a => a.id !== transferFrom).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <input
+            type="number" inputMode="decimal"
+            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="Montant €"
+            value={transferAmount}
+            onFocus={e => e.target.select()}
+            onChange={e => setTransferAmount(e.target.value)}
+          />
+
+          <input
+            type="date"
+            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+            value={transferDate}
+            max={todayISO()}
+            onChange={e => setTransferDate(e.target.value)}
+          />
+
+          <input
+            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="Libellé (optionnel)"
+            value={transferLabel}
+            onChange={e => setTransferLabel(e.target.value)}
+          />
+
+          {transferFrom && transferTo && transferFrom === transferTo && (
+            <p className="text-xs text-rose-400 text-center">Les deux comptes doivent être différents</p>
+          )}
+
+          <div className="flex gap-2">
+            <button onClick={resetTransfer} className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30">Annuler</button>
+            <button
+              onClick={handleTransfer}
+              disabled={!transferAmount || !transferFrom || !transferTo || transferFrom === transferTo}
+              className="flex-2 basis-0 grow-[2] bg-amber-500 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40"
+            >
+              Enregistrer le transfert
+            </button>
+          </div>
+        </FinanceCard>
+      )}
 
       {/* Add form */}
       {showForm && (
@@ -428,39 +551,45 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
 
       {/* Transaction list */}
       <div className="space-y-2">
-        {filtered.map(t => (
-          <FinanceCard key={t.id}>
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${t.direction === 'income' ? 'bg-emerald-500/10' : 'bg-destructive/10'}`}>
-                {t.direction === 'income' ? <ArrowUpRight className="w-4 h-4 text-emerald-500" /> : <ArrowDownRight className="w-4 h-4 text-destructive" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{t.label}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatTxDate(t.date)} · {getAccountName(t.accountId)} · {getCategoryName(t.categoryId)}
-                </p>
-                {t.direction === 'income' && t.isRealRevenue === false && (
-                  <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">Non comptée comme revenu</span>
-                )}
-                {t.beActivDetails && (
-                  <p className="text-[10px] text-blue-400 mt-0.5">
-                    {t.beActivDetails.client}{t.beActivDetails.offer ? ` · ${BE_ACTIV_OFFER_LABELS[t.beActivDetails.offer as keyof typeof BE_ACTIV_OFFER_LABELS] || ''}` : ''}
-                    {t.beActivDetails.status ? ` · ${BE_ACTIV_STATUS_LABELS[t.beActivDetails.status as keyof typeof BE_ACTIV_STATUS_LABELS] || ''}` : ''}
+        {filtered.map(t => {
+          const isTransfer = t.revenueType === 'transfert_interne' || t.note === 'Transfert interne'
+          return (
+            <FinanceCard key={t.id} className={isTransfer ? 'border border-amber-500/10' : ''}>
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTransfer ? 'bg-amber-500/10' : t.direction === 'income' ? 'bg-emerald-500/10' : 'bg-destructive/10'}`}>
+                  {isTransfer ? <ArrowLeftRight className="w-4 h-4 text-amber-400" /> : t.direction === 'income' ? <ArrowUpRight className="w-4 h-4 text-emerald-500" /> : <ArrowDownRight className="w-4 h-4 text-destructive" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{t.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatTxDate(t.date)} · {getAccountName(t.accountId)} · {getCategoryName(t.categoryId)}
                   </p>
-                )}
-                {t.note && <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{t.note}</p>}
+                  {isTransfer && (
+                    <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">Transfert interne</span>
+                  )}
+                  {!isTransfer && t.direction === 'income' && t.isRealRevenue === false && (
+                    <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">Non comptée comme revenu</span>
+                  )}
+                  {t.beActivDetails && (
+                    <p className="text-[10px] text-blue-400 mt-0.5">
+                      {t.beActivDetails.client}{t.beActivDetails.offer ? ` · ${BE_ACTIV_OFFER_LABELS[t.beActivDetails.offer as keyof typeof BE_ACTIV_OFFER_LABELS] || ''}` : ''}
+                      {t.beActivDetails.status ? ` · ${BE_ACTIV_STATUS_LABELS[t.beActivDetails.status as keyof typeof BE_ACTIV_STATUS_LABELS] || ''}` : ''}
+                    </p>
+                  )}
+                  {t.note && !isTransfer && <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{t.note}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className={`text-sm font-bold ${isTransfer ? 'text-amber-400' : t.direction === 'income' ? 'text-emerald-500' : 'text-destructive'}`}>
+                    {isTransfer ? '' : t.direction === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                  </p>
+                  <button onClick={() => onDelete(t.id)} className="text-muted-foreground active:text-destructive">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <p className={`text-sm font-bold ${t.direction === 'income' ? 'text-emerald-500' : 'text-destructive'}`}>
-                  {t.direction === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                </p>
-                <button onClick={() => onDelete(t.id)} className="text-muted-foreground active:text-destructive">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </FinanceCard>
-        ))}
+            </FinanceCard>
+          )
+        })}
         {filtered.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">
             Aucune transaction {filterScope === 'perso' ? 'perso' : 'pro'} ce mois
