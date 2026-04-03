@@ -20,10 +20,13 @@ const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgC
   { key: 'charge_variable', label: 'Charges variables', color: 'text-amber-400', bgColor: 'bg-amber-500/5', borderColor: 'border-amber-500/15' },
 ]
 
+type ViewMode = 'perso' | 'pro' | 'repartition'
+
 export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUpdateBudget }) => {
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
   const [editingBudget, setEditingBudget] = useState<string | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('perso')
   const currentMonthKey = getCurrentMonthKey()
 
   const navigateMonth = (dir: number) => {
@@ -210,9 +213,30 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
       </FinanceCard>
 
 
-      {/* Category sections */}
-      {FAMILY_SECTIONS.map(({ key, label, color, bgColor, borderColor }) => {
-        const cats = allCategories[key]
+      {/* 3-button tab switch */}
+      <div className="flex gap-1 p-1 bg-muted/30 rounded-2xl">
+        {([
+          { id: 'perso', label: 'Perso' },
+          { id: 'pro', label: 'Pro' },
+          { id: 'repartition', label: 'Répartition' },
+        ] as { id: ViewMode; label: string }[]).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setViewMode(tab.id)}
+            className={`flex-1 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === tab.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Category sections — PERSO or PRO */}
+      {(viewMode === 'perso' || viewMode === 'pro') && FAMILY_SECTIONS.map(({ key, label, color, bgColor, borderColor }) => {
+        const cats = allCategories[key].filter(cat => {
+          const opCat = store.opCategories.find(c => c.id === cat.id)
+          return opCat?.scope === viewMode
+        })
+        if (cats.length === 0) return null
         const sectionForecast = cats.reduce((s, c) => s + c.forecast, 0)
         const sectionActual = cats.reduce((s, c) => s + c.actual, 0)
         const isRev = key === 'revenu'
@@ -227,96 +251,89 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
               </div>
             </div>
             <div className={`rounded-2xl border p-3 space-y-0 ${bgColor} ${borderColor}`}>
-              {cats.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-3">Aucune catégorie</p>
-              ) : (
-                cats.map((cat, i) => {
-                  const ecart = cat.actual - cat.forecast
-                  const hasEcart = cat.forecast > 0 && cat.actual > 0
-                  const isOver = !isRev && cat.actual > cat.forecast * 1.05 && cat.forecast > 0
+              {cats.map((cat, i) => {
+                const ecart = cat.actual - cat.forecast
+                const hasEcart = cat.forecast > 0 && cat.actual > 0
+                const isOver = !isRev && cat.actual > cat.forecast * 1.05 && cat.forecast > 0
 
-                  return (
-                    <div key={cat.id}>
-                      <div className="flex items-center py-2">
-                        <span className="text-sm mr-2">{cat.icon}</span>
-                        <span className="text-xs font-semibold text-foreground flex-1 min-w-0 truncate">{cat.name}</span>
-                        {isOver && (
-                          <span className="text-[8px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded-full mr-2 shrink-0">DÉPASSÉ</span>
-                        )}
-                        {/* Forecast - editable */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          {editingBudget === cat.id ? (
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              className="w-20 bg-muted/50 rounded-lg px-2 py-1 text-xs text-foreground outline-none text-right"
-                              value={budgetInput}
-                              autoFocus
-                              onFocus={e => e.target.select()}
-                              onChange={e => setBudgetInput(e.target.value)}
-                              onBlur={saveBudget}
-                              onKeyDown={e => e.key === 'Enter' && saveBudget()}
-                              placeholder="Prévu"
-                            />
-                          ) : (
-                            <button
-                              onClick={() => startEditBudget(cat.id, cat.forecast)}
-                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                              title="Modifier le prévisionnel"
-                            >
-                              <span className={cat.forecast > 0 ? 'text-foreground/60 font-medium' : 'text-muted-foreground/40'}>
-                                {cat.forecast > 0 ? formatCurrency(cat.forecast) : '—'}
-                              </span>
-                              <Pencil className="w-2.5 h-2.5 opacity-40" />
-                            </button>
-                          )}
-                          <span className={`text-xs font-semibold w-20 text-right ${cat.actual > 0 ? (isRev ? 'text-emerald-400' : 'text-foreground') : 'text-muted-foreground/30'}`}>
-                            {cat.actual > 0 ? formatCurrency(cat.actual) : '—'}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Progress bar for charges */}
-                      {!isRev && cat.forecast > 0 && cat.actual > 0 && (
-                        <div className="ml-6 mb-1 h-1 bg-muted/30 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${isOver ? 'bg-rose-400' : 'bg-blue-400/50'}`}
-                            style={{ width: `${Math.min(100, (cat.actual / cat.forecast) * 100)}%` }}
+                return (
+                  <div key={cat.id}>
+                    <div className="flex items-center py-2">
+                      <span className="text-sm mr-2">{cat.icon}</span>
+                      <span className="text-xs font-semibold text-foreground flex-1 min-w-0 truncate">{cat.name}</span>
+                      {isOver && (
+                        <span className="text-[8px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded-full mr-2 shrink-0">DÉPASSÉ</span>
+                      )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {editingBudget === cat.id ? (
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            className="w-20 bg-muted/50 rounded-lg px-2 py-1 text-xs text-foreground outline-none text-right"
+                            value={budgetInput}
+                            autoFocus
+                            onFocus={e => e.target.select()}
+                            onChange={e => setBudgetInput(e.target.value)}
+                            onBlur={saveBudget}
+                            onKeyDown={e => e.key === 'Enter' && saveBudget()}
+                            placeholder="Prévu"
                           />
-                        </div>
-                      )}
-                      {/* Écart */}
-                      {hasEcart && (
-                        <div className="ml-6 mb-1">
-                          <span className={`text-[10px] font-bold ${isRev ? (ecart >= 0 ? 'text-emerald-400' : 'text-rose-400') : (ecart > 0 ? 'text-rose-400' : 'text-emerald-400')}`}>
-                            {ecart >= 0 ? '+' : ''}{formatCurrency(ecart)}
-                          </span>
-                        </div>
-                      )}
-                      {i < cats.length - 1 && <div className="border-b border-border/15" />}
+                        ) : (
+                          <button
+                            onClick={() => startEditBudget(cat.id, cat.forecast)}
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            title="Modifier le prévisionnel"
+                          >
+                            <span className={cat.forecast > 0 ? 'text-foreground/60 font-medium' : 'text-muted-foreground/40'}>
+                              {cat.forecast > 0 ? formatCurrency(cat.forecast) : '—'}
+                            </span>
+                            <Pencil className="w-2.5 h-2.5 opacity-40" />
+                          </button>
+                        )}
+                        <span className={`text-xs font-semibold w-20 text-right ${cat.actual > 0 ? (isRev ? 'text-emerald-400' : 'text-foreground') : 'text-muted-foreground/30'}`}>
+                          {cat.actual > 0 ? formatCurrency(cat.actual) : '—'}
+                        </span>
+                      </div>
                     </div>
-                  )
-                })
-              )}
+                    {!isRev && cat.forecast > 0 && cat.actual > 0 && (
+                      <div className="ml-6 mb-1 h-1 bg-muted/30 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${isOver ? 'bg-rose-400' : 'bg-blue-400/50'}`}
+                          style={{ width: `${Math.min(100, (cat.actual / cat.forecast) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                    {hasEcart && (
+                      <div className="ml-6 mb-1">
+                        <span className={`text-[10px] font-bold ${isRev ? (ecart >= 0 ? 'text-emerald-400' : 'text-rose-400') : (ecart > 0 ? 'text-rose-400' : 'text-emerald-400')}`}>
+                          {ecart >= 0 ? '+' : ''}{formatCurrency(ecart)}
+                        </span>
+                      </div>
+                    )}
+                    {i < cats.length - 1 && <div className="border-b border-border/15" />}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )
       })}
 
-      {/* Répartition prévue par compte */}
-      {(totals.revActual > 0 || totals.revForecast > 0) && (
+      {/* Répartition tab */}
+      {viewMode === 'repartition' && (
         <FinanceCard>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Répartition prévue</h3>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-foreground flex-1 truncate" />
-            <span className="text-xs text-muted-foreground w-20 text-right">Prévu</span>
-            <span className="text-xs text-muted-foreground w-20 text-right">Réel</span>
+          <div className="grid grid-cols-[1fr_5rem_5rem] gap-x-2 mb-2">
+            <span className="text-xs text-muted-foreground">Compte</span>
+            <span className="text-xs text-muted-foreground text-right">Prévu</span>
+            <span className="text-xs text-muted-foreground text-right">Réel</span>
           </div>
           <div className="space-y-2">
             {repartitionAccounts.map(({ account, prevu, reel }) => (
-              <div key={account.id} className="flex items-center gap-2">
-                <span className="text-xs text-foreground flex-1 truncate">{account.name}</span>
-                <span className="text-xs text-muted-foreground w-20 text-right">{formatCurrency(prevu)}</span>
-                <span className={`text-xs font-semibold w-20 text-right ${reel >= 0 ? 'text-foreground' : 'text-rose-400'}`}>{formatCurrency(reel)}</span>
+              <div key={account.id} className="grid grid-cols-[1fr_5rem_5rem] gap-x-2 items-center">
+                <span className="text-xs text-foreground truncate">{account.name}</span>
+                <span className="text-xs text-muted-foreground text-right">{formatCurrency(prevu)}</span>
+                <span className={`text-xs font-semibold text-right ${reel >= 0 ? 'text-foreground' : 'text-rose-400'}`}>{formatCurrency(reel)}</span>
               </div>
             ))}
           </div>

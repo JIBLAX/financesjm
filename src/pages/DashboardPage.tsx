@@ -25,7 +25,7 @@ const WIDGET_META: Record<WidgetId, { label: string; emoji: string }> = {
   quete:       { label: 'Quêtes & Insights', emoji: '✨' },
 }
 
-const DEFAULT_LAYOUT: WidgetId[] = ['profil_mode', 'solde_total', 'comptes', 'actifs', 'entrees', 'depenses', 'cashflow', 'dette', 'quete']
+const DEFAULT_LAYOUT: WidgetId[] = ['solde_total', 'comptes', 'actifs', 'entrees', 'depenses', 'cashflow', 'dette', 'quete']
 
 function loadLayout(): WidgetId[] {
   const valid = new Set(Object.keys(WIDGET_META) as WidgetId[])
@@ -441,13 +441,24 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
     <div className="page-container pt-6 page-bottom-pad gap-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Accueil</h1>
-        <button
-          onClick={() => { setEditMode(e => !e); setShowAdd(false) }}
-          className={`p-2 rounded-xl border transition-colors ${editMode ? 'bg-primary/20 border-primary/50 text-primary' : 'bg-card border-border/40 text-muted-foreground'}`}>
-          <Settings2 className="w-4 h-4" />
-        </button>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-card border border-border/60 flex items-center justify-center text-2xl flex-shrink-0">
+            {level.emoji}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-foreground leading-tight">JM</p>
+            <p className="text-[11px] text-muted-foreground leading-tight">Nv.{level.level} — {level.name}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${modeBadge.bg} ${modeBadge.text}`}>{modeBadge.label}</span>
+          <button
+            onClick={() => { setEditMode(e => !e); setShowAdd(false) }}
+            className={`p-2 rounded-xl border transition-colors ${editMode ? 'bg-primary/20 border-primary/50 text-primary' : 'bg-card border-border/40 text-muted-foreground'}`}>
+            <Settings2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Add widget button (edit mode) */}

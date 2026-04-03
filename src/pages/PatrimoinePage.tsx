@@ -224,7 +224,17 @@ export const PatrimoinePage: React.FC<Props> = ({
     resetForm()
   }
 
-  const donutData = classBreakdown.filter(c => c.class !== 'dettes')
+  // Individual items for donut (one segment per account/asset)
+  const donutData = useMemo(() => {
+    const items: { name: string; value: number }[] = []
+    store.accounts
+      .filter(a => a.isActive && a.type !== 'dette' && a.currentBalance > 0)
+      .forEach(a => items.push({ name: a.name, value: a.currentBalance }))
+    store.assets
+      .filter(a => a.type !== 'dette' && a.value > 0)
+      .forEach(a => items.push({ name: a.name, value: a.value }))
+    return items
+  }, [store.accounts, store.assets])
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
