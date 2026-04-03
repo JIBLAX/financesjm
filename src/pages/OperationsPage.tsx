@@ -152,8 +152,10 @@ export const OperationsPage: React.FC<Props> = ({
   const isPerso  = scope === 'perso'
 
   const formCategories = useMemo(
-    () => store.opCategories.filter(c => c.family === form.family).sort((a, b) => a.order - b.order),
-    [store.opCategories, form.family]
+    () => store.opCategories
+      .filter(c => c.family === form.family && (!c.scope || c.scope === form.scope))
+      .sort((a, b) => a.order - b.order),
+    [store.opCategories, form.family, form.scope]
   )
 
   return (
@@ -355,10 +357,6 @@ export const OperationsPage: React.FC<Props> = ({
                 <div>
                   <label className="text-xs text-muted-foreground">Offre / Sous-catégorie</label>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    <button onClick={() => setForm(f => ({ ...f, subcategoryId: '' }))}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium ${!form.subcategoryId ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                      Aucune
-                    </button>
                     {store.opSubcategories.filter(s => s.categoryId === form.categoryId).map(sub => (
                       <button key={sub.id} onClick={() => setForm(f => ({ ...f, subcategoryId: sub.id }))}
                         className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.subcategoryId === sub.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
@@ -369,16 +367,20 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Forecast + Actual */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground">Prévu (€)</label>
-                  <input type="number" inputMode="decimal" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.forecast || ''} onFocus={e => e.target.select()} onChange={e => setForm(f => ({ ...f, forecast: parseFloat(e.target.value) || 0 }))} />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Réel (€)</label>
-                  <input type="number" inputMode="decimal" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="0" value={form.actual || ''} onFocus={e => e.target.select()} onChange={e => setForm(f => ({ ...f, actual: parseFloat(e.target.value) || 0 }))} />
-                </div>
+              {/* Somme */}
+              <div>
+                <label className="text-xs text-muted-foreground">Somme (€)</label>
+                <input
+                  type="number" inputMode="decimal"
+                  className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
+                  placeholder="0"
+                  value={form.actual || ''}
+                  onFocus={e => e.target.select()}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value) || 0
+                    setForm(f => ({ ...f, forecast: v, actual: v }))
+                  }}
+                />
               </div>
 
               {/* Paiement — for Revenus (perso + pro) */}

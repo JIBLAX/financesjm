@@ -266,10 +266,10 @@ export const DEFAULT_OP_CATEGORIES: OpCategory[] = [
   // ── PRO — Charges (regroupées sous charge_fixe) ────────────────────────────
   { id: 'opc_r_locaux',      family: 'charge_fixe', scope: 'pro', name: 'Locaux & Bureaux',            icon: '🏢', order: 1 },
   { id: 'opc_r_deplacements', family: 'charge_fixe', scope: 'pro', name: 'Déplacements & Transports',  icon: '🚗', order: 2 },
-  { id: 'opc_r_sociales',    family: 'charge_fixe', scope: 'pro', name: 'Sociales & Fiscales',         icon: '📋', order: 3 },
+  { id: 'opc_r_sociales',    family: 'charge_fixe', scope: 'pro', name: 'Fiscales Pro',                 icon: '📋', order: 3 },
   { id: 'opc_r_outils',      family: 'charge_fixe', scope: 'pro', name: 'Outils & Logiciels',          icon: '🛠️', order: 4 },
   { id: 'opc_r_client',      family: 'charge_fixe', scope: 'pro', name: 'Expérience Client',           icon: '🤝', order: 5 },
-  { id: 'opc_r_materiel',    family: 'charge_fixe', scope: 'pro', name: 'Matériel & Entretien',        icon: '🔧', order: 6 },
+  { id: 'opc_r_materiel',    family: 'charge_fixe', scope: 'pro', name: 'Matériel & Entretient',       icon: '🔧', order: 6 },
   { id: 'opc_r_dettes',      family: 'charge_fixe', scope: 'pro', name: 'Dettes & Crédits',           icon: '💳', order: 7 },
   { id: 'opc_r_formation',   family: 'charge_fixe', scope: 'pro', name: 'Formation & Développement',  icon: '📚', order: 8 },
   { id: 'opc_r_bienetre',    family: 'charge_fixe', scope: 'pro', name: 'Bien-être & Santé',          icon: '🧘', order: 9 },

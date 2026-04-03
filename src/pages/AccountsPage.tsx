@@ -22,6 +22,8 @@ const TYPE_CFG: Record<string, { label: string; hex: string }> = {
   dette:          { label: 'Dette',         hex: '#fb7185' },
 }
 
+const BAR_COLORS = ['#818cf8', '#34d399', '#fbbf24', '#a78bfa', '#22d3ee', '#4ade80', '#fb7185', '#f97316', '#06b6d4']
+
 const GROUP_ICONS: Record<string, string> = {
   'Professionnel': '💼', 'Vie': '🏠', 'Réserve': '🛡️', 'Urgence': '🚨',
   'Voyage': '✈️', 'Cadeaux': '🎁', 'Projet': '🎯',
@@ -165,7 +167,7 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
                 />
                 <Bar dataKey="value" radius={[0, 8, 8, 0]}>
                   {chartData.map((d, i) => (
-                    <Cell key={i} fill={d.color} fillOpacity={d.value >= 0 ? 0.85 : 1} />
+                    <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} fillOpacity={d.value >= 0 ? 0.85 : 1} />
                   ))}
                 </Bar>
               </BarChart>

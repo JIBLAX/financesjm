@@ -28,13 +28,17 @@ const WIDGET_META: Record<WidgetId, { label: string; emoji: string }> = {
 const DEFAULT_LAYOUT: WidgetId[] = ['profil_mode', 'solde_total', 'comptes', 'actifs', 'entrees', 'depenses', 'cashflow', 'dette', 'quete']
 
 function loadLayout(): WidgetId[] {
+  const valid = new Set(Object.keys(WIDGET_META) as WidgetId[])
   try {
     const s = localStorage.getItem('widget_layout')
     if (s) {
       const p = JSON.parse(s) as WidgetId[]
-      if (Array.isArray(p) && p.length > 0) return p
+      const filtered = p.filter(id => valid.has(id))
+      if (filtered.length > 0) return filtered
     }
   } catch {}
+  // Clear old layout and use default
+  localStorage.removeItem('widget_layout')
   return [...DEFAULT_LAYOUT]
 }
 

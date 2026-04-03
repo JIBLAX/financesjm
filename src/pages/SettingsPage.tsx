@@ -81,30 +81,82 @@ export const SettingsPage: React.FC<Props> = ({ settings, onUpdate, onUpdateRegu
         )}
       </FinanceCard>
 
-      {/* Allocation rules */}
+      {/* Account Allocation */}
       <FinanceCard>
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-3 mb-4">
           <Percent className="w-4 h-4 text-accent" />
-          <h3 className="text-sm font-semibold text-foreground">Pourcentages de répartition</h3>
+          <h3 className="text-sm font-semibold text-foreground">Répartition des revenus</h3>
         </div>
-        <div className="space-y-3">
-          {ruleFields.map(f => (
-            <div key={f.key}>
-              <label className="text-xs text-muted-foreground">{f.label}</label>
-              <div className="flex items-center gap-2 mt-1">
-                <input type="number" min="0" max="100" className="flex-1 bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={rules[f.key]} onChange={e => updateRule(f.key, e.target.value)} />
-                <span className="text-sm text-muted-foreground">%</span>
+
+        {/* Level 1: Pro + Perso — must total 100% */}
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Répartition principale</p>
+        <div className="flex gap-2 mb-1">
+          <div className="flex-1 bg-muted/20 rounded-xl p-3">
+            <p className="text-[10px] text-muted-foreground mb-1">Activité pro</p>
+            <div className="flex items-center gap-1">
+              <input type="number" min="0" max="100" className="w-full bg-muted/50 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none text-center"
+                value={rules.proPercent} onChange={e => updateRule('proPercent', e.target.value)} />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+          </div>
+          <div className="flex items-center text-xs text-muted-foreground self-center">=</div>
+          <div className="flex-1 bg-muted/20 rounded-xl p-3">
+            <p className="text-[10px] text-muted-foreground mb-1">Base perso</p>
+            <div className="flex items-center gap-1">
+              <input type="number" min="0" max="100" className="w-full bg-muted/50 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none text-center"
+                value={rules.personalBasePercent} onChange={e => updateRule('personalBasePercent', e.target.value)} />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-right text-[10px] mb-4">
+          <span className={`font-semibold ${rules.proPercent + rules.personalBasePercent === 100 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            Total : {rules.proPercent + rules.personalBasePercent}%
+          </span>
+        </div>
+
+        {/* Level 2: Base perso split */}
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Sous-répartition de la base perso</p>
+        <div className="space-y-2 mb-1">
+          {[
+            { key: 'boursoPercent' as keyof AllocationRules, label: 'Vie courante (Bourso)' },
+            { key: 'livretAPercent' as keyof AllocationRules, label: 'Réserve (Livret A)' },
+            { key: 'lepPercent' as keyof AllocationRules, label: 'Urgence (LEP)' },
+          ].map(f => (
+            <div key={f.key} className="flex items-center gap-3">
+              <span className="text-xs text-foreground flex-1">{f.label}</span>
+              <div className="flex items-center gap-1 shrink-0">
+                <input type="number" min="0" max="100" className="w-16 bg-muted/50 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none text-center"
+                  value={rules[f.key]} onChange={e => updateRule(f.key, e.target.value)} />
+                <span className="text-xs text-muted-foreground">%</span>
               </div>
             </div>
           ))}
         </div>
-      </FinanceCard>
+        <div className="text-right text-[10px] mb-4">
+          <span className={`font-semibold ${rules.boursoPercent + rules.livretAPercent + rules.lepPercent === 100 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            Total : {rules.boursoPercent + rules.livretAPercent + rules.lepPercent}%
+          </span>
+        </div>
 
-      {/* Ajouter un compte */}
-      <FinanceCard>
-        <button onClick={() => navigate('/comptes')} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-primary/10 text-primary">
-          Gérer les comptes →
-        </button>
+        {/* Level 3: Cash split */}
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Répartition du cash</p>
+        <div className="space-y-2">
+          {[
+            { key: 'cashLibertePercent' as keyof AllocationRules, label: 'Cash Liberté' },
+            { key: 'cashSecurityPercent' as keyof AllocationRules, label: 'Cash Sécurité' },
+            { key: 'cashVoyagePercent' as keyof AllocationRules, label: 'Cash Voyage' },
+          ].map(f => (
+            <div key={f.key} className="flex items-center gap-3">
+              <span className="text-xs text-foreground flex-1">{f.label}</span>
+              <div className="flex items-center gap-1 shrink-0">
+                <input type="number" min="0" max="100" className="w-16 bg-muted/50 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none text-center"
+                  value={rules[f.key]} onChange={e => updateRule(f.key, e.target.value)} />
+                <span className="text-xs text-muted-foreground">%</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </FinanceCard>
     </div>
   )

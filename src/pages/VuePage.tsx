@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel } from '@/lib/constants'
-import type { FinanceStore, OperationFamily, OperationScope } from '@/types/finance'
+import type { FinanceStore, OperationFamily } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
@@ -22,11 +22,9 @@ const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgC
 
 export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUpdateBudget }) => {
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
-  const [scope, setScope] = useState<OperationScope>('perso')
   const [editingBudget, setEditingBudget] = useState<string | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
   const currentMonthKey = getCurrentMonthKey()
-  const isPerso = scope === 'perso'
 
   const navigateMonth = (dir: number) => {
     const [y, m] = monthKey.split('-').map(Number)
@@ -36,10 +34,10 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     setEditingBudget(null)
   }
 
-  // All operations for this month + scope
+  // All operations for this month (both perso + pro)
   const operations = useMemo(
-    () => store.operations.filter(op => op.monthKey === monthKey && op.scope === scope),
-    [store.operations, monthKey, scope]
+    () => store.operations.filter(op => op.monthKey === monthKey),
+    [store.operations, monthKey]
   )
 
   // Monthly budgets for this month
@@ -148,22 +146,6 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-extrabold text-foreground uppercase tracking-wider shrink-0">Vue</h1>
-        <div className="flex items-center bg-muted/30 rounded-xl p-0.5 gap-0.5 flex-1 max-w-[140px] mx-auto">
-          <button
-            onClick={() => setScope('perso')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${isPerso
-              ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.35)]'
-              : 'text-muted-foreground'}`}>
-            Perso
-          </button>
-          <button
-            onClick={() => setScope('pro')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${!isPerso
-              ? 'bg-violet-500/20 text-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.35)]'
-              : 'text-muted-foreground'}`}>
-            Pro
-          </button>
-        </div>
       </div>
 
       {/* Month navigation */}
@@ -227,25 +209,6 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         </div>
       </FinanceCard>
 
-      {/* Répartition automatique */}
-      {(totals.revActual > 0 || totals.revForecast > 0) && isPerso && (
-        <FinanceCard>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Répartition automatique prévue</h3>
-          <div className="space-y-1.5 text-sm">
-            {[
-              { label: 'Activité pro (Qonto)', amount: allocation.proAmount },
-              { label: 'Vie courante (BoursoBank)', amount: allocation.bourso },
-              { label: 'Tampon bancaire (Livret A)', amount: allocation.livretA },
-              { label: 'Fonds d\'urgence (LEP)', amount: allocation.lep },
-            ].map(r => (
-              <div key={r.label} className="flex justify-between">
-                <span className="text-muted-foreground text-xs">{r.label}</span>
-                <span className="font-medium text-foreground text-xs">{formatCurrency(r.amount)}</span>
-              </div>
-            ))}
-          </div>
-        </FinanceCard>
-      )}
 
       {/* Category sections */}
       {FAMILY_SECTIONS.map(({ key, label, color, bgColor, borderColor }) => {
@@ -339,22 +302,21 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         )
       })}
 
-      {/* Répartition par compte */}
-      {repartitionAccounts.length > 0 && (
+      {/* Répartition prévue par compte */}
+      {(totals.revActual > 0 || totals.revForecast > 0) && (
         <FinanceCard>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Répartition</h3>
-          <div className="flex items-center justify-end gap-6 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">
-            <span>Prévu</span>
-            <span>Réel</span>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Répartition prévue</h3>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-foreground flex-1 truncate" />
+            <span className="text-xs text-muted-foreground w-20 text-right">Prévu</span>
+            <span className="text-xs text-muted-foreground w-20 text-right">Réel</span>
           </div>
           <div className="space-y-2">
             {repartitionAccounts.map(({ account, prevu, reel }) => (
-              <div key={account.id} className="flex items-center justify-between">
+              <div key={account.id} className="flex items-center gap-2">
                 <span className="text-xs text-foreground flex-1 truncate">{account.name}</span>
-                <div className="flex items-center gap-6 shrink-0">
-                  <span className="text-xs font-medium text-muted-foreground w-20 text-right">{formatCurrency(prevu)}</span>
-                  <span className={`text-xs font-semibold w-20 text-right ${reel >= 0 ? 'text-foreground' : 'text-rose-400'}`}>{formatCurrency(reel)}</span>
-                </div>
+                <span className="text-xs text-muted-foreground w-20 text-right">{formatCurrency(prevu)}</span>
+                <span className={`text-xs font-semibold w-20 text-right ${reel >= 0 ? 'text-foreground' : 'text-rose-400'}`}>{formatCurrency(reel)}</span>
               </div>
             ))}
           </div>
