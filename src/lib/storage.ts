@@ -63,6 +63,7 @@ export function loadStore(): FinanceStore {
       monthlyCheckIns: parsed.monthlyCheckIns || [],
       monthlyBudgets: parsed.monthlyBudgets || {},
       allocationInjections: parsed.allocationInjections || {},
+      projects: parsed.projects || [],
     }
   } catch {
     return getDefaultStore()
