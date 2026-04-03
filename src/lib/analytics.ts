@@ -253,3 +253,151 @@ export function getPilotageRecommendation(store: FinanceStore): { mode: Pilotage
     adjustment: 'Continue d\'investir selon ton plan. Tu peux augmenter l\'effort si possible.',
   }
 }
+
+// ─── Missions computation ────────────────────────────────────────────────────
+
+export function computeMissions(store: FinanceStore): ComputedMission[] {
+  const totalAccounts = store.accounts.filter(a => a.isActive && a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
+  const totalAssets = store.assets.filter(a => a.type !== 'dette').reduce((s, a) => s + a.value, 0)
+  const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
+  const assetDebts = store.assets.filter(a => a.type === 'dette').reduce((s, a) => s + (a.outstandingBalance || a.value), 0)
+  const allDebts = totalDebts + assetDebts
+  const netWorth = totalAccounts + totalAssets - allDebts
+  const lep = store.accounts.find(a => a.id === 'lep')?.currentBalance || 0
+  const livretA = store.accounts.find(a => a.id === 'livret-a')?.currentBalance || 0
+  const monthKey = getCurrentMonthKey()
+  const income = getRealIncome(store, monthKey)
+  const txs = store.transactions.filter(t => t.monthKey === monthKey)
+  const expenses = txs.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
+  const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0
+
+  // Check if specific account types exist
+  const hasProjet = store.accounts.some(a => a.group === 'Projet' && a.isActive)
+  const hasReserve = store.accounts.some(a => a.group === 'Réserve' && a.isActive)
+  const hasUrgence = store.accounts.some(a => a.group === 'Urgence' && a.isActive)
+  const hasPEA = store.accounts.some(a => a.name.toLowerCase().includes('pea') && a.isActive)
+    || store.assets.some(a => a.name.toLowerCase().includes('pea'))
+  const hasAV = store.accounts.some(a => a.name.toLowerCase().includes('assurance vie') && a.isActive)
+    || store.assets.some(a => a.name.toLowerCase().includes('assurance vie'))
+  const peaValue = store.assets.filter(a => a.name.toLowerCase().includes('pea')).reduce((s, a) => s + a.value, 0)
+  const allocationConfigured = store.settings.allocationRules.groups.length > 0
+    && store.settings.allocationRules.groups.some(g => g.slots.length > 0)
+
+  // Find specific debts
+  const urssafDebt = store.debts.find(d => d.name.toLowerCase().includes('urssaf'))
+  const creditConsoDebt = store.debts.find(d => d.name.toLowerCase().includes('crédit') || d.name.toLowerCase().includes('credit'))
+
+  const missions: ComputedMission[] = []
+  let order = 0
+
+  // ASSAINIR
+  if (urssafDebt && urssafDebt.outstandingBalance > 0) {
+    missions.push({ id: 'm_urssaf', title: 'Dette URSSAF à 0 €', emoji: '🧹', axis: 'assainir', type: 'amount_reduce', targetValue: 0, currentValue: urssafDebt.outstandingBalance, completed: urssafDebt.outstandingBalance <= 0, pct: 0, xpReward: 200, order: order++ })
+  }
+  if (creditConsoDebt && creditConsoDebt.outstandingBalance > 0) {
+    missions.push({ id: 'm_credit', title: 'Crédit conso à 0 €', emoji: '🧹', axis: 'assainir', type: 'amount_reduce', targetValue: 0, currentValue: creditConsoDebt.outstandingBalance, completed: creditConsoDebt.outstandingBalance <= 0, pct: 0, xpReward: 400, order: order++ })
+  }
+  if (allDebts > 0) {
+    missions.push({ id: 'm_dette_zero', title: 'Dette totale à 0 €', emoji: '🧹', axis: 'assainir', type: 'amount_reduce', targetValue: 0, currentValue: allDebts, completed: allDebts <= 0, pct: 0, xpReward: 600, order: order++ })
+  }
+
+  // Compute pct for reduce missions
+  missions.forEach(m => {
+    if (m.type === 'amount_reduce') {
+      // For debt reduction: start value is the initial debt. We use currentValue.
+      // If currentValue is 0 → 100%, otherwise estimate based on target being 0
+      // We don't know the initial, so just show how close to 0
+      const initialGuess = Math.max(m.currentValue, m.targetValue + 1)
+      m.pct = m.currentValue <= 0 ? 100 : Math.max(0, Math.min(100, ((initialGuess - m.currentValue) / initialGuess) * 100))
+      m.completed = m.currentValue <= 0
+    }
+  })
+
+  // SÉCURISER
+  missions.push({ id: 'm_reserve_500', title: 'Réserve bancaire 500 €', emoji: '🛡️', axis: 'securiser', type: 'amount_target', targetValue: 500, currentValue: livretA, completed: livretA >= 500, pct: Math.min(100, (livretA / 500) * 100), xpReward: 300, order: order++ })
+  missions.push({ id: 'm_urgence_1000', title: 'Fonds d\'urgence 1 000 €', emoji: '🛡️', axis: 'securiser', type: 'amount_target', targetValue: 1000, currentValue: lep, completed: lep >= 1000, pct: Math.min(100, (lep / 1000) * 100), xpReward: 400, order: order++ })
+  missions.push({ id: 'm_urgence_2000', title: 'Fonds d\'urgence 2 000 €', emoji: '🛡️', axis: 'securiser', type: 'amount_target', targetValue: 2000, currentValue: lep, completed: lep >= 2000, pct: Math.min(100, (lep / 2000) * 100), xpReward: 600, order: order++ })
+
+  // STRUCTURER
+  missions.push({ id: 'm_projet_cree', title: 'Compte Projet créé', emoji: '🏗️', axis: 'structurer', type: 'boolean', targetValue: 1, currentValue: hasProjet ? 1 : 0, completed: hasProjet, pct: hasProjet ? 100 : 0, xpReward: 100, order: order++ })
+  missions.push({ id: 'm_reserve_cree', title: 'Compte Réserve créé', emoji: '🏗️', axis: 'structurer', type: 'boolean', targetValue: 1, currentValue: hasReserve ? 1 : 0, completed: hasReserve, pct: hasReserve ? 100 : 0, xpReward: 100, order: order++ })
+  missions.push({ id: 'm_urgence_cree', title: 'Compte Urgence créé', emoji: '🏗️', axis: 'structurer', type: 'boolean', targetValue: 1, currentValue: hasUrgence ? 1 : 0, completed: hasUrgence, pct: hasUrgence ? 100 : 0, xpReward: 100, order: order++ })
+  missions.push({ id: 'm_alloc_config', title: 'Répartition automatique configurée', emoji: '🏗️', axis: 'structurer', type: 'boolean', targetValue: 1, currentValue: allocationConfigured ? 1 : 0, completed: allocationConfigured, pct: allocationConfigured ? 100 : 0, xpReward: 150, order: order++ })
+
+  // INVESTIR
+  missions.push({ id: 'm_pea_ouvert', title: 'Ouvrir un PEA', emoji: '📈', axis: 'investir', type: 'boolean', targetValue: 1, currentValue: hasPEA ? 1 : 0, completed: hasPEA, pct: hasPEA ? 100 : 0, xpReward: 200, order: order++ })
+  missions.push({ id: 'm_pea_100', title: 'PEA à 100 €', emoji: '📈', axis: 'investir', type: 'amount_target', targetValue: 100, currentValue: peaValue, completed: peaValue >= 100, pct: Math.min(100, (peaValue / 100) * 100), xpReward: 150, order: order++ })
+  missions.push({ id: 'm_pea_1000', title: 'PEA à 1 000 €', emoji: '📈', axis: 'investir', type: 'amount_target', targetValue: 1000, currentValue: peaValue, completed: peaValue >= 1000, pct: Math.min(100, (peaValue / 1000) * 100), xpReward: 500, order: order++ })
+  missions.push({ id: 'm_av_ouverte', title: 'Assurance vie ouverte', emoji: '📈', axis: 'investir', type: 'boolean', targetValue: 1, currentValue: hasAV ? 1 : 0, completed: hasAV, pct: hasAV ? 100 : 0, xpReward: 200, order: order++ })
+
+  // ACCÉLÉRER
+  missions.push({ id: 'm_net_5000', title: 'Patrimoine net 5 000 €', emoji: '🚀', axis: 'accelerer', type: 'amount_target', targetValue: 5000, currentValue: netWorth, completed: netWorth >= 5000, pct: Math.min(100, Math.max(0, (netWorth / 5000) * 100)), xpReward: 800, order: order++ })
+  missions.push({ id: 'm_net_10000', title: 'Patrimoine net 10 000 €', emoji: '🚀', axis: 'accelerer', type: 'amount_target', targetValue: 10000, currentValue: netWorth, completed: netWorth >= 10000, pct: Math.min(100, Math.max(0, (netWorth / 10000) * 100)), xpReward: 1000, order: order++ })
+  missions.push({ id: 'm_epargne_20', title: 'Taux d\'épargne > 20%', emoji: '🚀', axis: 'accelerer', type: 'amount_target', targetValue: 20, currentValue: Math.max(0, savingsRate), completed: savingsRate >= 20, pct: Math.min(100, (savingsRate / 20) * 100), xpReward: 500, order: order++ })
+  missions.push({ id: 'm_net_25000', title: 'Patrimoine 25 000 €', emoji: '🚀', axis: 'accelerer', type: 'amount_target', targetValue: 25000, currentValue: netWorth, completed: netWorth >= 25000, pct: Math.min(100, Math.max(0, (netWorth / 25000) * 100)), xpReward: 1500, order: order++ })
+  missions.push({ id: 'm_net_50000', title: 'Patrimoine 50 000 €', emoji: '🚀', axis: 'accelerer', type: 'amount_target', targetValue: 50000, currentValue: netWorth, completed: netWorth >= 50000, pct: Math.min(100, Math.max(0, (netWorth / 50000) * 100)), xpReward: 2000, order: order++ })
+  missions.push({ id: 'm_net_100000', title: 'Patrimoine 100 000 €', emoji: '🚀', axis: 'accelerer', type: 'amount_target', targetValue: 100000, currentValue: netWorth, completed: netWorth >= 100000, pct: Math.min(100, Math.max(0, (netWorth / 100000) * 100)), xpReward: 5000, order: order++ })
+
+  return missions
+}
+
+// ─── Adaptive Advice ─────────────────────────────────────────────────────────
+
+export function generateAdaptiveAdvice(store: FinanceStore): string[] {
+  const advice: string[] = []
+  const monthKey = getCurrentMonthKey()
+  const income = getRealIncome(store, monthKey)
+  const txs = store.transactions.filter(t => t.monthKey === monthKey)
+  const expenses = txs.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
+  const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
+  const lep = store.accounts.find(a => a.id === 'lep')?.currentBalance || 0
+  const livretA = store.accounts.find(a => a.id === 'livret-a')?.currentBalance || 0
+  const mode = calculatePilotageMode(store)
+  const reg = store.settings.profileRegulation
+  const profile = store.settings.investorProfile
+
+  if (mode === 'protection') {
+    advice.push('🛑 Suspends temporairement tout investissement ce mois-ci. Priorise la trésorerie et les dettes urgentes.')
+  }
+
+  if (totalDebts > 0 && lep < 500) {
+    advice.push('💡 Ton fonds d\'urgence est trop faible pour ton niveau de dettes. Renforce-le avant d\'accélérer les remboursements.')
+  }
+
+  if (totalDebts > 0) {
+    const creditConso = store.debts.find(d => d.name.toLowerCase().includes('crédit') || d.name.toLowerCase().includes('credit'))
+    if (creditConso && creditConso.monthlyPayment > 0) {
+      const months = Math.ceil(creditConso.outstandingBalance / creditConso.monthlyPayment)
+      if (income - expenses > 50) {
+        advice.push(`💡 Tu peux accélérer le remboursement de +50 €/mois et passer de ${months} à ${Math.max(1, months - Math.floor(50 / creditConso.monthlyPayment * months / 10))} mois.`)
+      }
+    }
+  }
+
+  if (livretA < 500 && totalDebts === 0) {
+    advice.push('🛡️ Renforce ta réserve bancaire (Livret A) avant de passer aux investissements.')
+  }
+
+  if (lep >= 2000 && totalDebts === 0 && livretA >= 500) {
+    advice.push('🚀 Ta structure est prête pour passer au palier d\'investissement suivant. Ouvre un PEA si ce n\'est pas fait.')
+  }
+
+  if (mode === 'regulation') {
+    const suggestedInvest = Math.max(0, Math.round((income - expenses - reg.monthlyFamilyCharges) * 0.15))
+    advice.push(`⚙️ Réduis l'investissement à ${suggestedInvest} € ce mois. Charges en hausse ou sécurité insuffisante.`)
+  }
+
+  if (reg.revenueStability === 'fragile') {
+    advice.push('⚠️ Revenus fragiles détectés. Constitue 3 mois de charges en fonds d\'urgence avant toute autre action.')
+  }
+
+  if (profile === 'prudent') {
+    advice.push('📘 Profil prudent : privilégie les livrets et fonds euros avant les ETF actions.')
+  } else if (profile === 'dynamique' || profile === 'entrepreneur') {
+    if (lep >= 2000 && totalDebts === 0) {
+      advice.push('🔥 Profil dynamique : tu peux viser 70% ETF World + 20% émergents + 10% obligataire.')
+    }
+  }
+
+  return advice.slice(0, 4)
+}
