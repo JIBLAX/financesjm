@@ -484,36 +484,57 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
       )}
 
       {/* Widget list */}
-      <div className="space-y-5">
-        {layout.map((id, i) => (
-          <div
-            key={id}
-            ref={el => { widgetRefs.current[i] = el }}
-            style={{ opacity: draggingIdx === i ? 0.4 : 1, transition: 'opacity 0.15s' }}
-            className={dragOverIdx === i && draggingIdx !== null && draggingIdx !== i ? 'ring-2 ring-primary/40 rounded-2xl' : ''}>
-
-            {/* Edit mode toolbar */}
-            {editMode && (
-              <div className="flex items-center gap-2 mb-2 px-1">
-                <div
-                  onTouchStart={e => onHandleTouchStart(e, i)}
-                  className="touch-none p-1.5 -ml-1 cursor-grab active:cursor-grabbing">
-                  <GripVertical className="w-4 h-4 text-muted-foreground" />
+      <div className="space-y-4">
+        {(() => {
+          const SMALL: Set<WidgetId> = new Set(['comptes', 'actifs', 'entrees', 'depenses'])
+          const rows: Array<{ type: 'single'; id: WidgetId; idx: number } | { type: 'pair'; ids: [WidgetId, WidgetId]; indices: [number, number] }> = []
+          let i = 0
+          while (i < layout.length) {
+            const id = layout[i]
+            const nextId = i + 1 < layout.length ? layout[i + 1] : null
+            if (!editMode && SMALL.has(id) && nextId && SMALL.has(nextId)) {
+              rows.push({ type: 'pair', ids: [id, nextId], indices: [i, i + 1] })
+              i += 2
+            } else {
+              rows.push({ type: 'single', id, idx: i })
+              i++
+            }
+          }
+          return rows.map((row, ri) => {
+            if (row.type === 'pair') {
+              return (
+                <div key={row.ids.join('-')} className="grid grid-cols-2 gap-3">
+                  {row.ids.map((id, pi) => (
+                    <div key={id} ref={el => { widgetRefs.current[row.indices[pi]] = el }}>
+                      {renderWidget(id)}
+                    </div>
+                  ))}
                 </div>
-                <span className="text-xs text-muted-foreground flex-1 font-medium">
-                  {WIDGET_META[id].emoji} {WIDGET_META[id].label}
-                </span>
-                <button
-                  onClick={() => removeWidget(id)}
-                  className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 active:bg-rose-500/20">
-                  <X className="w-3.5 h-3.5" />
-                </button>
+              )
+            }
+            const { id, idx } = row
+            return (
+              <div
+                key={id}
+                ref={el => { widgetRefs.current[idx] = el }}
+                style={{ opacity: draggingIdx === idx ? 0.4 : 1, transition: 'opacity 0.15s' }}
+                className={dragOverIdx === idx && draggingIdx !== null && draggingIdx !== idx ? 'ring-2 ring-primary/40 rounded-2xl' : ''}>
+                {editMode && (
+                  <div className="flex items-center gap-2 mb-2 px-1">
+                    <div onTouchStart={e => onHandleTouchStart(e, idx)} className="touch-none p-1.5 -ml-1 cursor-grab active:cursor-grabbing">
+                      <GripVertical className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <span className="text-xs text-muted-foreground flex-1 font-medium">{WIDGET_META[id].emoji} {WIDGET_META[id].label}</span>
+                    <button onClick={() => removeWidget(id)} className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 active:bg-rose-500/20">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                {renderWidget(id)}
               </div>
-            )}
-
-            {renderWidget(id)}
-          </div>
-        ))}
+            )
+          })
+        })()}
       </div>
 
       {/* Edit mode hint */}

@@ -208,6 +208,17 @@ export function useFinanceStore() {
     }))
   }, [update])
 
+  // ─── Allocation Injections ────────────────────────────────────────────────
+  const updateAllocationInjection = useCallback((monthKey: string, accountId: string, amount: number) => {
+    update(prev => ({
+      ...prev,
+      allocationInjections: {
+        ...prev.allocationInjections,
+        [monthKey]: { ...(prev.allocationInjections?.[monthKey] || {}), [accountId]: amount },
+      },
+    }))
+  }, [update])
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   return {
@@ -220,6 +231,6 @@ export function useFinanceStore() {
     addOperation, updateOperation, removeOperation, initMonthOperations,
     addOpCategory, updateOpCategory, removeOpCategory,
     addOpSubcategory, removeOpSubcategory,
-    saveCheckIn, updateBudget,
+    saveCheckIn, updateBudget, updateAllocationInjection,
   }
 }

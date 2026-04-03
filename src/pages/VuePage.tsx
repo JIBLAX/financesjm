@@ -9,6 +9,7 @@ interface Props {
   journal: Record<string, string>
   onUpdateJournal: (monthKey: string, note: string) => void
   onUpdateBudget: (monthKey: string, categoryId: string, amount: number) => void
+  onUpdateInjection: (monthKey: string, accountId: string, amount: number) => void
 }
 
 
@@ -20,11 +21,13 @@ const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgC
 
 type ViewMode = 'perso' | 'pro' | 'repartition'
 
-export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUpdateBudget }) => {
+export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUpdateBudget, onUpdateInjection }) => {
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
   const [editingBudget, setEditingBudget] = useState<string | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('perso')
+  const [editingInjection, setEditingInjection] = useState<string | null>(null) // accountId
+  const [injectionInput, setInjectionInput] = useState('')
   const currentMonthKey = getCurrentMonthKey()
 
   const navigateMonth = (dir: number) => {
@@ -129,6 +132,20 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     }
   }
 
+  const startEditInjection = (accountId: string, current: number) => {
+    setEditingInjection(accountId)
+    setInjectionInput(current > 0 ? String(current) : '')
+  }
+
+  const saveInjection = () => {
+    if (editingInjection) {
+      onUpdateInjection(monthKey, editingInjection, parseFloat(injectionInput) || 0)
+      setEditingInjection(null)
+    }
+  }
+
+  const injections = store.allocationInjections?.[monthKey] || {}
+
   return (
     <div className="page-container pt-6 page-bottom-pad gap-4">
       {/* Header */}
@@ -151,21 +168,18 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/20 p-3 text-center">
           <p className="text-[9px] text-emerald-400/70 uppercase tracking-wider font-semibold mb-0.5">Revenus</p>
-          <p className="text-base font-black text-emerald-400">{formatCurrency(totals.revActual || totals.revForecast)}</p>
-          {totals.revForecast > 0 && totals.revActual > 0 && totals.revActual !== totals.revForecast && (
-            <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.revForecast)}</p>
-          )}
+          <p className="text-base font-black text-emerald-400">{formatCurrency(totals.revActual)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.revForecast)}</p>
         </div>
         <div className="rounded-2xl bg-rose-500/5 border border-rose-500/20 p-3 text-center">
           <p className="text-[9px] text-rose-400/70 uppercase tracking-wider font-semibold mb-0.5">Dépenses</p>
-          <p className="text-base font-black text-rose-400">{formatCurrency(totals.chargeActual || totals.chargeForecast)}</p>
-          {totals.chargeForecast > 0 && totals.chargeActual > 0 && totals.chargeActual !== totals.chargeForecast && (
-            <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.chargeForecast)}</p>
-          )}
+          <p className="text-base font-black text-rose-400">{formatCurrency(totals.chargeActual)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.chargeForecast)}</p>
         </div>
         <div className={`rounded-2xl p-3 text-center ${totals.solde >= 0 ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-rose-500/5 border border-rose-500/20'}`}>
           <p className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${totals.solde >= 0 ? 'text-emerald-400/70' : 'text-rose-400/70'}`}>Solde</p>
           <p className={`text-base font-black ${totals.solde >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(totals.solde)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.soldeForecast)}</p>
         </div>
       </div>
 
@@ -179,20 +193,14 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
       {/* Détails Revenus */}
       <FinanceCard>
         <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3">Détails Revenus</h3>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Bancaire</span>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="text-muted-foreground">Prévu <span className="font-semibold text-foreground">{formatCurrency(totals.bancaireForecast)}</span></span>
-              <span className="text-muted-foreground">Réel <span className="font-semibold text-emerald-400">{formatCurrency(totals.bancaireActual)}</span></span>
-            </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-emerald-500/5 border border-emerald-500/15 p-3">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Bancaire</p>
+            <p className="text-lg font-black text-emerald-400">{formatCurrency(totals.bancaireActual)}</p>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Liquide</span>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="text-muted-foreground">Prévu <span className="font-semibold text-foreground">{formatCurrency(totals.liquideForecast)}</span></span>
-              <span className="text-muted-foreground">Réel <span className="font-semibold text-emerald-400">{formatCurrency(totals.liquideActual)}</span></span>
-            </div>
+          <div className="rounded-xl bg-blue-500/5 border border-blue-500/15 p-3">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Espèces</p>
+            <p className="text-lg font-black text-blue-400">{formatCurrency(totals.liquideActual)}</p>
           </div>
         </div>
       </FinanceCard>
@@ -313,24 +321,48 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                 <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{group.label}</h3>
                 <span className="text-[10px] text-muted-foreground">{Math.round(group.groupTotal * 10) / 10}%</span>
               </div>
-              <div className="grid grid-cols-[1fr_5rem_5rem] gap-x-2 mb-2">
+              <div className="grid grid-cols-[1fr_4.5rem_5.5rem] gap-x-2 mb-2">
                 <span className="text-[10px] text-muted-foreground">Compte</span>
                 <span className="text-[10px] text-muted-foreground text-right">Prévu</span>
-                <span className="text-[10px] text-muted-foreground text-right">À injecter</span>
+                <span className="text-[10px] text-muted-foreground text-right">Injecté ✎</span>
               </div>
-              <div className="space-y-2">
-                {group.slots.map((slot, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_5rem_5rem] gap-x-2 items-center">
-                    <div className="min-w-0">
-                      <p className="text-xs text-foreground truncate">{slot.name}</p>
-                      {slot.institution && <p className="text-[10px] text-muted-foreground/50 truncate">{slot.institution}</p>}
+              <div className="space-y-2.5">
+                {group.slots.map((slot, i) => {
+                  const injected = injections[slot.accountId] || 0
+                  const isEditing = editingInjection === slot.accountId
+                  return (
+                    <div key={i} className="grid grid-cols-[1fr_4.5rem_5.5rem] gap-x-2 items-center">
+                      <div className="min-w-0">
+                        <p className="text-xs text-foreground truncate">{slot.name}</p>
+                        {slot.institution && <p className="text-[10px] text-muted-foreground/50 truncate">{slot.institution}</p>}
+                      </div>
+                      <span className="text-xs text-muted-foreground text-right">{formatCurrency(slot.prevu)}</span>
+                      {isEditing ? (
+                        <input
+                          type="number" inputMode="decimal"
+                          className="w-full bg-muted/60 rounded-lg px-2 py-1 text-xs text-foreground outline-none text-right"
+                          value={injectionInput}
+                          autoFocus
+                          onFocus={e => e.target.select()}
+                          onChange={e => setInjectionInput(e.target.value)}
+                          onBlur={saveInjection}
+                          onKeyDown={e => e.key === 'Enter' && saveInjection()}
+                          placeholder="0"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => startEditInjection(slot.accountId, injected)}
+                          className="flex items-center justify-end gap-1 group"
+                        >
+                          <span className={`text-xs font-semibold ${injected > 0 ? 'text-emerald-400' : 'text-muted-foreground/30'}`}>
+                            {formatCurrency(injected)}
+                          </span>
+                          <Pencil className="w-2.5 h-2.5 text-muted-foreground/30 group-hover:text-muted-foreground/60" />
+                        </button>
+                      )}
                     </div>
-                    <span className="text-xs text-muted-foreground text-right">{formatCurrency(slot.prevu)}</span>
-                    <span className={`text-xs font-semibold text-right ${slot.reel > 0 ? 'text-emerald-400' : 'text-muted-foreground/40'}`}>
-                      {formatCurrency(slot.reel)}
-                    </span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </FinanceCard>
           ))}

@@ -309,5 +309,6 @@ export interface FinanceStore {
   opCategories: OpCategory[]
   opSubcategories: OpSubcategory[]
   monthlyCheckIns: MonthlyCheckIn[]
-  monthlyBudgets: Record<string, Record<string, number>> // monthKey -> categoryId -> forecast
+  monthlyBudgets: Record<string, Record<string, number>>       // monthKey -> categoryId -> forecast
+  allocationInjections: Record<string, Record<string, number>> // monthKey -> accountId -> injected amount
 }

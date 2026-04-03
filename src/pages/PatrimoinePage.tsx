@@ -238,7 +238,7 @@ export const PatrimoinePage: React.FC<Props> = ({
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={donutData} cx="50%" cy="50%" innerRadius={68} outerRadius={90} dataKey="value" stroke="none" paddingAngle={2}>
-                  {donutData.map((d, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
+                  {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>

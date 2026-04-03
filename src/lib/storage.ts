@@ -22,6 +22,7 @@ function getDefaultStore(): FinanceStore {
     opSubcategories: DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
     monthlyCheckIns: [],
     monthlyBudgets: {},
+    allocationInjections: {},
   }
 }
 
@@ -60,6 +61,7 @@ export function loadStore(): FinanceStore {
         : DEFAULT_OP_SUBCATEGORIES.map(s => ({ ...s })),
       monthlyCheckIns: parsed.monthlyCheckIns || [],
       monthlyBudgets: parsed.monthlyBudgets || {},
+      allocationInjections: parsed.allocationInjections || {},
     }
   } catch {
     return getDefaultStore()

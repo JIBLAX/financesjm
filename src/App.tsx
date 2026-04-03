@@ -76,7 +76,7 @@ const App: React.FC = () => {
             )}
             <Routes>
               <Route path="/" element={<DashboardPage store={store} onDismissAlert={finance.dismissAlert} />} />
-              <Route path="/vue" element={<VuePage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} onUpdateBudget={finance.updateBudget} />} />
+              <Route path="/vue" element={<VuePage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} onUpdateBudget={finance.updateBudget} onUpdateInjection={finance.updateAllocationInjection} />} />
               <Route path="/mois" element={<MonthPage store={store} journal={store.monthlyJournals} onUpdateJournal={finance.updateJournal} />} />
               <Route path="/comptes" element={<AccountsPage store={store} onAdd={finance.addAccount} onUpdate={finance.updateAccount} onRemove={finance.removeAccount} />} />
               <Route path="/analyse" element={<AnalysisPage store={store} />} />
