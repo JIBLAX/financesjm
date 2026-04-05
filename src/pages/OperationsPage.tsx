@@ -177,38 +177,16 @@ export const OperationsPage: React.FC<Props> = ({
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-4">
-      {/* Header — title + neon scope toggle + settings + add */}
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider shrink-0">Opérations</h1>
-
-        {/* Neon Perso / Pro toggle */}
-        <div className="flex items-center bg-muted/30 rounded-xl p-0.5 gap-0.5 flex-1 max-w-[140px] mx-auto">
-          <button
-            onClick={() => setScope('perso')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${isPerso
-              ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.35)]'
-              : 'text-muted-foreground'}`}
-          >
-            Perso
-          </button>
-          <button
-            onClick={() => setScope('pro')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${!isPerso
-              ? 'bg-violet-500/20 text-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.35)]'
-              : 'text-muted-foreground'}`}
-          >
-            Pro
-          </button>
-        </div>
-
+      {/* Header — title + action buttons */}
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Opérations</h1>
         <div className="flex gap-2 shrink-0">
           <button
             onClick={() => navigate('/transactions')}
-            className="flex items-center gap-1.5 px-2.5 h-9 rounded-xl bg-amber-500/15 text-amber-400 text-xs font-semibold border border-amber-500/25 active:bg-amber-500/25"
-            title="Transfert interne entre comptes"
+            className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-500/15 text-amber-400 border border-amber-500/25 active:bg-amber-500/25"
+            title="Transfert interne"
           >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Transfert</span>
+            <ArrowLeftRight className="w-4 h-4" />
           </button>
           <button onClick={() => setModal({ mode: 'cat_manage' })} className="w-9 h-9 rounded-xl bg-muted/30 text-muted-foreground flex items-center justify-center active:bg-muted/50">
             <Settings2 className="w-4 h-4" />
@@ -217,6 +195,28 @@ export const OperationsPage: React.FC<Props> = ({
             <Plus className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Scope toggle — dedicated full-width row */}
+      <div className="flex bg-muted/25 rounded-2xl p-1 gap-1">
+        <button
+          onClick={() => setScope('perso')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${isPerso
+            ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.25)]'
+            : 'text-muted-foreground'}`}
+        >
+          <span>👤</span>
+          <span>Personnel</span>
+        </button>
+        <button
+          onClick={() => setScope('pro')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${!isPerso
+            ? 'bg-violet-500/20 text-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.25)]'
+            : 'text-muted-foreground'}`}
+        >
+          <span>💼</span>
+          <span>Professionnel</span>
+        </button>
       </div>
 
       {/* Month navigation */}

@@ -218,6 +218,10 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const projects = store.projects || []
   const activeProjects = projects.filter(p => !p.completedAt).slice(0, 2)
 
+  const todayDate = new Date()
+  const greeting = todayDate.getHours() < 18 ? 'Bonjour' : 'Bonsoir'
+  const dateLabel = todayDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
   // ── Widget renderers ────────────────────────────────────────────────────────
 
   const renderWidget = (id: WidgetId) => {
@@ -481,26 +485,44 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="page-container pt-6 page-bottom-pad gap-5">
+    <div className="page-container pt-0 page-bottom-pad gap-5">
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="w-11 h-11 rounded-2xl bg-card border border-border/60 flex items-center justify-center text-2xl flex-shrink-0">
-            {level.emoji}
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-foreground leading-tight">JM</p>
-            <p className="text-[11px] text-muted-foreground leading-tight">Nv.{level.level} — {level.name}</p>
-          </div>
+      {/* Hero Banner */}
+      <div className="relative overflow-hidden rounded-b-3xl bg-gradient-to-br from-[hsl(240_28%_17%)] via-[hsl(245_22%_13%)] to-[hsl(240_18%_10%)] px-5 pt-14 pb-6 -mx-5 border-b border-white/5">
+        {/* Glow decorations */}
+        <div className="absolute -top-16 -right-12 w-56 h-56 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-4 left-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-8 w-32 h-24 bg-violet-500/10 rounded-full blur-2xl pointer-events-none" />
+
+        {/* Settings button */}
+        <button
+          onClick={() => { setEditMode(e => !e); setShowAdd(false) }}
+          className={`absolute top-5 right-5 p-2 rounded-xl border transition-colors ${editMode ? 'bg-primary/20 border-primary/50 text-primary' : 'bg-white/5 border-white/10 text-white/50'}`}>
+          <Settings2 className="w-4 h-4" />
+        </button>
+
+        {/* Greeting */}
+        <div className="relative mb-4">
+          <p className="text-[11px] text-white/40 uppercase tracking-[0.2em] font-semibold mb-1 capitalize">{dateLabel}</p>
+          <p className="text-3xl font-black text-white leading-tight">{greeting} JM <span className="not-italic">👋</span></p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${modeBadge.bg} ${modeBadge.text}`}>{modeBadge.label}</span>
-          <button
-            onClick={() => { setEditMode(e => !e); setShowAdd(false) }}
-            className={`p-2 rounded-xl border transition-colors ${editMode ? 'bg-primary/20 border-primary/50 text-primary' : 'bg-card border-border/40 text-muted-foreground'}`}>
-            <Settings2 className="w-4 h-4" />
-          </button>
+
+        {/* Level + XP */}
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <span className="text-3xl flex-shrink-0">{level.emoji}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-white/80 leading-tight">Nv.{level.level} — {level.name}</p>
+              <p className="text-[10px] text-white/35 mb-1.5">{store.settings.xp} XP{nextLevel ? ` · encore ${nextLevel.minXp - store.settings.xp} XP` : ''}</p>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden w-full max-w-[140px]">
+                <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-400 transition-all duration-700"
+                  style={{ width: `${xpPct}%` }} />
+              </div>
+            </div>
+          </div>
+          <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full border flex-shrink-0 ${modeBadge.bg} ${modeBadge.text}`}>
+            {modeBadge.label}
+          </span>
         </div>
       </div>
 
