@@ -83,8 +83,11 @@ export const PatrimoinePage: React.FC<Props> = ({
 
   const classBreakdown = useMemo(() => {
     const map: Record<string, number> = {}
-    const accountsCash = store.accounts.filter(a => a.isActive && a.type !== 'dette').reduce((s, a) => s + a.currentBalance, 0)
-    if (accountsCash > 0) map['cash'] = (map['cash'] || 0) + accountsCash
+    // Sépare trésorerie pro (type='pro') et perso (le reste)
+    store.accounts.filter(a => a.isActive && a.type !== 'dette').forEach(a => {
+      const cls = a.type === 'pro' ? 'cash_pro' : 'cash'
+      map[cls] = (map[cls] || 0) + a.currentBalance
+    })
     store.assets.forEach(a => {
       const cls = ASSET_CLASS_MAP[a.type] || 'autres'
       if (cls === 'dettes') map['dettes'] = (map['dettes'] || 0) + (a.outstandingBalance || a.value)
@@ -105,10 +108,15 @@ export const PatrimoinePage: React.FC<Props> = ({
   const detailAssets = useMemo((): DetailItem[] => {
     if (!detailClass) return []
     if (detailClass === 'cash') {
-      const typeOrder: Record<string, number> = { pro: 0, courant: 1, livret: 2, epargne_projet: 3, liquide: 4 }
       return store.accounts
-        .filter(a => a.isActive && a.type !== 'dette')
-        .sort((a, b) => (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99))
+        .filter(a => a.isActive && a.type !== 'dette' && a.type !== 'pro')
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(a => ({ id: a.id, itemType: 'account' as const, name: a.name, value: a.currentBalance, detail: a.institution }))
+    }
+    if (detailClass === 'cash_pro') {
+      return store.accounts
+        .filter(a => a.isActive && a.type === 'pro')
+        .sort((a, b) => a.name.localeCompare(b.name))
         .map(a => ({ id: a.id, itemType: 'account' as const, name: a.name, value: a.currentBalance, detail: a.institution }))
     }
     if (detailClass === 'dettes') {

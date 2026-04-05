@@ -204,7 +204,8 @@ export const ASSET_CLASS_MAP: Record<AssetType, string> = {
 }
 
 export const ASSET_CLASS_LABELS: Record<string, { label: string; color: string }> = {
-  cash: { label: 'Trésorerie', color: 'hsl(165 60% 45%)' },
+  cash:     { label: 'Trésorerie Perso', color: 'hsl(165 60% 45%)' },
+  cash_pro: { label: 'Trésorerie Pro',   color: 'hsl(220 70% 58%)' },
   epargne: { label: 'Épargne', color: 'hsl(38 70% 55%)' },
   marches: { label: 'Actions / ETF', color: 'hsl(210 70% 55%)' },
   crypto: { label: 'Crypto', color: 'hsl(280 60% 55%)' },

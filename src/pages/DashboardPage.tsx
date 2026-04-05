@@ -227,14 +227,15 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
       const [y, m] = checkIn.monthKey.split('-').map(Number)
       const raw = new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')
       const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
-      let epargne = 0, tresorerie = 0, crypto = 0, dettes = 0
+      let epargne = 0, tresoreriePerso = 0, tresoreriePro = 0, crypto = 0, dettes = 0
       // Comptes bancaires
       Object.entries(checkIn.accountBalances || {}).forEach(([accId, value]) => {
         const acc = store.accounts.find(a => a.id === accId)
         if (!acc) return
         if (acc.type === 'livret' || acc.type === 'epargne_projet') epargne += value
         else if (acc.type === 'dette') dettes += value
-        else tresorerie += value
+        else if (acc.type === 'pro') tresoreriePro += value
+        else tresoreriePerso += value
       })
       // Actifs
       Object.entries(checkIn.assetValues || {}).forEach(([assetId, value]) => {
@@ -242,13 +243,13 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
         if (!asset) return
         const cls = ASSET_CLASS_MAP[asset.type]
         if (cls === 'epargne') epargne += value
-        else if (cls === 'cash') tresorerie += value
+        else if (cls === 'cash') tresoreriePerso += value
         else if (cls === 'crypto') crypto += value
         else if (cls === 'dettes') dettes += value
       })
       // Dettes explicites
       Object.values(checkIn.debtBalances || {}).forEach(v => { dettes += v })
-      return { label, epargne, tresorerie, crypto, dettes }
+      return { label, epargne, tresoreriePerso, tresoreriePro, crypto, dettes }
     })
   }, [store.monthlyCheckIns, store.assets, store.accounts])
 
@@ -513,10 +514,11 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
 
       case 'evolution': {
         const EV_LINES = [
-          { key: 'epargne',   label: 'Épargne',     color: 'hsl(38 70% 55%)'  },
-          { key: 'dettes',    label: 'Dettes',      color: 'hsl(0 65% 52%)'   },
-          { key: 'tresorerie',label: 'Trésorerie',  color: 'hsl(165 60% 45%)' },
-          { key: 'crypto',    label: 'Crypto',      color: 'hsl(280 60% 55%)' },
+          { key: 'epargne',        label: 'Épargne',           color: 'hsl(38 70% 55%)'  },
+          { key: 'dettes',         label: 'Dettes',            color: 'hsl(0 65% 52%)'   },
+          { key: 'tresoreriePerso',label: 'Trésorerie Perso',  color: 'hsl(165 60% 45%)' },
+          { key: 'tresoreriePro',  label: 'Trésorerie Pro',    color: 'hsl(220 70% 58%)' },
+          { key: 'crypto',         label: 'Crypto',            color: 'hsl(280 60% 55%)' },
         ]
         return (
           <div className="rounded-2xl bg-card border border-border/40 p-4">
