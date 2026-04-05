@@ -93,8 +93,23 @@ export const OperationsPage: React.FC<Props> = ({
       list.push(op)
       map.set(op.categoryId, list)
     })
+    // Trier chaque groupe par date décroissante (plus récent en haut)
+    map.forEach((ops, key) => {
+      map.set(key, [...ops].sort((a, b) =>
+        (b.date || '').localeCompare(a.date || '')
+      ))
+    })
     return map
   }, [operations])
+
+  // Catégories triées par date de l'opération la plus récente
+  const sortedCategories = useMemo(() => {
+    return [...categories].sort((a, b) => {
+      const latestA = (grouped.get(a.id) || []).reduce((m, op) => op.date && op.date > m ? op.date : m, '')
+      const latestB = (grouped.get(b.id) || []).reduce((m, op) => op.date && op.date > m ? op.date : m, '')
+      return latestB.localeCompare(latestA)
+    })
+  }, [categories, grouped])
 
   const openAdd = (categoryId?: string) => setScopePicker({ categoryId })
 
@@ -220,7 +235,7 @@ export const OperationsPage: React.FC<Props> = ({
 
       {/* ── BUDGET VIEW (Fixes / Variables / Revenus) ── */}
       <>
-        {categories.map(cat => {
+        {sortedCategories.map(cat => {
             const ops = grouped.get(cat.id) || []
             if (ops.length === 0) return null
             const catTotal = ops.reduce((s, op) => s + (op.actual || op.forecast || 0), 0)
