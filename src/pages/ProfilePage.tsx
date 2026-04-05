@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, TrendingUp, Shield, ChevronDown, ChevronRight, Target, Sliders, Rocket } from 'lucide-react'
+import { ArrowLeft, TrendingUp, Shield, ChevronDown, ChevronRight, Sliders, Rocket } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getLevelForXp, getNextLevel, LEVELS } from '@/lib/constants'
 import { calculateHealthScore } from '@/lib/analytics'

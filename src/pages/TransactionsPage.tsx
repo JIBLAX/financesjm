@@ -24,10 +24,6 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Header-level scope toggle — drives both the list filter AND the add form
-  const [filterScope, setFilterScope] = useState<'perso' | 'pro'>('perso')
-
-
   const [showForm, setShowForm] = useState(false)
   const [filterMonth, setFilterMonth] = useState(getCurrentMonthKey())
   const [filterAccount, setFilterAccount] = useState('')
@@ -54,7 +50,6 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState(store.categories[0]?.id || '')
   const [note, setNote] = useState('')
-  const [formScope, setFormScope] = useState<'perso' | 'pro'>('perso')
 
   // Revenue fields
   const [revenueSource, setRevenueSource] = useState<RevenueSource>('autre')
@@ -180,22 +175,9 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const transferValid = !!transferFromResolved && !!transferToResolved &&
     transferFromResolved !== transferToResolved && !!transferAmount
 
-  const scopeAccounts = (s: 'perso' | 'pro') =>
-    s === 'pro'
-      ? store.accounts.filter(a => a.type === 'pro')
-      : store.accounts.filter(a => a.type !== 'pro')
-
-  const openForm = (targetScope = filterScope) => {
-    const accs = scopeAccounts(targetScope)
-    setFormScope(targetScope)
-    setAccountId(accs[0]?.id || store.accounts[0]?.id || '')
+  const openForm = () => {
+    setAccountId(store.accounts[0]?.id || '')
     setShowForm(true)
-  }
-
-  const changeFormScope = (s: 'perso' | 'pro') => {
-    setFormScope(s)
-    const accs = scopeAccounts(s)
-    setAccountId(accs[0]?.id || '')
   }
 
   const resetForm = () => {
@@ -250,24 +232,20 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
     resetForm()
   }
 
-  const formAccounts = scopeAccounts(formScope)
+  const formAccounts = store.accounts
 
   const filtered = useMemo(() => {
-    const scopeIds = new Set(scopeAccounts(filterScope).map(a => a.id))
     return store.transactions
       .filter(t => t.monthKey === filterMonth)
-      .filter(t => scopeIds.has(t.accountId))
       .filter(t => !filterAccount || t.accountId === filterAccount)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [store.transactions, filterMonth, filterScope, filterAccount, store.accounts]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [store.transactions, filterMonth, filterAccount])
 
   const getAccountName = (id: string) => store.accounts.find(a => a.id === id)?.name || ''
   const getCategoryName = (id: string) => {
     const cat = store.categories.find(c => c.id === id)
     return cat ? `${cat.icon} ${cat.name}` : ''
   }
-
-  const isPerso = filterScope === 'perso'
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-4">
@@ -278,26 +256,6 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
         </button>
         <h1 className="text-2xl font-extrabold text-white shrink-0">Transactions</h1>
 
-        {/* Neon Perso / Pro toggle */}
-        <div className="flex items-center bg-muted/30 rounded-xl p-0.5 gap-0.5 flex-1 max-w-[140px] mx-auto">
-          <button
-            onClick={() => { setFilterScope('perso'); setFilterAccount('') }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${isPerso
-              ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.35)]'
-              : 'text-muted-foreground'}`}
-          >
-            Perso
-          </button>
-          <button
-            onClick={() => { setFilterScope('pro'); setFilterAccount('') }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${!isPerso
-              ? 'bg-violet-500/20 text-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.35)]'
-              : 'text-muted-foreground'}`}
-          >
-            Pro
-          </button>
-        </div>
-
         <button
           onClick={() => { resetForm(); setShowTransfer(v => !v) }}
           className={`flex items-center gap-1.5 px-2.5 h-9 rounded-xl shrink-0 transition-colors text-xs font-semibold border ${showTransfer ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-muted/40 text-muted-foreground border-border/30'}`}
@@ -307,7 +265,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
         </button>
         <button
           onClick={() => { resetTransfer(); showForm ? resetForm() : openForm() }}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center text-primary-foreground shrink-0 transition-colors ${isPerso ? 'bg-cyan-500' : 'bg-violet-500'}`}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-primary-foreground shrink-0 transition-colors bg-primary"
         >
           <Plus className="w-5 h-5" />
         </button>
@@ -479,20 +437,6 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
       {/* Add form */}
       {showForm && (
         <FinanceCard className="space-y-3">
-          {/* Scope badge */}
-          <div className="flex items-center gap-2 pb-1">
-            <span className="text-lg">{formScope === 'pro' ? '💼' : '👤'}</span>
-            <span className={`text-sm font-semibold ${formScope === 'perso' ? 'text-cyan-400' : 'text-violet-400'}`}>
-              {formScope === 'pro' ? 'Professionnel' : 'Personnel'}
-            </span>
-            <button
-              onClick={() => changeFormScope(formScope === 'pro' ? 'perso' : 'pro')}
-              className="ml-auto text-xs text-muted-foreground px-2 py-0.5 rounded-lg bg-muted/30"
-            >
-              Changer
-            </button>
-          </div>
-
           <input
             className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
             placeholder={direction === 'income' ? 'Nom Prénom / Libellé' : 'Libellé'}
@@ -679,7 +623,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
 
           <div className="flex gap-2">
             <button onClick={resetForm} className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30">Annuler</button>
-            <button onClick={handleSubmit} className={`flex-2 basis-0 grow-[2] text-primary-foreground rounded-xl py-2.5 text-sm font-semibold ${formScope === 'perso' ? 'bg-cyan-500' : 'bg-violet-500'}`}>Enregistrer</button>
+            <button onClick={handleSubmit} className="flex-2 basis-0 grow-[2] text-primary-foreground rounded-xl py-2.5 text-sm font-semibold bg-primary">Enregistrer</button>
           </div>
         </FinanceCard>
       )}
@@ -697,8 +641,8 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
 
       {/* Account sub-filter */}
       <select className="w-full bg-card border border-border/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={filterAccount} onChange={e => setFilterAccount(e.target.value)}>
-        <option value="">Tous les comptes {filterScope === 'perso' ? 'perso' : 'pro'}</option>
-        {scopeAccounts(filterScope).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        <option value="">Tous les comptes</option>
+        {store.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
       </select>
 
       {/* Transaction list */}
@@ -744,7 +688,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
         })}
         {filtered.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">
-            Aucune transaction {filterScope === 'perso' ? 'perso' : 'pro'} ce mois
+            Aucune transaction ce mois
           </p>
         )}
       </div>
