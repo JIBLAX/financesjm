@@ -7,27 +7,29 @@ import type { FinanceStore } from '@/types/finance'
 import {
   AreaChart, Area, ResponsiveContainer,
   BarChart, Bar, XAxis, Tooltip,
+  LineChart, Line, YAxis,
 } from 'recharts'
 
 // ── Widget types ──────────────────────────────────────────────────────────────
 
-type WidgetId = 'solde_total' | 'comptes' | 'actifs' | 'entrees' | 'depenses' | 'cashflow' | 'dette' | 'profil_mode' | 'quete' | 'missions' | 'objectifs'
+type WidgetId = 'solde_total' | 'comptes' | 'actifs' | 'entrees' | 'depenses' | 'cashflow' | 'dette' | 'profil_mode' | 'quete' | 'missions' | 'objectifs' | 'evolution'
 
 const WIDGET_META: Record<WidgetId, { label: string; emoji: string }> = {
-  solde_total: { label: 'Patrimoine net',    emoji: '💎' },
-  comptes:     { label: 'Comptes',           emoji: '🏦' },
-  actifs:      { label: 'Actifs',            emoji: '📈' },
-  entrees:     { label: 'Revenus',           emoji: '💰' },
-  depenses:    { label: 'Dépenses',          emoji: '💸' },
-  cashflow:    { label: 'Cashflow 6 mois',   emoji: '📊' },
-  dette:       { label: 'Dettes',            emoji: '📉' },
-  profil_mode: { label: 'Profil & Mode',     emoji: '🎯' },
-  quete:       { label: 'Alertes & Insights', emoji: '✨' },
-  missions:    { label: 'Guide Financier',   emoji: '🗺️' },
-  objectifs:   { label: 'Objectifs',         emoji: '🎁' },
+  solde_total: { label: 'Patrimoine net',      emoji: '💎' },
+  comptes:     { label: 'Comptes',             emoji: '🏦' },
+  actifs:      { label: 'Actifs',              emoji: '📈' },
+  entrees:     { label: 'Revenus',             emoji: '💰' },
+  depenses:    { label: 'Dépenses',            emoji: '💸' },
+  cashflow:    { label: 'Cashflow 6 mois',     emoji: '📊' },
+  dette:       { label: 'Dettes',              emoji: '📉' },
+  profil_mode: { label: 'Profil & Mode',       emoji: '🎯' },
+  quete:       { label: 'Alertes & Insights',  emoji: '✨' },
+  missions:    { label: 'Guide Financier',     emoji: '🗺️' },
+  objectifs:   { label: 'Objectifs',           emoji: '🎁' },
+  evolution:   { label: 'Évolution Finances',  emoji: '📉' },
 }
 
-const DEFAULT_LAYOUT: WidgetId[] = ['solde_total', 'comptes', 'actifs', 'entrees', 'depenses', 'missions', 'objectifs', 'cashflow', 'dette', 'quete']
+const DEFAULT_LAYOUT: WidgetId[] = ['solde_total', 'comptes', 'actifs', 'entrees', 'depenses', 'evolution', 'missions', 'objectifs', 'cashflow', 'dette', 'quete']
 
 function loadLayout(): WidgetId[] {
   const valid = new Set(Object.keys(WIDGET_META) as WidgetId[])
@@ -217,6 +219,18 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const missionsPct = missions.length > 0 ? Math.round((missions.filter(m => m.completed).length / missions.length) * 100) : 0
   const projects = store.projects || []
   const activeProjects = projects.filter(p => !p.completedAt).slice(0, 2)
+
+  const evolutionData = useMemo(() => {
+    const snaps = [...store.monthlySnapshots].sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+    if (snaps.length === 0) return []
+    return snaps.map(s => {
+      const [y, m] = s.monthKey.split('-').map(Number)
+      const raw = new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')
+      const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
+      const comptes = Math.max(0, s.netWorth - s.totalAssets + s.totalDebts)
+      return { label, patrimoine: s.netWorth, comptes, actifs: s.totalAssets }
+    })
+  }, [store.monthlySnapshots])
 
   const todayDate = new Date()
   const greeting = todayDate.getHours() < 18 ? 'Bonjour' : 'Bonsoir'
@@ -475,6 +489,61 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
             <span className="text-2xl">🎁</span>
             <p className="text-xs text-muted-foreground mt-1">Crée ton premier objectif d'épargne</p>
           </button>
+        )
+
+      case 'evolution':
+        return (
+          <div className="rounded-2xl bg-card border border-border/40 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Évolution Finances</h2>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Bilans mensuels cumulés</p>
+              </div>
+              <div className="flex flex-col gap-1 items-end">
+                <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />Patrimoine</span>
+                <span className="flex items-center gap-1.5 text-[10px] text-cyan-400 font-semibold"><span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" />Comptes</span>
+                <span className="flex items-center gap-1.5 text-[10px] text-violet-400 font-semibold"><span className="w-2 h-2 rounded-full bg-violet-400 inline-block" />Actifs</span>
+              </div>
+            </div>
+            {evolutionData.length >= 2 ? (
+              <ResponsiveContainer width="100%" height={150}>
+                <LineChart data={evolutionData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="evGrad1" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#10b981" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis hide domain={['auto', 'auto']} />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      return (
+                        <div className="bg-card/95 backdrop-blur-sm border border-border/60 rounded-xl px-3 py-2 text-xs shadow-2xl">
+                          <p className="text-muted-foreground font-semibold mb-1.5 uppercase tracking-wider text-[10px]">{label}</p>
+                          {payload.map((p: any) => (
+                            <p key={p.dataKey} className="font-medium" style={{ color: p.stroke }}>
+                              {p.dataKey === 'patrimoine' ? 'Patrimoine' : p.dataKey === 'comptes' ? 'Comptes' : 'Actifs'} {formatCurrency(p.value)}
+                            </p>
+                          ))}
+                        </div>
+                      )
+                    }}
+                    cursor={{ stroke: 'hsl(215 10% 35%)', strokeWidth: 1, strokeDasharray: '4 2' }}
+                  />
+                  <Line type="monotone" dataKey="patrimoine" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: '#10b981' }} />
+                  <Line type="monotone" dataKey="comptes"    stroke="#22d3ee" strokeWidth={2}   dot={false} activeDot={{ r: 4, fill: '#22d3ee' }} />
+                  <Line type="monotone" dataKey="actifs"     stroke="#a78bfa" strokeWidth={2}   dot={false} activeDot={{ r: 4, fill: '#a78bfa' }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[150px] flex flex-col items-center justify-center gap-2">
+                <span className="text-3xl opacity-30">📉</span>
+                <p className="text-xs text-muted-foreground text-center">Les courbes apparaîtront après le premier bilan mensuel</p>
+              </div>
+            )}
+          </div>
         )
 
       default:

@@ -164,8 +164,8 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         </button>
       </div>
 
-      {/* Summary 3 tiles */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Summary 2 tiles */}
+      <div className="grid grid-cols-2 gap-2">
         <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/20 p-3 text-center">
           <p className="text-[9px] text-emerald-400/70 uppercase tracking-wider font-semibold mb-0.5">Revenus</p>
           <p className="text-base font-black text-emerald-400">{formatCurrency(totals.revActual)}</p>
@@ -175,11 +175,6 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
           <p className="text-[9px] text-rose-400/70 uppercase tracking-wider font-semibold mb-0.5">Dépenses</p>
           <p className="text-base font-black text-rose-400">{formatCurrency(totals.chargeActual)}</p>
           <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.chargeForecast)}</p>
-        </div>
-        <div className={`rounded-2xl p-3 text-center ${totals.solde >= 0 ? 'bg-emerald-500/5 border border-emerald-500/20' : 'bg-rose-500/5 border border-rose-500/20'}`}>
-          <p className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${totals.solde >= 0 ? 'text-emerald-400/70' : 'text-rose-400/70'}`}>Solde</p>
-          <p className={`text-base font-black ${totals.solde >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(totals.solde)}</p>
-          <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.soldeForecast)}</p>
         </div>
       </div>
 
