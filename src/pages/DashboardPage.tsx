@@ -514,63 +514,91 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
 
       case 'evolution': {
         const EV_LINES = [
-          { key: 'epargne',        label: 'Épargne',           color: 'hsl(38 70% 55%)'  },
-          { key: 'dettes',         label: 'Dettes',            color: 'hsl(0 65% 52%)'   },
-          { key: 'tresoreriePerso',label: 'Trésorerie Perso',  color: 'hsl(165 60% 45%)' },
-          { key: 'tresoreriePro',  label: 'Trésorerie Pro',    color: 'hsl(220 70% 58%)' },
-          { key: 'crypto',         label: 'Crypto',            color: 'hsl(280 60% 55%)' },
+          { key: 'epargne',         label: 'Épargne',          color: 'hsl(38 70% 55%)'  },
+          { key: 'dettes',          label: 'Dettes',           color: 'hsl(0 65% 52%)'   },
+          { key: 'tresoreriePerso', label: 'Tréso. Perso',     color: 'hsl(165 60% 45%)' },
+          { key: 'tresoreriePro',   label: 'Tréso. Pro',       color: 'hsl(220 70% 58%)' },
+          { key: 'crypto',          label: 'Crypto',           color: 'hsl(280 60% 55%)' },
         ]
+        // Valeurs live depuis le store (snapshot courant)
+        const live: Record<string, number> = {
+          epargne: store.accounts.filter(a => a.isActive && (a.type === 'livret' || a.type === 'epargne_projet')).reduce((s, a) => s + a.currentBalance, 0)
+            + store.assets.filter(a => ASSET_CLASS_MAP[a.type] === 'epargne').reduce((s, a) => s + a.value, 0),
+          tresoreriePerso: store.accounts.filter(a => a.isActive && !['pro', 'dette', 'livret', 'epargne_projet'].includes(a.type)).reduce((s, a) => s + a.currentBalance, 0)
+            + store.assets.filter(a => ASSET_CLASS_MAP[a.type] === 'cash').reduce((s, a) => s + a.value, 0),
+          tresoreriePro: store.accounts.filter(a => a.isActive && a.type === 'pro').reduce((s, a) => s + a.currentBalance, 0),
+          crypto: store.assets.filter(a => a.type === 'crypto').reduce((s, a) => s + a.value, 0),
+          dettes: store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
+            + store.assets.filter(a => a.type === 'dette').reduce((s, a) => s + (a.outstandingBalance || a.value), 0),
+        }
+        const livePositiveTotal = EV_LINES.filter(l => l.key !== 'dettes').reduce((s, l) => s + (live[l.key] || 0), 0)
+        const hasChart = evolutionData.length >= 2
         return (
-          <div className="rounded-2xl bg-card border border-border/40 p-4">
-            <div className="flex items-start justify-between mb-4">
+          <div className="rounded-2xl bg-card border border-border/40 p-4 space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Évolution Finances</h2>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Bilans mensuels</p>
-              </div>
-              <div className="flex flex-col gap-1 items-end">
-                {EV_LINES.map(l => (
-                  <span key={l.key} className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: l.color }}>
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: l.color }} />
-                    {l.label}
-                  </span>
-                ))}
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {hasChart ? `${evolutionData.length} bilans` : 'Snapshot actuel'}
+                </p>
               </div>
             </div>
-            {evolutionData.length >= 1 ? (
-              <ResponsiveContainer width="100%" height={160}>
-                <LineChart data={evolutionData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis hide domain={['auto', 'auto']} />
-                  <Tooltip
-                    content={({ active, payload, label: lbl }) => {
-                      if (!active || !payload?.length) return null
-                      return (
-                        <div className="bg-card/95 backdrop-blur-sm border border-border/60 rounded-xl px-3 py-2 text-xs shadow-2xl">
-                          <p className="text-muted-foreground font-semibold mb-1.5 uppercase tracking-wider text-[10px]">{lbl}</p>
-                          {EV_LINES.map(l => {
-                            const entry = payload.find((p: any) => p.dataKey === l.key)
-                            if (!entry) return null
-                            return (
-                              <p key={l.key} className="font-medium" style={{ color: l.color }}>
-                                {l.label} {formatCurrency(entry.value as number)}
-                              </p>
-                            )
-                          })}
-                        </div>
-                      )
-                    }}
-                    cursor={{ stroke: 'hsl(215 10% 35%)', strokeWidth: 1, strokeDasharray: '4 2' }}
-                  />
-                  {EV_LINES.map(l => (
-                    <Line key={l.key} type="monotone" dataKey={l.key} stroke={l.color} strokeWidth={2} dot={evolutionData.length === 1 ? { r: 4, fill: l.color } : false} activeDot={{ r: 4 }} connectNulls />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[160px] flex flex-col items-center justify-center gap-2">
-                <span className="text-3xl opacity-30">📉</span>
-                <p className="text-xs text-muted-foreground text-center">Les courbes apparaîtront après le premier bilan mensuel</p>
+
+            {/* Breakdown list — toujours visible */}
+            <div className="space-y-2">
+              {EV_LINES.map(l => {
+                const val = live[l.key] || 0
+                const pct = l.key === 'dettes'
+                  ? (livePositiveTotal > 0 ? Math.min(100, (val / livePositiveTotal) * 100) : 0)
+                  : (livePositiveTotal > 0 ? (val / livePositiveTotal) * 100 : 0)
+                return (
+                  <div key={l.key} className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: l.color }} />
+                    <span className="text-[11px] text-muted-foreground flex-1 truncate">{l.label}</span>
+                    <div className="w-16 h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: l.color }} />
+                    </div>
+                    <span className="text-[11px] font-semibold text-foreground w-[72px] text-right tabular-nums">{formatCurrency(val)}</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Courbes — uniquement avec 2+ bilans */}
+            {hasChart && (
+              <div className="border-t border-border/20 pt-3">
+                <ResponsiveContainer width="100%" height={110}>
+                  <LineChart data={evolutionData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                    <YAxis hide domain={['auto', 'auto']} />
+                    <Tooltip
+                      content={({ active, payload, label: lbl }) => {
+                        if (!active || !payload?.length) return null
+                        return (
+                          <div className="bg-card/95 backdrop-blur-sm border border-border/60 rounded-xl px-3 py-2 text-xs shadow-2xl">
+                            <p className="text-muted-foreground font-semibold mb-1 uppercase tracking-wider text-[10px]">{lbl}</p>
+                            {EV_LINES.map(l => {
+                              const entry = payload.find((p: any) => p.dataKey === l.key)
+                              if (!entry) return null
+                              return <p key={l.key} className="font-medium" style={{ color: l.color }}>{l.label} {formatCurrency(entry.value as number)}</p>
+                            })}
+                          </div>
+                        )
+                      }}
+                      cursor={{ stroke: 'hsl(215 10% 35%)', strokeWidth: 1, strokeDasharray: '4 2' }}
+                    />
+                    {EV_LINES.map(l => (
+                      <Line key={l.key} type="monotone" dataKey={l.key} stroke={l.color} strokeWidth={2} dot={false} activeDot={{ r: 3, fill: l.color }} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
+            )}
+            {!hasChart && (
+              <p className="text-[10px] text-muted-foreground/40 text-center border-t border-border/20 pt-2">
+                Les courbes apparaîtront après 2 bilans
+              </p>
             )}
           </div>
         )
