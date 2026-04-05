@@ -370,30 +370,58 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
           </button>
         )
 
-      case 'cashflow':
+      case 'cashflow': {
+        const activeCashflow = barData.filter(d => d.income > 0 || d.expense > 0)
+        const totalIncome  = activeCashflow.reduce((s, d) => s + d.income, 0)
+        const totalExpense = activeCashflow.reduce((s, d) => s + d.expense, 0)
+        const cashflowMax  = Math.max(totalIncome, totalExpense, 1)
+        const hasCashflowChart = activeCashflow.length >= 2
         return (
-          <div className="rounded-2xl bg-card border border-border/40 p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Cashflow 6 mois</h2>
-              <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />Revenus
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px] text-orange-400 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-orange-400" />Dépenses
-                </span>
-              </div>
+          <div className="rounded-2xl bg-card border border-border/40 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Cashflow</h2>
+              <span className="text-[10px] text-muted-foreground">
+                {activeCashflow.length > 0 ? `${activeCashflow.length} mois` : 'Aucune donnée'}
+              </span>
             </div>
-            <ResponsiveContainer width="100%" height={120}>
-              <BarChart data={barData} barGap={3} barCategoryGap="30%">
-                <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<BarTooltip />} cursor={{ fill: 'hsl(225 12% 16% / 0.5)', radius: 6 }} />
-                <Bar dataKey="income"  fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                <Bar dataKey="expense" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={22} />
-              </BarChart>
-            </ResponsiveContainer>
+            {/* Résumé — toujours visible */}
+            <div className="space-y-2">
+              {[
+                { label: 'Revenus',   val: totalIncome,  color: '#10b981' },
+                { label: 'Dépenses',  val: totalExpense, color: '#f97316' },
+              ].map(row => (
+                <div key={row.label} className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
+                  <span className="text-[11px] text-muted-foreground flex-1">{row.label}</span>
+                  <div className="w-16 h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${(row.val / cashflowMax) * 100}%`, background: row.color }} />
+                  </div>
+                  <span className="text-[11px] font-semibold text-foreground w-[72px] text-right tabular-nums">{formatCurrency(row.val)}</span>
+                </div>
+              ))}
+            </div>
+            {/* Barres mensuelles — seulement si 2+ mois avec données */}
+            {hasCashflowChart && (
+              <div className="border-t border-border/20 pt-3">
+                <ResponsiveContainer width="100%" height={100}>
+                  <BarChart data={activeCashflow} barGap={3} barCategoryGap="30%">
+                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<BarTooltip />} cursor={{ fill: 'hsl(225 12% 16% / 0.5)', radius: 6 }} />
+                    <Bar dataKey="income"  fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="expense" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {!hasCashflowChart && activeCashflow.length === 0 && (
+              <p className="text-[10px] text-muted-foreground/40 text-center border-t border-border/20 pt-2">Les barres mensuelles apparaîtront dès que tu auras des données</p>
+            )}
+            {!hasCashflowChart && activeCashflow.length === 1 && (
+              <p className="text-[10px] text-muted-foreground/40 text-center border-t border-border/20 pt-2">Les barres apparaîtront à partir de 2 mois de données</p>
+            )}
           </div>
         )
+      }
 
       case 'dette':
         return stats.totalDebts > 0 ? (

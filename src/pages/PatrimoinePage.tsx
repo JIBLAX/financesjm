@@ -345,97 +345,89 @@ export const PatrimoinePage: React.FC<Props> = ({
             </div>
             {detailAssets.length > 0 ? (
               <>
-                {/* Monthly evolution chart */}
-                {detailChartData ? (
-                  <div className="mb-4">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Évolution mensuelle</p>
-                    {/* Scrollable container */}
-                    <div className="overflow-x-auto -mx-1 px-1 pb-1" style={{ WebkitOverflowScrolling: 'touch' as any }}>
-                      <div style={{ width: Math.max(detailChartData.monthCount * 56, 300) }}>
-                        <LineChart
-                          width={Math.max(detailChartData.monthCount * 56, 300)}
-                          height={200}
-                          data={detailChartData.data}
-                          margin={{ top: 8, right: 12, bottom: 8, left: 8 }}
-                        >
-                          <XAxis
-                            dataKey="month"
-                            tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)' }}
-                            axisLine={false} tickLine={false}
-                          />
-                          <YAxis
-                            tickFormatter={(v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v))}
-                            tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)' }}
-                            axisLine={false} tickLine={false}
-                            width={36}
-                          />
-                          <Tooltip
-                            formatter={(val: number) => val !== null ? formatCurrency(val) : null}
-                            contentStyle={{ background: 'hsl(225 12% 13%)', border: '1px solid hsl(215 10% 22%)', borderRadius: 12, fontSize: 11 }}
-                            labelStyle={{ color: 'hsl(215 10% 60%)', marginBottom: 4 }}
-                            itemStyle={{ fontWeight: 600 }}
-                          />
-                          <Legend
-                            verticalAlign="bottom"
-                            iconType="square"
-                            iconSize={8}
-                            wrapperStyle={{ fontSize: 10, color: 'hsl(215 10% 55%)', paddingTop: 8 }}
-                          />
-                          {detailChartData.items.map((item, i) => {
-                            const color = DONUT_COLORS[i % DONUT_COLORS.length]
-                            return (
-                              <Line
-                                key={item.id}
-                                dataKey={item.id}
-                                name={item.name}
-                                stroke={color}
-                                strokeWidth={2}
-                                dot={(props: any) => {
-                                  if (props.value === null || props.value === undefined) return <g key={props.key} />
-                                  return <circle key={props.key} cx={props.cx} cy={props.cy} r={3} fill={color} stroke="none" />
-                                }}
-                                activeDot={{ r: 5, strokeWidth: 0, fill: color }}
-                                connectNulls={false}
-                                type="monotone"
-                              />
-                            )
-                          })}
-                        </LineChart>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mb-4 rounded-xl bg-muted/20 border border-border/30 px-4 py-5 text-center">
-                    <p className="text-[11px] text-muted-foreground">Aucun historique mensuel</p>
-                    <p className="text-[10px] text-muted-foreground/50 mt-1">Les données apparaîtront après le premier bilan mensuel</p>
-                  </div>
-                )}
-
-                {/* Current values list */}
-                <div className="space-y-0">
+                {/* Liste des valeurs actuelles — toujours en premier */}
+                <div className="space-y-0 mb-3">
                   {detailAssets.map((a, i) => {
                     const color = DONUT_COLORS[i % DONUT_COLORS.length]
+                    const totalClass = detailAssets.reduce((s, x) => s + x.value, 0)
+                    const pct = totalClass > 0 ? (a.value / totalClass) * 100 : 0
                     return (
-                      <div key={a.id} className="flex justify-between items-center py-2.5 border-b border-border/20 last:border-0">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{a.name}</p>
-                            {a.detail && <p className="text-[10px] text-muted-foreground">{a.detail}</p>}
-                            {a.extra && <p className="text-[10px] text-primary">{a.extra}</p>}
-                          </div>
+                      <div key={a.id} className="flex items-center gap-2.5 py-2.5 border-b border-border/20 last:border-0">
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{a.name}</p>
+                          {a.detail && <p className="text-[10px] text-muted-foreground">{a.detail}</p>}
+                          {a.extra && <p className="text-[10px] text-primary">{a.extra}</p>}
                         </div>
-                        <p className={`text-sm font-bold shrink-0 ml-3 ${detailClass === 'dettes' ? 'text-destructive' : 'text-foreground'}`}>
+                        <div className="w-12 h-1.5 rounded-full bg-muted/40 overflow-hidden mr-2">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                        </div>
+                        <p className={`text-sm font-bold shrink-0 w-[72px] text-right tabular-nums ${detailClass === 'dettes' ? 'text-destructive' : 'text-foreground'}`}>
                           {formatCurrency(a.value)}
                         </p>
                       </div>
                     )
                   })}
                 </div>
-                <div className="mt-3 pt-3 border-t border-border/50 flex justify-between">
+                <div className="pb-3 border-b border-border/30 flex justify-between">
                   <span className="text-xs font-semibold text-muted-foreground">Total actuel</span>
                   <span className="text-sm font-bold text-foreground">{formatCurrency(detailAssets.reduce((s, a) => s + a.value, 0))}</span>
                 </div>
+
+                {/* Évolution mensuelle — seulement si 2+ bilans avec données */}
+                {(() => {
+                  const pointsWithData = detailChartData
+                    ? detailChartData.data.filter(pt => detailChartData.items.some(item => pt[item.id] !== null)).length
+                    : 0
+                  if (!detailChartData || pointsWithData < 2) {
+                    return (
+                      <p className="text-[10px] text-muted-foreground/40 text-center py-3">
+                        La courbe d'évolution apparaîtra après 2 bilans
+                      </p>
+                    )
+                  }
+                  return (
+                    <div className="mt-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Évolution mensuelle</p>
+                      <div className="overflow-x-auto -mx-1 px-1 pb-1" style={{ WebkitOverflowScrolling: 'touch' as any }}>
+                        <div style={{ width: Math.max(detailChartData.monthCount * 56, 300) }}>
+                          <LineChart
+                            width={Math.max(detailChartData.monthCount * 56, 300)}
+                            height={160}
+                            data={detailChartData.data}
+                            margin={{ top: 8, right: 12, bottom: 8, left: 8 }}
+                          >
+                            <XAxis dataKey="month" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)' }} axisLine={false} tickLine={false} />
+                            <YAxis
+                              tickFormatter={(v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v))}
+                              tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)' }}
+                              axisLine={false} tickLine={false} width={36}
+                            />
+                            <Tooltip
+                              formatter={(val: number) => val !== null ? formatCurrency(val) : null}
+                              contentStyle={{ background: 'hsl(225 12% 13%)', border: '1px solid hsl(215 10% 22%)', borderRadius: 12, fontSize: 11 }}
+                              labelStyle={{ color: 'hsl(215 10% 60%)', marginBottom: 4 }}
+                              itemStyle={{ fontWeight: 600 }}
+                            />
+                            {detailChartData.items.map((item, i) => {
+                              const color = DONUT_COLORS[i % DONUT_COLORS.length]
+                              return (
+                                <Line key={item.id} dataKey={item.id} name={item.name} stroke={color} strokeWidth={2}
+                                  dot={(props: any) => {
+                                    if (props.value === null || props.value === undefined) return <g key={props.key} />
+                                    return <circle key={props.key} cx={props.cx} cy={props.cy} r={3} fill={color} stroke="none" />
+                                  }}
+                                  activeDot={{ r: 5, strokeWidth: 0, fill: color }}
+                                  connectNulls={false} type="monotone"
+                                />
+                              )
+                            })}
+                          </LineChart>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
               </>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">Aucun actif dans cette catégorie</p>
