@@ -86,8 +86,8 @@ const App: React.FC = () => {
               <Route path="/plan" element={<PlanPage store={store} />} />
               <Route path="/patrimoine" element={<PatrimoinePage store={store} onAddAsset={finance.addAsset} onUpdateAsset={finance.updateAsset} onRemoveAsset={finance.removeAsset} onAddDebt={finance.addDebt} onUpdateDebt={finance.updateDebt} onRemoveDebt={finance.removeDebt} />} />
               <Route path="/plus" element={<MorePage />} />
-              <Route path="/transactions" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} />} />
-              <Route path="/transactions/new" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} />} />
+              <Route path="/transactions" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} onUpdateAsset={finance.updateAsset} />} />
+              <Route path="/transactions/new" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} onUpdateAsset={finance.updateAsset} />} />
               <Route path="/depenses" element={<ExpensesPage store={store} />} />
               <Route path="/export" element={<ExportPage onImport={handleImport} onReset={handleReset} />} />
               <Route path="/parametres" element={<SettingsPage settings={store.settings} accounts={store.accounts} onUpdate={finance.updateSettings} onUpdateRegulation={finance.updateProfileRegulation} onLock={handleLock} />} />

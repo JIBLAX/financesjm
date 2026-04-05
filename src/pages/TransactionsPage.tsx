@@ -1,15 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight, ArrowLeftRight } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight, ArrowLeftRight, ChevronDown } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
-import { formatCurrency, getCurrentMonthKey, getMonthLabel, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, BE_ACTIV_OFFER_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS } from '@/lib/constants'
+import { formatCurrency, getCurrentMonthKey, getMonthLabel, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, BE_ACTIV_OFFER_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants'
 import { NON_REAL_REVENUE_TYPES } from '@/types/finance'
-import type { FinanceStore, Transaction, RevenueSource, RevenueType, RevenueRecurrence, BeActivOffer, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
+import type { FinanceStore, Transaction, Asset, RevenueSource, RevenueType, RevenueRecurrence, BeActivOffer, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
   onAdd: (t: Transaction) => void
   onDelete: (id: string) => void
+  onUpdateAsset: (id: string, patch: Partial<Asset>) => void
 }
 
 const todayISO = () => new Date().toISOString().split('T')[0]
@@ -19,7 +20,7 @@ const formatTxDate = (iso: string) => {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 
-export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) => {
+export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUpdateAsset }) => {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -77,66 +78,107 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
 
   // Transfer interne state
   const [showTransfer, setShowTransfer] = useState(false)
+  // 'acc:{id}' | 'asset:{id}' | '__crypto__'
   const [transferFrom, setTransferFrom] = useState('')
   const [transferTo, setTransferTo] = useState('')
+  // Sub-sélection crypto (quand __crypto__ choisi)
+  const [transferFromCrypto, setTransferFromCrypto] = useState('')
+  const [transferToCrypto, setTransferToCrypto] = useState('')
   const [transferAmount, setTransferAmount] = useState('')
   const [transferFees, setTransferFees] = useState('')
   const [transferDate, setTransferDate] = useState(todayISO())
   const [transferLabel, setTransferLabel] = useState('')
 
+  const cryptoAssets = useMemo(() => store.assets.filter(a => a.type === 'crypto'), [store.assets])
+  const nonCryptoAssets = useMemo(() => store.assets.filter(a => a.type !== 'crypto' && a.type !== 'dette'), [store.assets])
+
+  // Résout le vrai identifiant cible (ex: __crypto__ + sub → asset:id)
+  const resolveTarget = (target: string, cryptoSub: string): string => {
+    if (target === '__crypto__') return cryptoSub ? `asset:${cryptoSub}` : ''
+    return target
+  }
+
+  // Nom affiché pour un identifiant cible
+  const targetLabel = (target: string, cryptoSub: string): string => {
+    const resolved = resolveTarget(target, cryptoSub)
+    if (!resolved) return ''
+    if (resolved.startsWith('acc:')) return store.accounts.find(a => a.id === resolved.slice(4))?.name || ''
+    if (resolved.startsWith('asset:')) {
+      const a = store.assets.find(x => x.id === resolved.slice(6))
+      return a ? `${ASSET_TYPE_ICONS[a.type] || '📦'} ${a.name}` : ''
+    }
+    return ''
+  }
+
   const resetTransfer = () => {
     setShowTransfer(false)
     setTransferFrom(''); setTransferTo('')
+    setTransferFromCrypto(''); setTransferToCrypto('')
     setTransferAmount(''); setTransferFees(''); setTransferLabel('')
     setTransferDate(todayISO())
   }
 
   const handleTransfer = () => {
-    if (!transferAmount || !transferFrom || !transferTo || transferFrom === transferTo) return
-    const amt = Number(transferAmount)
+    const resolvedFrom = resolveTarget(transferFrom, transferFromCrypto)
+    const resolvedTo   = resolveTarget(transferTo,   transferToCrypto)
+    if (!resolvedFrom || !resolvedTo || resolvedFrom === resolvedTo || !transferAmount) return
+    const amt  = Number(transferAmount)
     const fees = Number(transferFees) || 0
     if (!amt) return
+
+    const fromAccId   = resolvedFrom.startsWith('acc:')   ? resolvedFrom.slice(4)  : null
+    const fromAssetId = resolvedFrom.startsWith('asset:') ? resolvedFrom.slice(6)  : null
+    const toAccId     = resolvedTo.startsWith('acc:')     ? resolvedTo.slice(4)    : null
+    const toAssetId   = resolvedTo.startsWith('asset:')   ? resolvedTo.slice(6)    : null
+
+    const fromName = targetLabel(transferFrom, transferFromCrypto)
+    const toName   = targetLabel(transferTo,   transferToCrypto)
+    const lbl      = transferLabel || `Transfert ${fromName} → ${toName}`
     const dateMonthKey = transferDate.substring(0, 7)
-    const fromAcc = store.accounts.find(a => a.id === transferFrom)
-    const toAcc = store.accounts.find(a => a.id === transferTo)
-    const lbl = transferLabel || `Transfert ${fromAcc?.name || ''} → ${toAcc?.name || ''}`
-    // Find "Frais" category or fallback to first
-    const fraisCategory = store.categories.find(c =>
+    const isoDate  = new Date(transferDate + 'T12:00:00').toISOString()
+    const fraisCat = store.categories.find(c =>
       c.name.toLowerCase().includes('frais') || c.name.toLowerCase().includes('banque')
     ) || store.categories[0]
-    const base: Omit<Transaction, 'id' | 'direction' | 'accountId' | 'label'> = {
-      date: new Date(transferDate + 'T12:00:00').toISOString(),
-      amount: amt,
-      sourceType: 'bank',
+    const baseTx: Omit<Transaction, 'id' | 'direction' | 'accountId' | 'label'> = {
+      date: isoDate, amount: amt, sourceType: 'bank',
       categoryId: store.categories[0]?.id || '',
-      monthKey: dateMonthKey,
-      note: 'Transfert interne',
-      isRecurring: false,
-      revenueType: 'transfert_interne',
-      isRealRevenue: false,
+      monthKey: dateMonthKey, note: 'Transfert interne',
+      isRecurring: false, revenueType: 'transfert_interne', isRealRevenue: false,
     }
-    // Sortie du compte source
-    onAdd({ ...base, id: crypto.randomUUID(), direction: 'expense', accountId: transferFrom, label: `${lbl} (sortie)` })
-    // Entrée sur le compte destination
-    onAdd({ ...base, id: crypto.randomUUID(), direction: 'income', accountId: transferTo, label: `${lbl} (entrée)`, revenueSource: 'virement_interne' })
-    // Frais bancaires (si renseignés)
-    if (fees > 0) {
+
+    // Côté source
+    if (fromAccId) {
+      onAdd({ ...baseTx, id: crypto.randomUUID(), direction: 'expense', accountId: fromAccId, label: `${lbl} (sortie)` })
+    } else if (fromAssetId) {
+      const asset = store.assets.find(a => a.id === fromAssetId)
+      if (asset) onUpdateAsset(fromAssetId, { value: Math.max(0, asset.value - amt), updatedAt: new Date().toISOString() })
+    }
+
+    // Côté destination
+    if (toAccId) {
+      onAdd({ ...baseTx, id: crypto.randomUUID(), direction: 'income', accountId: toAccId, label: `${lbl} (entrée)`, revenueSource: 'virement_interne' })
+    } else if (toAssetId) {
+      const asset = store.assets.find(a => a.id === toAssetId)
+      if (asset) onUpdateAsset(toAssetId, { value: asset.value + amt, updatedAt: new Date().toISOString() })
+    }
+
+    // Frais bancaires (déduits du compte source uniquement)
+    if (fees > 0 && fromAccId) {
       onAdd({
-        id: crypto.randomUUID(),
-        date: new Date(transferDate + 'T12:00:00').toISOString(),
-        label: `Frais — ${lbl}`,
-        amount: fees,
-        direction: 'expense',
-        sourceType: 'bank',
-        accountId: transferFrom,
-        categoryId: fraisCategory?.id || store.categories[0]?.id || '',
-        monthKey: dateMonthKey,
-        note: 'Frais de transfert',
-        isRecurring: false,
+        id: crypto.randomUUID(), date: isoDate, label: `Frais — ${lbl}`,
+        amount: fees, direction: 'expense', sourceType: 'bank',
+        accountId: fromAccId, categoryId: fraisCat?.id || store.categories[0]?.id || '',
+        monthKey: dateMonthKey, note: 'Frais de transfert', isRecurring: false,
       })
     }
     resetTransfer()
   }
+
+  // Validation transfert
+  const transferFromResolved = resolveTarget(transferFrom, transferFromCrypto)
+  const transferToResolved   = resolveTarget(transferTo, transferToCrypto)
+  const transferValid = !!transferFromResolved && !!transferToResolved &&
+    transferFromResolved !== transferToResolved && !!transferAmount
 
   const scopeAccounts = (s: 'perso' | 'pro') =>
     s === 'pro'
@@ -278,35 +320,106 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
             <ArrowLeftRight className="w-4 h-4 text-amber-400" />
             <div>
               <span className="text-sm font-semibold text-amber-400">Transfert interne</span>
-              <p className="text-[10px] text-muted-foreground">Mouvement entre comptes — ne compte pas dans les revenus</p>
+              <p className="text-[10px] text-muted-foreground">Mouvement entre comptes ou actifs — ne compte pas dans les revenus</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1">De (source)</p>
-              <select
-                className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-                value={transferFrom}
-                onChange={e => setTransferFrom(e.target.value)}
-              >
-                <option value="">Choisir</option>
-                {store.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1">Vers (destination)</p>
-              <select
-                className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-                value={transferTo}
-                onChange={e => setTransferTo(e.target.value)}
-              >
-                <option value="">Choisir</option>
-                {store.accounts.filter(a => a.id !== transferFrom).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
+          {/* ─── Sélecteur SOURCE ─── */}
+          <div>
+            <p className="text-[10px] text-muted-foreground mb-1">De (source)</p>
+            <select
+              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+              value={transferFrom}
+              onChange={e => { setTransferFrom(e.target.value); setTransferFromCrypto('') }}
+            >
+              <option value="">Choisir</option>
+              <optgroup label="Comptes">
+                {store.accounts.map(a => (
+                  <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>
+                ))}
+              </optgroup>
+              {cryptoAssets.length > 0 && (
+                <optgroup label="Cryptos">
+                  <option value="__crypto__">🪙 Cryptos (choisir la monnaie ci-dessous)</option>
+                </optgroup>
+              )}
+              {nonCryptoAssets.length > 0 && (
+                <optgroup label="Autres actifs">
+                  {nonCryptoAssets.map(a => (
+                    <option key={a.id} value={`asset:${a.id}`}>{ASSET_TYPE_ICONS[a.type] || '📦'} {a.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            {/* Sub-sélection crypto source */}
+            {transferFrom === '__crypto__' && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {cryptoAssets.map(a => (
+                  <button
+                    key={a.id}
+                    onClick={() => setTransferFromCrypto(a.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${transferFromCrypto === a.id ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground border border-border/30'}`}
+                  >
+                    🪙 {a.symbol || a.name} {a.quantity ? `(${a.quantity})` : ''}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
+          {/* ─── Sélecteur DESTINATION ─── */}
+          <div>
+            <p className="text-[10px] text-muted-foreground mb-1">Vers (destination)</p>
+            <select
+              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+              value={transferTo}
+              onChange={e => { setTransferTo(e.target.value); setTransferToCrypto('') }}
+            >
+              <option value="">Choisir</option>
+              <optgroup label="Comptes">
+                {store.accounts.map(a => (
+                  <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>
+                ))}
+              </optgroup>
+              {cryptoAssets.length > 0 && (
+                <optgroup label="Cryptos">
+                  <option value="__crypto__">🪙 Cryptos (choisir la monnaie ci-dessous)</option>
+                </optgroup>
+              )}
+              {nonCryptoAssets.length > 0 && (
+                <optgroup label="Autres actifs">
+                  {nonCryptoAssets.map(a => (
+                    <option key={a.id} value={`asset:${a.id}`}>{ASSET_TYPE_ICONS[a.type] || '📦'} {a.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            {/* Sub-sélection crypto destination */}
+            {transferTo === '__crypto__' && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {cryptoAssets.map(a => (
+                  <button
+                    key={a.id}
+                    onClick={() => setTransferToCrypto(a.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${transferToCrypto === a.id ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground border border-border/30'}`}
+                  >
+                    🪙 {a.symbol || a.name} {a.quantity ? `(${a.quantity})` : ''}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Résumé du transfert */}
+          {transferFromResolved && transferToResolved && transferFromResolved !== transferToResolved && (
+            <div className="flex items-center gap-2 bg-amber-500/10 rounded-xl px-3 py-2">
+              <span className="text-xs text-amber-300 font-medium truncate">{targetLabel(transferFrom, transferFromCrypto)}</span>
+              <ArrowLeftRight className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+              <span className="text-xs text-amber-300 font-medium truncate">{targetLabel(transferTo, transferToCrypto)}</span>
+            </div>
+          )}
+
+          {/* Montant + Frais */}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <p className="text-[10px] text-muted-foreground mb-1">Montant</p>
@@ -345,20 +458,16 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete }) =>
 
           <input
             className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-            placeholder="Libellé (ex: Virement Bourso → JiBET)"
+            placeholder="Libellé (ex: Achat XRP via Binance)"
             value={transferLabel}
             onChange={e => setTransferLabel(e.target.value)}
           />
-
-          {transferFrom && transferTo && transferFrom === transferTo && (
-            <p className="text-xs text-rose-400 text-center">Les deux comptes doivent être différents</p>
-          )}
 
           <div className="flex gap-2">
             <button onClick={resetTransfer} className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30">Annuler</button>
             <button
               onClick={handleTransfer}
-              disabled={!transferAmount || !transferFrom || !transferTo || transferFrom === transferTo}
+              disabled={!transferValid}
               className="flex-2 basis-0 grow-[2] bg-amber-500 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40"
             >
               Enregistrer le transfert
