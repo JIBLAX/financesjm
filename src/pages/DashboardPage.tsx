@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, X, ChevronRight, Sparkles, GripVertical, Settings2 } from 'lucide-react'
-import { formatCurrency, getCurrentMonthKey, getMonthLabel, getLevelForXp, getNextLevel, getPreviousMonthKey } from '@/lib/constants'
+import { formatCurrency, getCurrentMonthKey, getMonthLabel, getLevelForXp, getNextLevel, getPreviousMonthKey, ASSET_CLASS_MAP } from '@/lib/constants'
 import { generateAlerts, generateInsights, calculateHealthScore, calculatePilotageMode, getRealIncome, computeMissions } from '@/lib/analytics'
 import type { FinanceStore } from '@/types/finance'
 import {
@@ -221,16 +221,36 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const activeProjects = projects.filter(p => !p.completedAt).slice(0, 2)
 
   const evolutionData = useMemo(() => {
-    const snaps = [...store.monthlySnapshots].sort((a, b) => a.monthKey.localeCompare(b.monthKey))
-    if (snaps.length === 0) return []
-    return snaps.map(s => {
-      const [y, m] = s.monthKey.split('-').map(Number)
+    const checkIns = [...(store.monthlyCheckIns || [])].sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+    if (checkIns.length === 0) return []
+    return checkIns.map(checkIn => {
+      const [y, m] = checkIn.monthKey.split('-').map(Number)
       const raw = new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')
       const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
-      const comptes = Math.max(0, s.netWorth - s.totalAssets + s.totalDebts)
-      return { label, patrimoine: s.netWorth, comptes, actifs: s.totalAssets }
+      let epargne = 0, tresorerie = 0, crypto = 0, dettes = 0
+      // Comptes bancaires
+      Object.entries(checkIn.accountBalances || {}).forEach(([accId, value]) => {
+        const acc = store.accounts.find(a => a.id === accId)
+        if (!acc) return
+        if (acc.type === 'livret' || acc.type === 'epargne_projet') epargne += value
+        else if (acc.type === 'dette') dettes += value
+        else tresorerie += value
+      })
+      // Actifs
+      Object.entries(checkIn.assetValues || {}).forEach(([assetId, value]) => {
+        const asset = store.assets.find(a => a.id === assetId)
+        if (!asset) return
+        const cls = ASSET_CLASS_MAP[asset.type]
+        if (cls === 'epargne') epargne += value
+        else if (cls === 'cash') tresorerie += value
+        else if (cls === 'crypto') crypto += value
+        else if (cls === 'dettes') dettes += value
+      })
+      // Dettes explicites
+      Object.values(checkIn.debtBalances || {}).forEach(v => { dettes += v })
+      return { label, epargne, tresorerie, crypto, dettes }
     })
-  }, [store.monthlySnapshots])
+  }, [store.monthlyCheckIns, store.assets, store.accounts])
 
   const todayDate = new Date()
   const greeting = todayDate.getHours() < 18 ? 'Bonjour' : 'Bonsoir'
@@ -491,60 +511,68 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
           </button>
         )
 
-      case 'evolution':
+      case 'evolution': {
+        const EV_LINES = [
+          { key: 'epargne',   label: 'Épargne',     color: 'hsl(38 70% 55%)'  },
+          { key: 'dettes',    label: 'Dettes',      color: 'hsl(0 65% 52%)'   },
+          { key: 'tresorerie',label: 'Trésorerie',  color: 'hsl(165 60% 45%)' },
+          { key: 'crypto',    label: 'Crypto',      color: 'hsl(280 60% 55%)' },
+        ]
         return (
           <div className="rounded-2xl bg-card border border-border/40 p-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-start justify-between mb-4">
               <div>
                 <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Évolution Finances</h2>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Bilans mensuels cumulés</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Bilans mensuels</p>
               </div>
               <div className="flex flex-col gap-1 items-end">
-                <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />Patrimoine</span>
-                <span className="flex items-center gap-1.5 text-[10px] text-cyan-400 font-semibold"><span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" />Comptes</span>
-                <span className="flex items-center gap-1.5 text-[10px] text-violet-400 font-semibold"><span className="w-2 h-2 rounded-full bg-violet-400 inline-block" />Actifs</span>
+                {EV_LINES.map(l => (
+                  <span key={l.key} className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: l.color }}>
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: l.color }} />
+                    {l.label}
+                  </span>
+                ))}
               </div>
             </div>
-            {evolutionData.length >= 2 ? (
-              <ResponsiveContainer width="100%" height={150}>
+            {evolutionData.length >= 1 ? (
+              <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={evolutionData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id="evGrad1" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#10b981" />
-                      <stop offset="100%" stopColor="#10b981" />
-                    </linearGradient>
-                  </defs>
                   <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
                   <YAxis hide domain={['auto', 'auto']} />
                   <Tooltip
-                    content={({ active, payload, label }) => {
+                    content={({ active, payload, label: lbl }) => {
                       if (!active || !payload?.length) return null
                       return (
                         <div className="bg-card/95 backdrop-blur-sm border border-border/60 rounded-xl px-3 py-2 text-xs shadow-2xl">
-                          <p className="text-muted-foreground font-semibold mb-1.5 uppercase tracking-wider text-[10px]">{label}</p>
-                          {payload.map((p: any) => (
-                            <p key={p.dataKey} className="font-medium" style={{ color: p.stroke }}>
-                              {p.dataKey === 'patrimoine' ? 'Patrimoine' : p.dataKey === 'comptes' ? 'Comptes' : 'Actifs'} {formatCurrency(p.value)}
-                            </p>
-                          ))}
+                          <p className="text-muted-foreground font-semibold mb-1.5 uppercase tracking-wider text-[10px]">{lbl}</p>
+                          {EV_LINES.map(l => {
+                            const entry = payload.find((p: any) => p.dataKey === l.key)
+                            if (!entry) return null
+                            return (
+                              <p key={l.key} className="font-medium" style={{ color: l.color }}>
+                                {l.label} {formatCurrency(entry.value as number)}
+                              </p>
+                            )
+                          })}
                         </div>
                       )
                     }}
                     cursor={{ stroke: 'hsl(215 10% 35%)', strokeWidth: 1, strokeDasharray: '4 2' }}
                   />
-                  <Line type="monotone" dataKey="patrimoine" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: '#10b981' }} />
-                  <Line type="monotone" dataKey="comptes"    stroke="#22d3ee" strokeWidth={2}   dot={false} activeDot={{ r: 4, fill: '#22d3ee' }} />
-                  <Line type="monotone" dataKey="actifs"     stroke="#a78bfa" strokeWidth={2}   dot={false} activeDot={{ r: 4, fill: '#a78bfa' }} />
+                  {EV_LINES.map(l => (
+                    <Line key={l.key} type="monotone" dataKey={l.key} stroke={l.color} strokeWidth={2} dot={evolutionData.length === 1 ? { r: 4, fill: l.color } : false} activeDot={{ r: 4 }} connectNulls />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[150px] flex flex-col items-center justify-center gap-2">
+              <div className="h-[160px] flex flex-col items-center justify-center gap-2">
                 <span className="text-3xl opacity-30">📉</span>
                 <p className="text-xs text-muted-foreground text-center">Les courbes apparaîtront après le premier bilan mensuel</p>
               </div>
             )}
           </div>
         )
+      }
 
       default:
         return null

@@ -13,10 +13,21 @@ interface Props {
 }
 
 export function shouldShowCheckin(store: FinanceStore): boolean {
-  const day = new Date().getDate()
-  if (day > 3) return false
-  const monthKey = getCurrentMonthKey()
-  return !(store.monthlyCheckIns || []).some(c => c.monthKey === monthKey)
+  const today = new Date()
+  const day = today.getDate()
+  const checkIns = store.monthlyCheckIns || []
+  const currentMonthKey = getCurrentMonthKey()
+  const prevMonthKey = getPreviousMonthKey(currentMonthKey)
+  // Last 3 days of month → bilan du mois en cours
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  if (day >= lastDay - 2) {
+    return !checkIns.some(c => c.monthKey === currentMonthKey)
+  }
+  // 1er jour du mois suivant → bilan du mois précédent (grace period)
+  if (day === 1) {
+    return !checkIns.some(c => c.monthKey === prevMonthKey)
+  }
+  return false
 }
 
 // ─── Wrapped cards ────────────────────────────────────────────────────────────
@@ -181,10 +192,11 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
       const val = parseFloat(debtEdits[d.id]) || 0
       if (val !== d.outstandingBalance) onUpdateDebt(d.id, { outstandingBalance: val })
     })
-    // Save check-in record
+    // Save check-in: if done on day 1 (grace), it belongs to the previous month
+    const bilanMonthKey = new Date().getDate() === 1 ? prevMonthKey : currentMonthKey
     onSaveCheckIn({
       id: `checkin_${Date.now()}`,
-      monthKey: currentMonthKey,
+      monthKey: bilanMonthKey,
       doneAt: new Date().toISOString(),
       accountBalances: Object.fromEntries(activeAccounts.map(a => [a.id, parseFloat(accountEdits[a.id]) || 0])),
       assetValues: Object.fromEntries(store.assets.map(a => [a.id, parseFloat(assetEdits[a.id]) || 0])),
