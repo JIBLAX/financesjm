@@ -78,7 +78,7 @@ export interface AllocationRules {
 }
 
 // Enhanced Asset types
-export type AssetType = 'compte_bancaire' | 'livret_epargne' | 'assurance_vie' | 'actions' | 'etf' | 'crypto' | 'immobilier' | 'vehicule' | 'objet_valeur' | 'autre_actif' | 'dette'
+export type AssetType = 'compte_bancaire' | 'livret_epargne' | 'assurance_vie' | 'actions' | 'etf' | 'crypto' | 'immobilier' | 'vehicule' | 'objet_valeur' | 'autre_actif' | 'paris_sportif' | 'dette'
 
 export type AssetClass = 'cash' | 'epargne' | 'marches' | 'crypto' | 'immobilier' | 'autres' | 'dettes'
 

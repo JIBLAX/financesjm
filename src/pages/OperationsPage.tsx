@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Check, Settings2 } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Check, Settings2, ArrowLeftRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
 import type { FinanceStore, Operation, OperationFamily, OperationScope, OpCategory, OpSubcategory } from '@/types/finance'
@@ -47,6 +48,7 @@ export const OperationsPage: React.FC<Props> = ({
   onAddOpCategory, onUpdateOpCategory, onRemoveOpCategory,
   onAddOpSubcategory, onRemoveOpSubcategory,
 }) => {
+  const navigate = useNavigate()
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
   const [family, setFamily] = useState<FamilyTab>('charge_fixe')
   const [scope, setScope] = useState<ScopeTab>('perso')
@@ -185,6 +187,14 @@ export const OperationsPage: React.FC<Props> = ({
         </div>
 
         <div className="flex gap-2 shrink-0">
+          <button
+            onClick={() => navigate('/transactions')}
+            className="flex items-center gap-1.5 px-2.5 h-9 rounded-xl bg-amber-500/15 text-amber-400 text-xs font-semibold border border-amber-500/25 active:bg-amber-500/25"
+            title="Transfert interne entre comptes"
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Transfert</span>
+          </button>
           <button onClick={() => setModal({ mode: 'cat_manage' })} className="w-9 h-9 rounded-xl bg-muted/30 text-muted-foreground flex items-center justify-center active:bg-muted/50">
             <Settings2 className="w-4 h-4" />
           </button>
@@ -213,40 +223,48 @@ export const OperationsPage: React.FC<Props> = ({
         {categories.map(cat => {
             const ops = grouped.get(cat.id) || []
             if (ops.length === 0) return null
+            const catTotal = ops.reduce((s, op) => s + (op.actual || op.forecast || 0), 0)
             return (
               <div key={cat.id}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-base">{cat.icon}</span>
                   <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">{cat.name}</h2>
-                  <button onClick={() => openAdd(cat.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
+                  <span className={`text-xs font-semibold ${isRevenu ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {isRevenu ? '+' : '−'}{formatCurrency(catTotal)}
+                  </span>
+                  <button onClick={() => openAdd(cat.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50 ml-1">
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
                 <div className="space-y-1.5">
                   {ops.map(op => {
                     const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
+                    const amount = op.actual || op.forecast || 0
+                    const isPending = !op.actual || op.actual === 0
                     return (
                       <div key={op.id} className="bg-card/60 rounded-xl border border-border/30 px-3 py-2.5">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{op.label}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {sub && <p className="text-[10px] text-muted-foreground">{sub.icon} {sub.name}</p>}
-                              {op.date && <p className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</p>}
-                              {op.isTemplate && <span className="text-[9px] text-primary/60">↻ récurrent</span>}
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isRevenu ? '#10b981' : '#ef4444' }} />
+                                <span className="text-[10px] text-muted-foreground">{cat.icon} {cat.name}</span>
+                              </div>
+                              {sub && <span className="text-[10px] text-muted-foreground/70">{sub.icon} {sub.name}</span>}
+                              {op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
+                              {op.isTemplate && <span className="text-[9px] text-primary/60">↻</span>}
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {op.actual > 0 ? (
-                              <p className={`text-sm font-bold ${isRevenu ? 'text-emerald-400' : 'text-foreground'}`}>
-                                {isRevenu ? '+' : ''}{formatCurrency(op.actual)}
+                            <div className="text-right">
+                              <p className={`text-sm font-bold ${isPending ? 'text-muted-foreground/60' : isRevenu ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {isPending ? '' : isRevenu ? '+' : '−'}{formatCurrency(amount)}
                               </p>
-                            ) : (
-                              <div className="text-right">
-                                <p className="text-xs text-muted-foreground/60">{formatCurrency(op.forecast)}</p>
-                                <p className="text-[9px] text-muted-foreground/40 text-right">prévu</p>
-                              </div>
-                            )}
+                              {isPending && amount > 0 && (
+                                <p className="text-[9px] text-muted-foreground/40">prévu</p>
+                              )}
+                            </div>
                             <button onClick={() => openEdit(op)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
                               <Pencil className="w-3 h-3" />
                             </button>
@@ -335,8 +353,17 @@ export const OperationsPage: React.FC<Props> = ({
                   className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
                   value={form.date || todayISO()}
                   max={todayISO()}
-                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                  onChange={e => {
+                    const newDate = e.target.value
+                    const newMonthKey = newDate.substring(0, 7)
+                    setForm(f => ({ ...f, date: newDate, monthKey: newMonthKey }))
+                  }}
                 />
+                {form.date && form.date.substring(0, 7) !== monthKey && (
+                  <p className="text-[10px] text-amber-400 mt-1">
+                    ⚠️ Cette opération sera enregistrée en {getMonthLabel(form.date.substring(0, 7))}
+                  </p>
+                )}
               </div>
 
               {/* Category */}

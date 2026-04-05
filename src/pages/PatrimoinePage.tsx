@@ -15,7 +15,7 @@ interface Props {
   onRemoveDebt: (id: string) => void
 }
 
-const ASSET_TYPES: AssetType[] = ['compte_bancaire', 'livret_epargne', 'assurance_vie', 'actions', 'etf', 'crypto', 'immobilier', 'vehicule', 'objet_valeur', 'autre_actif', 'dette']
+const ASSET_TYPES: AssetType[] = ['compte_bancaire', 'livret_epargne', 'assurance_vie', 'actions', 'etf', 'crypto', 'paris_sportif', 'immobilier', 'vehicule', 'objet_valeur', 'autre_actif', 'dette']
 const DONUT_COLORS = [
   '#10b981', // emerald
   '#f97316', // orange
@@ -611,7 +611,7 @@ export const PatrimoinePage: React.FC<Props> = ({
                   </div>
                 </>)}
 
-                {['vehicule', 'objet_valeur', 'autre_actif'].includes(selectedType) && (<>
+                {['vehicule', 'objet_valeur', 'autre_actif', 'paris_sportif'].includes(selectedType) && (<>
                   <input className={numInput} placeholder="Valeur estimée" type="number" inputMode="decimal" value={value} onFocus={e => e.target.select()} onChange={e => setValue(e.target.value)} />
                   <select className={numInput} value={currency} onChange={e => setCurrency(e.target.value)}>
                     <option value="EUR">EUR</option><option value="USD">USD</option>

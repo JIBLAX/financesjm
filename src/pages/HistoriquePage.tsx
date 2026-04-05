@@ -15,13 +15,14 @@ interface Props {
 const AUTO_FROM = '2026-04'
 
 const ASSET_CLASSES = [
-  { key: 'crypto',       label: 'Crypto',         emoji: '🪙' },
-  { key: 'assurance_vie',label: 'Assurance Vie',   emoji: '🛡️' },
-  { key: 'livret',       label: 'Livret épargne',  emoji: '💰' },
-  { key: 'actions_etf',  label: 'Actions / ETF',   emoji: '📈' },
-  { key: 'immobilier',   label: 'Immobilier',      emoji: '🏠' },
-  { key: 'cash',         label: 'Cash / Comptes',  emoji: '🏦' },
-  { key: 'autres',       label: 'Autres actifs',   emoji: '📦' },
+  { key: 'crypto',        label: 'Crypto',          emoji: '🪙' },
+  { key: 'assurance_vie', label: 'Assurance Vie',    emoji: '🛡️' },
+  { key: 'livret',        label: 'Livret épargne',   emoji: '💰' },
+  { key: 'actions_etf',   label: 'Actions / ETF',    emoji: '📈' },
+  { key: 'immobilier',    label: 'Immobilier',       emoji: '🏠' },
+  { key: 'cash',          label: 'Cash / Comptes',   emoji: '🏦' },
+  { key: 'paris_sportif', label: 'Paris Sportif',    emoji: '🎯' },
+  { key: 'autres',        label: 'Autres actifs',    emoji: '📦' },
 ]
 
 // Map asset type → ASSET_CLASSES key
@@ -36,6 +37,7 @@ const ASSET_TYPE_TO_CLASS: Record<string, string> = {
   vehicule:        'autres',
   objet_valeur:    'autres',
   autre_actif:     'autres',
+  paris_sportif:   'paris_sportif',
 }
 
 function getAllMonthKeys(): string[] {

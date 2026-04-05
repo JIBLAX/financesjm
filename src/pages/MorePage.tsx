@@ -1,15 +1,16 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileDown, Settings, Map, User, Wallet, Gift, History } from 'lucide-react'
+import { FileDown, Settings, Map, User, Wallet, Gift, History, ArrowLeftRight, Receipt } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 
 export const MorePage: React.FC = () => {
   const navigate = useNavigate()
 
   const items = [
+    { label: 'Transactions', desc: 'Revenus, dépenses et transferts enregistrés', icon: Receipt, path: '/transactions', color: 'text-cyan-400' },
     { label: 'Comptes', desc: 'Gestion et répartition de vos comptes', icon: Wallet, path: '/comptes', color: 'text-muted-foreground' },
     { label: 'Guide Financier', desc: 'Missions chiffrées, progression, conseils', icon: Map, path: '/plan', color: 'text-emerald-400' },
-    { label: 'Objectifs', desc: 'Projets d\'épargne, XP et progression', icon: Gift, path: '/objectifs', color: 'text-amber-400' },
+    { label: 'Objectifs', desc: "Projets d'épargne, XP et progression", icon: Gift, path: '/objectifs', color: 'text-amber-400' },
     { label: 'Historique', desc: 'Bilans mensuels — saisie manuelle ou auto', icon: History, path: '/historique', color: 'text-violet-400' },
     { label: 'Profil', desc: 'Niveau, score santé, profil investisseur', icon: User, path: '/profil', color: 'text-blue-400' },
     { label: 'Export', desc: 'Sauvegarder vos données', icon: FileDown, path: '/export', color: 'text-blue-400' },
