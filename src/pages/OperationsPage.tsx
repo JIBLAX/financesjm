@@ -67,6 +67,22 @@ export const OperationsPage: React.FC<Props> = ({
 
   useEffect(() => { onInitMonth(monthKey) }, [monthKey, onInitMonth])
 
+  // Lock body scroll when any modal/sheet is open
+  useEffect(() => {
+    const isOpen = modal !== null || scopePicker !== null
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      document.body.style.touchAction = 'none'
+    } else {
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
+    }
+  }, [modal, scopePicker])
+
   // When switching scope, reset to first tab of that scope
   useEffect(() => {
     if (scope === 'pro' && family === 'charge_variable') setFamily('charge_fixe')
@@ -312,8 +328,8 @@ export const OperationsPage: React.FC<Props> = ({
 
       {/* ── Perso / Pro picker ── */}
       {scopePicker !== null && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={() => setScopePicker(null)}>
-          <div className="w-full bg-background rounded-t-2xl px-5 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" style={{ touchAction: 'none' }} onClick={() => setScopePicker(null)}>
+          <div className="w-full bg-background rounded-t-2xl px-5 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]" style={{ touchAction: 'pan-y' }} onClick={e => e.stopPropagation()}>
             <p className="text-base font-bold text-foreground text-center mb-5">C'est pour…</p>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <button onClick={() => confirmScope('perso')}
@@ -334,8 +350,8 @@ export const OperationsPage: React.FC<Props> = ({
 
       {/* ── Add / Edit modal ── */}
       {(modal?.mode === 'add' || modal?.mode === 'edit') && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={closeModal}>
-          <div className="w-full bg-background rounded-t-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" style={{ touchAction: 'none' }} onClick={closeModal}>
+          <div className="w-full bg-background rounded-t-2xl max-h-[92vh] overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border/50">
               <div>
                 <h2 className="text-base font-bold text-foreground">
@@ -509,8 +525,8 @@ export const OperationsPage: React.FC<Props> = ({
 
       {/* ── Category management modal ── */}
       {modal?.mode === 'cat_manage' && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={closeModal}>
-          <div className="w-full bg-background rounded-t-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" style={{ touchAction: 'none' }} onClick={closeModal}>
+          <div className="w-full bg-background rounded-t-2xl max-h-[85vh] overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border/50">
               <h2 className="text-base font-bold text-foreground">Catégories — {family === 'revenu' ? 'Revenus' : scope === 'pro' ? 'Charges' : family === 'charge_fixe' ? 'Fixes' : 'Variables'}</h2>
               <button onClick={closeModal} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"><X className="w-4 h-4" /></button>
