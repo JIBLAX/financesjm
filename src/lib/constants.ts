@@ -186,14 +186,14 @@ export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   assurance_vie: 'Assurance Vie', actions: 'Actions',
   etf: 'ETF', crypto: 'Crypto', immobilier: 'Immobilier', vehicule: 'Véhicule',
   objet_valeur: 'Objet de valeur', autre_actif: 'Autre actif',
-  paris_sportif: 'Paris Sportif', dette: 'Dette',
+  paris_sportif: 'Bankrol JIBET', dette: 'Dette',
 }
 
 export const ASSET_TYPE_ICONS: Record<AssetType, string> = {
   compte_bancaire: '🏦', livret_epargne: '💰', assurance_vie: '🛡️',
   actions: '📈', etf: '📊', crypto: '🪙', immobilier: '🏠',
   vehicule: '🚗', objet_valeur: '💎', autre_actif: '📦',
-  paris_sportif: '🎯', dette: '💳',
+  paris_sportif: '🎰', dette: '💳',
 }
 
 export const ASSET_CLASS_MAP: Record<AssetType, string> = {
@@ -210,7 +210,7 @@ export const ASSET_CLASS_LABELS: Record<string, { label: string; color: string }
   marches: { label: 'Actions / ETF', color: 'hsl(210 70% 55%)' },
   crypto: { label: 'Crypto', color: 'hsl(280 60% 55%)' },
   immobilier: { label: 'Immobilier', color: 'hsl(25 80% 50%)' },
-  paris_sportif: { label: 'Paris Sportif', color: 'hsl(340 70% 55%)' },
+  paris_sportif: { label: 'Bankrol JIBET', color: 'hsl(340 70% 55%)' },
   autres: { label: 'Autres actifs', color: 'hsl(0 0% 55%)' },
   dettes: { label: 'Dettes', color: 'hsl(0 65% 52%)' },
 }
