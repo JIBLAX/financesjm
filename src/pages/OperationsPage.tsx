@@ -21,15 +21,10 @@ interface Props {
 type FamilyTab = OperationFamily
 type ScopeTab = OperationScope
 
-// Perso: 3 tabs. Pro: charge_variable hidden (all charges under charge_fixe)
-const PERSO_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
+const FAMILY_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
   { key: 'charge_fixe',     label: 'Fixes',    icon: '🔒' },
   { key: 'charge_variable', label: 'Variables', icon: '📊' },
   { key: 'revenu',          label: 'Revenus',   icon: '💰' },
-]
-const PRO_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
-  { key: 'charge_fixe',     label: 'Charges',  icon: '📋' },
-  { key: 'revenu',          label: 'Revenus',  icon: '💰' },
 ]
 
 
@@ -62,9 +57,10 @@ export const OperationsPage: React.FC<Props> = ({
   const toggleCatCollapse = (id: string) => setCollapsedCats(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   const currentMonthKey = getCurrentMonthKey()
 
-  // Extra form fields (encoded into note on save)
+  // Extra form fields
   const [paymentMode, setPaymentMode] = useState<'especes' | 'bancaire' | ''>('')
-  const [recurrenceMode, setRecurrenceMode] = useState<'indefinite' | 'x_months' | 'x_fois' | 'simple' | ''>('')
+  const [revenuType, setRevenuType] = useState<'fixe' | 'variable'>('variable')
+  const [recurrenceMode, setRecurrenceMode] = useState<'indefinite' | 'x_months' | ''>('indefinite')
   const [recurrenceCount, setRecurrenceCount] = useState<number>(1)
 
   useEffect(() => { onInitMonth(monthKey) }, [monthKey, onInitMonth])
@@ -85,12 +81,7 @@ export const OperationsPage: React.FC<Props> = ({
     }
   }, [modal, scopePicker])
 
-  // When switching scope, reset to first tab of that scope
-  useEffect(() => {
-    if (scope === 'pro' && family === 'charge_variable') setFamily('charge_fixe')
-  }, [scope])
-
-  const familyTabs = scope === 'pro' ? PRO_TABS : PERSO_TABS
+  const familyTabs = FAMILY_TABS
 
   const categories = useMemo(
     () => store.opCategories
@@ -142,26 +133,30 @@ export const OperationsPage: React.FC<Props> = ({
 
   const openEdit = (op: Operation) => {
     setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, note: op.note || '', date: op.date || todayISO() })
+    if (op.family === 'revenu') {
+      setRevenuType(op.isTemplate ? 'fixe' : 'variable')
+      setRecurrenceMode('indefinite')
+    } else {
+      setRevenuType('variable')
+    }
     setModal({ mode: 'edit', op })
   }
 
   const closeModal = () => {
     setModal(null); setScopePicker(null); setDeleteConfirm(null); setNewCatName(''); setNewCatIcon('')
-    setPaymentMode(''); setRecurrenceMode(''); setRecurrenceCount(1)
+    setPaymentMode(''); setRevenuType('variable'); setRecurrenceMode('indefinite'); setRecurrenceCount(1)
   }
 
-  // Change scope directly inside the form (Pro has no charge_variable)
   const changeFormScope = (newScope: ScopeTab) => {
-    const newFamily = newScope === 'pro' && form.family === 'charge_variable' ? 'charge_fixe' : form.family
-    setForm(f => ({ ...f, scope: newScope, family: newFamily, categoryId: '', subcategoryId: '' }))
+    setForm(f => ({ ...f, scope: newScope, categoryId: '', subcategoryId: '' }))
   }
 
   const handleSave = () => {
     if (!form.label.trim() || !form.categoryId) return
-    // isTemplate: charges → driven by toggle, revenus → driven by recurrenceMode
+    // isTemplate: charges → driven by toggle, revenus → driven by revenuType
     const isTemplate = form.family !== 'revenu'
       ? form.isTemplate
-      : recurrenceMode === 'indefinite' || recurrenceMode === 'x_months'
+      : revenuType === 'fixe'
     const clean = { ...form, isTemplate, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined }
     if (modal?.mode === 'add') {
       onAdd({ ...clean, id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })
@@ -455,6 +450,62 @@ export const OperationsPage: React.FC<Props> = ({
                 />
               </div>
 
+              {/* Type de charge — Fixe / Variable */}
+              {form.family !== 'revenu' && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Type de charge</label>
+                  <div className="flex bg-muted/25 rounded-xl p-0.5 gap-0.5 mt-1">
+                    <button
+                      onClick={() => { if (form.family !== 'charge_fixe') setForm(f => ({ ...f, family: 'charge_fixe', categoryId: '', subcategoryId: '', isTemplate: true })) }}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${form.family === 'charge_fixe' ? 'bg-rose-500/20 text-rose-400' : 'text-muted-foreground'}`}>
+                      🔒 Fixe
+                    </button>
+                    <button
+                      onClick={() => { if (form.family !== 'charge_variable') setForm(f => ({ ...f, family: 'charge_variable', categoryId: '', subcategoryId: '', isTemplate: false })) }}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${form.family === 'charge_variable' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground'}`}>
+                      📊 Variable
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Type de revenu — Fixe / Variable */}
+              {form.family === 'revenu' && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Type de revenu</label>
+                  <div className="flex bg-muted/25 rounded-xl p-0.5 gap-0.5 mt-1">
+                    <button
+                      onClick={() => { setRevenuType('fixe'); setRecurrenceMode('indefinite') }}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${revenuType === 'fixe' ? 'bg-emerald-500/20 text-emerald-400' : 'text-muted-foreground'}`}>
+                      🔒 Fixe
+                    </button>
+                    <button
+                      onClick={() => { setRevenuType('variable'); setRecurrenceMode('indefinite') }}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${revenuType === 'variable' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground'}`}>
+                      📊 Variable
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Récurrence sub-options — revenus fixes uniquement */}
+              {form.family === 'revenu' && revenuType === 'fixe' && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Récurrence</label>
+                  <div className="flex gap-2 mt-1">
+                    {(['indefinite', 'x_months'] as const).map(mode => (
+                      <button key={mode} onClick={() => setRecurrenceMode(mode)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium ${recurrenceMode === mode ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                        {mode === 'indefinite' ? 'Durée indéterminée' : 'X mois'}
+                      </button>
+                    ))}
+                  </div>
+                  {recurrenceMode === 'x_months' && (
+                    <input type="number" min="1" inputMode="numeric" className="w-24 bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-2" placeholder="Nb" value={recurrenceCount} onFocus={e => e.target.select()} onChange={e => setRecurrenceCount(parseInt(e.target.value) || 1)} />
+                  )}
+                </div>
+              )}
+
               {/* Paiement — for Revenus (perso + pro) */}
               {form.family === 'revenu' && (
                 <div>
@@ -467,24 +518,6 @@ export const OperationsPage: React.FC<Props> = ({
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Récurrence détaillée — revenus uniquement */}
-              {form.family === 'revenu' && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Récurrence</label>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    {(['indefinite', 'x_months', 'simple'] as const).map(mode => (
-                      <button key={mode} onClick={() => setRecurrenceMode(recurrenceMode === mode ? '' : mode)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium ${recurrenceMode === mode ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                        {mode === 'indefinite' ? 'Durée indéterminée' : mode === 'x_months' ? 'X mois' : 'Simple'}
-                      </button>
-                    ))}
-                  </div>
-                  {recurrenceMode === 'x_months' && (
-                    <input type="number" min="1" inputMode="numeric" className="w-24 bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-2" placeholder="Nb" value={recurrenceCount} onFocus={e => e.target.select()} onChange={e => setRecurrenceCount(parseInt(e.target.value) || 1)} />
-                  )}
                 </div>
               )}
 
