@@ -133,7 +133,9 @@ export interface MonthlySnapshot {
   journalNote?: string
   dismissed?: boolean
   isManual?: boolean
-  assetBreakdown?: Record<string, number> // e.g. { crypto: 500, assurance_vie: 1000 }
+  assetBreakdown?: Record<string, number>
+  totalRevenuesPro?: number   // revenus ops pro
+  totalChargesPro?: number    // charges ops pro
 }
 
 export interface Category {
