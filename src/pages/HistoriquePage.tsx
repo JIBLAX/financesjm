@@ -74,21 +74,22 @@ function getAllMonthKeys(): string[] {
 }
 
 interface FormState {
-  totalIncomePerso: string   // revenus ops perso + tx bancaire
-  totalIncomeCash: string    // revenus espèces
-  totalRevenuesPro: string   // revenus ops pro
-  totalChargesPerso: string  // charges ops perso
-  totalChargesPro: string    // charges ops pro
+  totalIncomePerso: string
+  totalIncomeCash: string
+  totalRevenuesPro: string
+  totalChargesPerso: string
+  totalChargesPro: string
   totalDebts: string
-  assetBreakdown: Record<string, string>  // non-account assets (crypto, AV, etc.)
-  accountBalances: Record<string, string> // per-account balances
+  assetBreakdown: Record<string, string>
+  accountBalances: Record<string, string>
+  accountMissing: Record<string, boolean>  // true = pas de données pour ce mois
 }
 
 function emptyForm(): FormState {
   return {
     totalIncomePerso: '', totalIncomeCash: '', totalRevenuesPro: '',
     totalChargesPerso: '', totalChargesPro: '', totalDebts: '',
-    assetBreakdown: {}, accountBalances: {},
+    assetBreakdown: {}, accountBalances: {}, accountMissing: {},
   }
 }
 
@@ -121,15 +122,27 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
     return () => { document.body.style.overflow = '' }
   }, [editingMonth])
 
-  // Build per-account balances from check-in snapshot or current values
-  const buildAccountBalances = (monthKey: string): Record<string, string> => {
+  // Build per-account balances + missing flags
+  // Before AUTO_FROM without check-in → mark as missing (no fake 0 in totals)
+  const buildAccountData = (monthKey: string): { balances: Record<string, string>; missing: Record<string, boolean> } => {
     const checkIn = store.monthlyCheckIns.find(ci => ci.monthKey === monthKey)
-    const result: Record<string, string> = {}
+    const balances: Record<string, string> = {}
+    const missing: Record<string, boolean> = {}
     activeAccounts.forEach(acc => {
-      const val = checkIn?.accountBalances?.[acc.id] ?? acc.currentBalance
-      result[acc.id] = String(val ?? 0)
+      if (checkIn?.accountBalances?.[acc.id] !== undefined) {
+        balances[acc.id] = String(checkIn.accountBalances[acc.id])
+        missing[acc.id] = false
+      } else if (monthKey >= AUTO_FROM) {
+        // Connected months: use current balance (may be 0 but known)
+        balances[acc.id] = String(acc.currentBalance ?? 0)
+        missing[acc.id] = false
+      } else {
+        // Historical months without check-in: unknown
+        balances[acc.id] = ''
+        missing[acc.id] = true
+      }
     })
-    return result
+    return { balances, missing }
   }
 
   const computeAutoData = (monthKey: string): FormState => {
@@ -176,7 +189,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
       totalChargesPro:   fmtN(chargesPro),
       totalDebts:        totalDebts > 0 ? fmtN(totalDebts) : '',
       assetBreakdown,
-      accountBalances:   buildAccountBalances(monthKey),
+      ...(() => { const d = buildAccountData(monthKey); return { accountBalances: d.balances, accountMissing: d.missing } })(),
     }
   }
 
@@ -189,6 +202,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
       Object.entries(existing.assetBreakdown || {}).forEach(([k, v]) => {
         if (k !== 'cash' && k !== 'livret') breakdown[k] = String(v)
       })
+      const accData = buildAccountData(monthKey)
       setForm({
         totalIncomePerso:  String(existing.totalIncomeBank  || ''),
         totalIncomeCash:   String(existing.totalIncomeCash  || ''),
@@ -197,14 +211,16 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
         totalChargesPro:   String(existing.totalChargesPro  || ''),
         totalDebts:        String(existing.totalDebts       || ''),
         assetBreakdown:    breakdown,
-        accountBalances:   buildAccountBalances(monthKey),
+        accountBalances:   accData.balances,
+        accountMissing:    accData.missing,
       })
       setAutoFilled(false)
     } else if (monthKey >= AUTO_FROM) {
       setForm(computeAutoData(monthKey))
       setAutoFilled(true)
     } else {
-      setForm({ ...emptyForm(), accountBalances: buildAccountBalances(monthKey) })
+      const accData = buildAccountData(monthKey)
+      setForm({ ...emptyForm(), accountBalances: accData.balances, accountMissing: accData.missing })
       setAutoFilled(false)
     }
     setEditingMonth(monthKey)
@@ -222,6 +238,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
 
     // Account balances routed to 'cash' or 'livret'
     activeAccounts.forEach(acc => {
+      if (form.accountMissing[acc.id]) return  // skip — données inconnues, pas de faux 0
       const val = parseFloat(form.accountBalances[acc.id] || '0') || 0
       if (val <= 0) return
       const cls = ACCOUNT_TYPE_TO_CLASS[acc.type] || 'cash'
@@ -461,26 +478,42 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                 <div>
                   <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">Comptes</p>
                   <p className="text-[10px] text-muted-foreground mb-2">
-                    Livret/Épargne → Livret épargne · Courant/Liquide/Pro → Cash
+                    💰 Livret/Épargne → Livret épargne · 🏦 Courant/Liquide/Pro → Cash
                   </p>
                   <div className="space-y-2">
                     {activeAccounts.map(acc => {
                       const cls = ACCOUNT_TYPE_TO_CLASS[acc.type] || 'cash'
                       const emoji = cls === 'livret' ? '💰' : acc.type === 'pro' ? '💼' : '🏦'
+                      const isMissing = !!form.accountMissing[acc.id]
                       return (
                         <div key={acc.id} className="flex items-center gap-2">
                           <span className="text-sm flex-shrink-0">{emoji}</span>
                           <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{acc.name}</span>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <input
-                              type="number" inputMode="decimal"
-                              className="w-24 bg-muted/50 rounded-xl px-2 py-2 text-sm text-right text-foreground outline-none"
-                              placeholder="0" value={form.accountBalances[acc.id] || ''}
-                              onFocus={e => e.target.select()}
-                              onChange={e => setForm(f => ({ ...f, accountBalances: { ...f.accountBalances, [acc.id]: e.target.value } }))}
-                            />
-                            <span className="text-xs text-muted-foreground">€</span>
-                          </div>
+                          {isMissing ? (
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-[10px] text-amber-400/70 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1 italic">Manquant</span>
+                              <button
+                                onClick={() => setForm(f => ({ ...f, accountMissing: { ...f.accountMissing, [acc.id]: false }, accountBalances: { ...f.accountBalances, [acc.id]: '0' } }))}
+                                className="text-[10px] text-primary bg-primary/10 px-2 py-1 rounded-lg active:bg-primary/20"
+                              >Saisir</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <input
+                                type="number" inputMode="decimal"
+                                className="w-24 bg-muted/50 rounded-xl px-2 py-2 text-sm text-right text-foreground outline-none"
+                                placeholder="0" value={form.accountBalances[acc.id] || ''}
+                                onFocus={e => e.target.select()}
+                                onChange={e => setForm(f => ({ ...f, accountBalances: { ...f.accountBalances, [acc.id]: e.target.value } }))}
+                              />
+                              <span className="text-xs text-muted-foreground">€</span>
+                              <button
+                                onClick={() => setForm(f => ({ ...f, accountMissing: { ...f.accountMissing, [acc.id]: true }, accountBalances: { ...f.accountBalances, [acc.id]: '' } }))}
+                                className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-amber-400 active:bg-muted/50 text-[11px]"
+                                title="Marquer comme manquant"
+                              >?</button>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -552,6 +585,11 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                         {formatCurrency(solde(form))}
                       </span>
                     </div>
+                    {activeAccounts.some(a => form.accountMissing[a.id]) && (
+                      <p className="text-[10px] text-amber-400/70 mt-2">
+                        ⚠️ Données partielles — {activeAccounts.filter(a => form.accountMissing[a.id]).length} compte(s) marqué(s) manquant(s), non inclus dans le total actifs.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
