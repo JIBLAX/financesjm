@@ -85,6 +85,22 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     return { revActual, revForecast, chargeActual, chargeForecast, solde, soldeForecast, bancaireActual, bancaireForecast, liquideActual, liquideForecast }
   }, [allCategories, operations])
 
+  // Fallback: si pas d'opérations pour ce mois, utiliser les données de l'historique
+  const snapshot = useMemo(
+    () => store.monthlySnapshots.find(s => s.monthKey === monthKey),
+    [store.monthlySnapshots, monthKey]
+  )
+  const hasOpsData = totals.revActual > 0 || totals.chargeActual > 0
+  const useSnapshotFallback = !hasOpsData && !!snapshot && (
+    snapshot.totalIncomeBank > 0 || snapshot.totalIncomeCash > 0 ||
+    (snapshot.totalRevenuesPro || 0) > 0 || snapshot.totalExpenses > 0 ||
+    (snapshot.totalChargesPro || 0) > 0
+  )
+  const displayRevActual    = useSnapshotFallback ? snapshot!.totalIncomeBank + snapshot!.totalIncomeCash + (snapshot!.totalRevenuesPro || 0) : totals.revActual
+  const displayChargeActual = useSnapshotFallback ? snapshot!.totalExpenses + (snapshot!.totalChargesPro || 0) : totals.chargeActual
+  const displayBancaire     = useSnapshotFallback ? snapshot!.totalIncomeBank : totals.bancaireActual
+  const displayLiquide      = useSnapshotFallback ? snapshot!.totalIncomeCash : totals.liquideActual
+
   // Répartition — computed from allocation rules groups
   const repartitionGroups = useMemo(() => {
     return store.settings.allocationRules.groups.map(group => {
@@ -164,16 +180,24 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         </button>
       </div>
 
+      {/* Historique fallback notice */}
+      {useSnapshotFallback && (
+        <div className="rounded-xl bg-blue-500/8 border border-blue-500/20 px-3 py-2 flex items-center gap-2">
+          <span className="text-sm">📋</span>
+          <p className="text-[11px] text-blue-300">Données issues de l'historique — pas d'opérations pour ce mois</p>
+        </div>
+      )}
+
       {/* Summary 2 tiles */}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/20 p-3 text-center">
           <p className="text-[9px] text-emerald-400/70 uppercase tracking-wider font-semibold mb-0.5">Revenus</p>
-          <p className="text-base font-black text-emerald-400">{formatCurrency(totals.revActual)}</p>
+          <p className="text-base font-black text-emerald-400">{formatCurrency(displayRevActual)}</p>
           <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.revForecast)}</p>
         </div>
         <div className="rounded-2xl bg-rose-500/5 border border-rose-500/20 p-3 text-center">
           <p className="text-[9px] text-rose-400/70 uppercase tracking-wider font-semibold mb-0.5">Dépenses</p>
-          <p className="text-base font-black text-rose-400">{formatCurrency(totals.chargeActual)}</p>
+          <p className="text-base font-black text-rose-400">{formatCurrency(displayChargeActual)}</p>
           <p className="text-[9px] text-muted-foreground mt-0.5">prévu {formatCurrency(totals.chargeForecast)}</p>
         </div>
       </div>
@@ -191,11 +215,11 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-emerald-500/5 border border-emerald-500/15 p-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Bancaire</p>
-            <p className="text-lg font-black text-emerald-400">{formatCurrency(totals.bancaireActual)}</p>
+            <p className="text-lg font-black text-emerald-400">{formatCurrency(displayBancaire)}</p>
           </div>
           <div className="rounded-xl bg-blue-500/5 border border-blue-500/15 p-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Espèces</p>
-            <p className="text-lg font-black text-blue-400">{formatCurrency(totals.liquideActual)}</p>
+            <p className="text-lg font-black text-blue-400">{formatCurrency(displayLiquide)}</p>
           </div>
         </div>
       </FinanceCard>
