@@ -95,7 +95,7 @@ export const OperationsPage: React.FC<Props> = ({
   )
 
   const operations = useMemo(
-    () => store.operations.filter(op => op.monthKey === monthKey && op.family === family && op.scope === scope),
+    () => store.operations.filter(op => op.monthKey === monthKey && op.family === family && op.scope === scope && !op.skipped),
     [store.operations, monthKey, family, scope]
   )
 
@@ -288,10 +288,10 @@ export const OperationsPage: React.FC<Props> = ({
                     const amount = op.actual || op.forecast || 0
                     const isPending = !op.actual || op.actual === 0
                     return (
-                      <div key={op.id} className="bg-card/60 rounded-xl border border-border/30 px-3 py-2.5">
+                      <div key={op.id} className={`rounded-xl border px-3 py-2.5 ${isPending && op.templateId ? 'bg-card/30 border-border/20 border-dashed' : 'bg-card/60 border-border/30'}`}>
                         <div className="flex items-center gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{op.label}</p>
+                            <p className={`text-sm font-medium truncate ${isPending && op.templateId ? 'text-foreground/60' : 'text-foreground'}`}>{op.label}</p>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <div className="flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isRevenu ? '#10b981' : '#ef4444' }} />
@@ -304,19 +304,44 @@ export const OperationsPage: React.FC<Props> = ({
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <div className="text-right">
-                              <p className={`text-sm font-bold ${isPending ? 'text-muted-foreground/60' : isRevenu ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              <p className={`text-sm font-bold ${isPending ? 'text-muted-foreground/50' : isRevenu ? 'text-emerald-400' : 'text-rose-400'}`}>
                                 {isPending ? '' : isRevenu ? '+' : '−'}{formatCurrency(amount)}
                               </p>
                               {isPending && amount > 0 && (
                                 <p className="text-[9px] text-muted-foreground/40">prévu</p>
                               )}
                             </div>
-                            <button onClick={() => openEdit(op)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            <button onClick={() => handleDelete(op.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center active:bg-muted/50 ${deleteConfirm === op.id ? 'text-destructive' : 'text-muted-foreground'}`}>
-                              {deleteConfirm === op.id ? <Check className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />}
-                            </button>
+                            {isPending ? (
+                              <>
+                                {/* ✅ Confirmer */}
+                                <button
+                                  onClick={() => {
+                                    if (op.forecast > 0) {
+                                      onUpdate(op.id, { actual: op.forecast })
+                                    } else {
+                                      openEdit(op)
+                                    }
+                                  }}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-emerald-400 bg-emerald-500/10 active:bg-emerald-500/20 text-base"
+                                  title="Confirmer"
+                                >✅</button>
+                                {/* ❌ Passer ce mois */}
+                                <button
+                                  onClick={() => onUpdate(op.id, { skipped: true })}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-rose-400 bg-rose-500/10 active:bg-rose-500/20 text-base"
+                                  title="Passer ce mois"
+                                >❌</button>
+                              </>
+                            ) : (
+                              <>
+                                <button onClick={() => openEdit(op)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50">
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                                <button onClick={() => handleDelete(op.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center active:bg-muted/50 ${deleteConfirm === op.id ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                  {deleteConfirm === op.id ? <Check className="w-3 h-3" /> : <Trash2 className="w-3 h-3" />}
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                         {deleteConfirm === op.id && (

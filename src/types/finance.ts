@@ -272,6 +272,7 @@ export interface Operation {
   actual: number           // réel (0 = not yet filled)
   isTemplate: boolean      // if true, auto-carry to next months
   templateId?: string      // links copies to their origin template
+  skipped?: boolean        // true = recurring op explicitly skipped this month (not re-created)
   note?: string
   clientName?: string      // kept for backwards compat — label is now the primary name
   date?: string            // ISO date string (optional, for individual op tracking)
