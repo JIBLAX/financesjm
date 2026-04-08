@@ -26,11 +26,12 @@ export const SnapshotModal: React.FC<Props> = ({ store, onDismiss }) => {
     const totalAccounts = store.accounts.reduce((s, a) => s + a.currentBalance, 0)
     const totalAssets = store.assets.reduce((s, a) => s + a.value, 0)
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
+    const reserveFiscale = store.accounts.filter(a => a.id === 'bunq-fiscal').reduce((s, a) => s + a.currentBalance, 0)
     return {
       id: prevMonthKey, monthKey: prevMonthKey,
       totalIncomeBank: incomeBank, totalIncomeCash: incomeCash,
       totalExpenses: expenses, totalAssets, totalDebts,
-      netWorth: totalAccounts + totalAssets - totalDebts,
+      netWorth: totalAccounts + totalAssets - totalDebts - reserveFiscale,
     }
   }, [store, prevMonthKey])
 

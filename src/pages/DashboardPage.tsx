@@ -164,7 +164,9 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
     const totalAssets = store.assets.filter(a => a.type !== 'dette').reduce((s, a) => s + a.value, 0)
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
       + store.assets.filter(a => a.type === 'dette').reduce((s, a) => s + (a.outstandingBalance || a.value), 0)
-    const netWorth = totalAccounts + totalAssets - totalDebts
+    // Réserve Fiscale n'est pas ton argent → exclue du patrimoine net
+    const reserveFiscale = store.accounts.filter(a => a.id === 'bunq-fiscal' && a.isActive).reduce((s, a) => s + a.currentBalance, 0)
+    const netWorth = totalAccounts + totalAssets - totalDebts - reserveFiscale
     const monthTx = store.transactions.filter(t => t.monthKey === monthKey)
     const monthIncome = getRealIncome(store, monthKey)
     const monthIncomeTotal = monthTx.filter(t => t.direction === 'income').reduce((s, t) => s + t.amount, 0)
