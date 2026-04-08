@@ -158,17 +158,11 @@ export const OperationsPage: React.FC<Props> = ({
 
   const handleSave = () => {
     if (!form.label.trim() || !form.categoryId) return
-    // Build note from extra fields
-    const noteParts: string[] = []
-    if (form.note) noteParts.push(form.note)
-    if (paymentMode) noteParts.push(`Paiement: ${paymentMode === 'especes' ? 'espèces' : 'bancaire'}`)
-    if (recurrenceMode === 'indefinite') noteParts.push('Récurrence: durée indéterminée')
-    else if (recurrenceMode === 'x_months') noteParts.push(`Récurrence: ${recurrenceCount} mois`)
-    else if (recurrenceMode === 'x_fois') noteParts.push(`Récurrence: ${recurrenceCount} fois`)
-    else if (recurrenceMode === 'simple') noteParts.push('Simple')
-    const note = noteParts.join(' | ') || undefined
-    const isTemplate = recurrenceMode === 'indefinite' ? true : form.isTemplate
-    const clean = { ...form, isTemplate, subcategoryId: form.subcategoryId || undefined, note }
+    // isTemplate: charges → driven by toggle, revenus → driven by recurrenceMode
+    const isTemplate = form.family !== 'revenu'
+      ? form.isTemplate
+      : recurrenceMode === 'indefinite' || recurrenceMode === 'x_months'
+    const clean = { ...form, isTemplate, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined }
     if (modal?.mode === 'add') {
       onAdd({ ...clean, id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })
     } else if (modal?.mode === 'edit') {
@@ -476,8 +470,8 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Récurrence détaillée — charges uniquement (jamais revenus) */}
-              {form.family !== 'revenu' && (
+              {/* Récurrence détaillée — revenus uniquement */}
+              {form.family === 'revenu' && (
                 <div>
                   <label className="text-xs text-muted-foreground">Récurrence</label>
                   <div className="flex gap-2 mt-1 flex-wrap">
@@ -489,7 +483,7 @@ export const OperationsPage: React.FC<Props> = ({
                     ))}
                   </div>
                   {recurrenceMode === 'x_months' && (
-                    <input type="number" min="1" inputMode="numeric" className="w-24 bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-2" placeholder="Nb" value={recurrenceCount} onChange={e => setRecurrenceCount(parseInt(e.target.value) || 1)} />
+                    <input type="number" min="1" inputMode="numeric" className="w-24 bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-2" placeholder="Nb" value={recurrenceCount} onFocus={e => e.target.select()} onChange={e => setRecurrenceCount(parseInt(e.target.value) || 1)} />
                   )}
                 </div>
               )}
@@ -510,12 +504,12 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Récurrent toggle — revenus uniquement */}
-              {form.family === 'revenu' && (
+              {/* Récurrent toggle — charges uniquement */}
+              {form.family !== 'revenu' && (
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <p className="text-sm text-foreground">Récurrent</p>
-                    <p className="text-xs text-muted-foreground">Repris automatiquement les mois suivants</p>
+                    <p className="text-xs text-muted-foreground">Désactiver le mois où tu arrêtes</p>
                   </div>
                   <button onClick={() => setForm(f => ({ ...f, isTemplate: !f.isTemplate }))}
                     className={`w-12 h-6 rounded-full transition-colors ${form.isTemplate ? 'bg-primary' : 'bg-muted/50'}`}>
