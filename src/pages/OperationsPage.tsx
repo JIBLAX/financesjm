@@ -456,12 +456,12 @@ export const OperationsPage: React.FC<Props> = ({
                   <label className="text-xs text-muted-foreground">Type de charge</label>
                   <div className="flex bg-muted/25 rounded-xl p-0.5 gap-0.5 mt-1">
                     <button
-                      onClick={() => { if (form.family !== 'charge_fixe') setForm(f => ({ ...f, family: 'charge_fixe', categoryId: '', subcategoryId: '', isTemplate: true })) }}
+                      onClick={() => { if (form.family !== 'charge_fixe') setForm(f => ({ ...f, family: 'charge_fixe', subcategoryId: '', isTemplate: true })) }}
                       className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${form.family === 'charge_fixe' ? 'bg-rose-500/20 text-rose-400' : 'text-muted-foreground'}`}>
                       🔒 Fixe
                     </button>
                     <button
-                      onClick={() => { if (form.family !== 'charge_variable') setForm(f => ({ ...f, family: 'charge_variable', categoryId: '', subcategoryId: '', isTemplate: false })) }}
+                      onClick={() => { if (form.family !== 'charge_variable') setForm(f => ({ ...f, family: 'charge_variable', subcategoryId: '', isTemplate: false })) }}
                       className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${form.family === 'charge_variable' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground'}`}>
                       📊 Variable
                     </button>
