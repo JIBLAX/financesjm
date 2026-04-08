@@ -112,13 +112,18 @@ export const OperationsPage: React.FC<Props> = ({
   }, [operations])
 
   // Catégories triées par date de l'opération la plus récente
+  // On se base sur les ops réelles (grouped), pas sur la famille de la catégorie :
+  // une op peut avoir une catégorie d'une autre famille après un switch Fixe↔Variable.
   const sortedCategories = useMemo(() => {
-    return [...categories].sort((a, b) => {
-      const latestA = (grouped.get(a.id) || []).reduce((m, op) => op.date && op.date > m ? op.date : m, '')
-      const latestB = (grouped.get(b.id) || []).reduce((m, op) => op.date && op.date > m ? op.date : m, '')
-      return latestB.localeCompare(latestA)
-    })
-  }, [categories, grouped])
+    const usedCatIds = new Set(grouped.keys())
+    return store.opCategories
+      .filter(cat => usedCatIds.has(cat.id))
+      .sort((a, b) => {
+        const latestA = (grouped.get(a.id) || []).reduce((m, op) => op.date && op.date > m ? op.date : m, '')
+        const latestB = (grouped.get(b.id) || []).reduce((m, op) => op.date && op.date > m ? op.date : m, '')
+        return latestB.localeCompare(latestA)
+      })
+  }, [store.opCategories, grouped])
 
   const openAdd = (categoryId?: string) => setScopePicker({ categoryId })
 
@@ -183,7 +188,12 @@ export const OperationsPage: React.FC<Props> = ({
 
   const formCategories = useMemo(
     () => store.opCategories
-      .filter(c => c.family === form.family && (!c.scope || c.scope === form.scope))
+      .filter(c => {
+        const matchScope = !c.scope || c.scope === form.scope
+        if (form.family === 'revenu') return c.family === 'revenu' && matchScope
+        // Pour les charges : montrer fixe + variable ensemble (la catégorie est juste un label)
+        return (c.family === 'charge_fixe' || c.family === 'charge_variable') && matchScope
+      })
       .sort((a, b) => a.order - b.order),
     [store.opCategories, form.family, form.scope]
   )
