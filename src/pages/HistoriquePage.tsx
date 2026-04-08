@@ -1,9 +1,9 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Pencil, X, Check, Zap } from 'lucide-react'
+import { ArrowLeft, Pencil, X, Check, Zap, ChevronDown, ChevronUp } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel } from '@/lib/constants'
-import type { FinanceStore, MonthlySnapshot } from '@/types/finance'
+import type { FinanceStore, MonthlySnapshot, Account } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
@@ -13,26 +13,24 @@ interface Props {
 // April 2026 = first month with connected data
 const AUTO_FROM = '2026-04'
 
-// Full list for display only
-const ASSET_CLASSES = [
-  { key: 'crypto',        label: 'Crypto',          emoji: '🪙' },
-  { key: 'assurance_vie', label: 'Assurance Vie',    emoji: '🛡️' },
-  { key: 'livret',        label: 'Livret épargne',   emoji: '💰' },
-  { key: 'actions_etf',   label: 'Actions / ETF',    emoji: '📈' },
-  { key: 'immobilier',    label: 'Immobilier',       emoji: '🏠' },
-  { key: 'cash',          label: 'Cash / Comptes',   emoji: '🏦' },
-  { key: 'paris_sportif', label: 'Paris Sportif',    emoji: '🎯' },
-  { key: 'autres',        label: 'Autres actifs',    emoji: '📦' },
+// ── Bilan Account Groups ─────────────────────────────────────────────────────
+const BILAN_ACCOUNT_GROUPS = [
+  { key: 'jm_be_activ',      label: 'JM BE ACTIV',      emoji: '💪', filter: (a: Account) => a.id === 'qonto' },
+  { key: 'vie',              label: 'VIE',               emoji: '🏠', filter: (a: Account) => a.group === 'Vie' },
+  { key: 'epargne',          label: 'Épargne',           emoji: '💰', filter: (a: Account) => a.group === 'Réserve' || a.group === 'Urgence' },
+  { key: 'voyage',           label: 'Voyage',            emoji: '✈️', filter: (a: Account) => a.group === 'Voyage' },
+  { key: 'projet',           label: 'Projet',            emoji: '🎯', filter: (a: Account) => a.group === 'Projet' },
+  { key: 'reserve_fiscale',  label: 'Réserve Fiscale',   emoji: '📋', filter: (a: Account) => a.id === 'bunq-fiscal' },
 ]
 
-// Form inputs — 'cash' and 'livret' come from account inputs, not manual fields
-const ASSET_CLASSES_FORM = [
-  { key: 'crypto',        label: 'Crypto',          emoji: '🪙' },
-  { key: 'assurance_vie', label: 'Assurance Vie',    emoji: '🛡️' },
-  { key: 'actions_etf',   label: 'Actions / ETF',    emoji: '📈' },
-  { key: 'immobilier',    label: 'Immobilier',       emoji: '🏠' },
-  { key: 'paris_sportif', label: 'Paris Sportif',    emoji: '🎯' },
-  { key: 'autres',        label: 'Autres actifs',    emoji: '📦' },
+// ── Asset classes for bilan ──────────────────────────────────────────────────
+const ASSET_CLASSES = [
+  { key: 'crypto',        label: 'Cryptos',           emoji: '🪙' },
+  { key: 'assurance_vie', label: 'Assurance Vie',     emoji: '🛡️' },
+  { key: 'actions_etf',   label: 'Actions ETF',       emoji: '📈' },
+  { key: 'immobilier',    label: 'Immobilier',        emoji: '🏠' },
+  { key: 'paris_sportif', label: 'Bankrol JIBET',     emoji: '🎰' },
+  { key: 'autres',        label: 'Autres Actifs',     emoji: '📦' },
 ]
 
 // Asset type → class key
@@ -50,7 +48,7 @@ const ASSET_TYPE_TO_CLASS: Record<string, string> = {
   paris_sportif:   'paris_sportif',
 }
 
-// Account type → asset class (livret/épargne → 'livret', rest → 'cash')
+// Account type → asset class
 const ACCOUNT_TYPE_TO_CLASS: Record<string, string> = {
   courant:        'cash',
   liquide:        'cash',
@@ -82,7 +80,7 @@ interface FormState {
   totalDebts: string
   assetBreakdown: Record<string, string>
   accountBalances: Record<string, string>
-  accountMissing: Record<string, boolean>  // true = pas de données pour ce mois
+  accountMissing: Record<string, boolean>
 }
 
 function emptyForm(): FormState {
@@ -101,6 +99,8 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
   const [editingMonth, setEditingMonth] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [autoFilled, setAutoFilled] = useState(false)
+  const [showRevenueDetail, setShowRevenueDetail] = useState(false)
+  const [showChargesDetail, setShowChargesDetail] = useState(false)
 
   const snapshotMap = useMemo(
     () => new Map(store.monthlySnapshots.map(s => [s.monthKey, s])),
@@ -112,7 +112,6 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
     [store.accounts]
   )
 
-  // Body scroll lock when edit modal open
   useEffect(() => {
     if (editingMonth !== null) {
       document.body.style.overflow = 'hidden'
@@ -122,8 +121,6 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
     return () => { document.body.style.overflow = '' }
   }, [editingMonth])
 
-  // Build per-account balances + missing flags
-  // Before AUTO_FROM without check-in → mark as missing (no fake 0 in totals)
   const buildAccountData = (monthKey: string): { balances: Record<string, string>; missing: Record<string, boolean> } => {
     const checkIn = store.monthlyCheckIns.find(ci => ci.monthKey === monthKey)
     const balances: Record<string, string> = {}
@@ -133,11 +130,9 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
         balances[acc.id] = String(checkIn.accountBalances[acc.id])
         missing[acc.id] = false
       } else if (monthKey >= AUTO_FROM) {
-        // Connected months: use current balance (may be 0 but known)
         balances[acc.id] = String(acc.currentBalance ?? 0)
         missing[acc.id] = false
       } else {
-        // Historical months without check-in: unknown
         balances[acc.id] = ''
         missing[acc.id] = true
       }
@@ -150,13 +145,11 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
     const txs = store.transactions.filter(t => t.monthKey === monthKey)
     const checkIn = store.monthlyCheckIns.find(ci => ci.monthKey === monthKey)
 
-    // Ops — primary source (split by scope)
     const opsRevPerso  = ops.filter(op => op.family === 'revenu' && op.scope === 'perso').reduce((s, op) => s + op.actual, 0)
     const opsRevPro    = ops.filter(op => op.family === 'revenu' && op.scope === 'pro').reduce((s, op) => s + op.actual, 0)
     const opsCharPerso = ops.filter(op => op.family !== 'revenu' && op.scope === 'perso').reduce((s, op) => s + op.actual, 0)
     const opsCharPro   = ops.filter(op => op.family !== 'revenu' && op.scope === 'pro').reduce((s, op) => s + op.actual, 0)
 
-    // Transactions — fallback for income
     const txIncomeBank = txs.filter(t => t.direction === 'income' && t.sourceType === 'bank').reduce((s, t) => s + t.amount, 0)
     const txIncomeCash = txs.filter(t => t.direction === 'income' && t.sourceType === 'cash').reduce((s, t) => s + t.amount, 0)
     const txExpenses   = txs.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
@@ -169,7 +162,6 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
 
     const totalDebts = store.debts.reduce((s, d) => s + d.outstandingBalance, 0)
 
-    // Non-account assets from check-in or current store values
     const assetBreakdown: Record<string, string> = {}
     store.assets.forEach(a => {
       const cls = ASSET_TYPE_TO_CLASS[a.type]
@@ -195,9 +187,10 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
 
   const openEdit = (monthKey: string) => {
     const existing = snapshotMap.get(monthKey)
+    setShowRevenueDetail(false)
+    setShowChargesDetail(false)
 
     if (existing) {
-      // Strip 'cash'/'livret' from saved breakdown — those come from account inputs now
       const breakdown: Record<string, string> = {}
       Object.entries(existing.assetBreakdown || {}).forEach(([k, v]) => {
         if (k !== 'cash' && k !== 'livret') breakdown[k] = String(v)
@@ -229,16 +222,14 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
   const handleSave = () => {
     if (!editingMonth) return
 
-    // Non-account assets
     const assetBreakdown: Record<string, number> = {}
     Object.entries(form.assetBreakdown).forEach(([k, v]) => {
       const n = parseFloat(v)
       if (!isNaN(n) && n > 0) assetBreakdown[k] = n
     })
 
-    // Account balances routed to 'cash' or 'livret'
     activeAccounts.forEach(acc => {
-      if (form.accountMissing[acc.id]) return  // skip — données inconnues, pas de faux 0
+      if (form.accountMissing[acc.id]) return
       const val = parseFloat(form.accountBalances[acc.id] || '0') || 0
       if (val <= 0) return
       const cls = ACCOUNT_TYPE_TO_CLASS[acc.type] || 'cash'
@@ -254,6 +245,15 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
     const debts        = parseFloat(form.totalDebts)        || 0
     const existing     = snapshotMap.get(editingMonth)
 
+    // Réserve Fiscale exclue du patrimoine net
+    const reserveFiscaleAccounts = activeAccounts.filter(a => a.id === 'bunq-fiscal')
+    let reserveFiscaleVal = 0
+    reserveFiscaleAccounts.forEach(acc => {
+      if (!form.accountMissing[acc.id]) {
+        reserveFiscaleVal += parseFloat(form.accountBalances[acc.id] || '0') || 0
+      }
+    })
+
     const snapshot: MonthlySnapshot = {
       id:               existing?.id || crypto.randomUUID(),
       monthKey:         editingMonth,
@@ -264,7 +264,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
       totalChargesPro:  chargesPro   || undefined,
       totalAssets,
       totalDebts:       debts,
-      netWorth:         totalAssets - debts,
+      netWorth:         totalAssets - debts - reserveFiscaleVal,
       isManual:         true,
       assetBreakdown,
       dismissed:        existing?.dismissed,
@@ -284,6 +284,26 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
     f.totalIncomePerso || f.totalIncomeCash || f.totalRevenuesPro ||
     f.totalChargesPerso || f.totalChargesPro
 
+  // Compute grouped account totals for a snapshot
+  const getGroupedAccountTotal = (groupKey: string, snapshot: MonthlySnapshot | undefined): number | null => {
+    if (!snapshot) return null
+    const group = BILAN_ACCOUNT_GROUPS.find(g => g.key === groupKey)
+    if (!group) return null
+    const accs = activeAccounts.filter(group.filter)
+    if (accs.length === 0) return null
+    // Check if we have check-in data for this month
+    const checkIn = store.monthlyCheckIns.find(ci => ci.monthKey === snapshot.monthKey)
+    let total = 0
+    let hasAny = false
+    accs.forEach(acc => {
+      if (checkIn?.accountBalances?.[acc.id] !== undefined) {
+        total += checkIn.accountBalances[acc.id]
+        hasAny = true
+      }
+    })
+    return hasAny ? total : null
+  }
+
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
       <div className="flex items-center gap-3">
@@ -291,7 +311,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Historique</h1>
+          <h1 className="text-2xl font-extrabold text-foreground uppercase tracking-wider">Historique</h1>
           <p className="text-xs text-muted-foreground mt-0.5">Bilan mensuel — toutes périodes</p>
         </div>
       </div>
@@ -407,7 +427,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                 <div className="mt-3 flex items-start gap-2 bg-emerald-500/8 border border-emerald-500/20 rounded-xl px-3 py-2">
                   <Zap className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
                   <p className="text-[11px] text-emerald-300 leading-relaxed">
-                    Pré-rempli depuis tes opérations (perso + pro), transactions et actifs connectés. Modifiable.
+                    Pré-rempli depuis tes opérations et actifs connectés. Modifiable.
                   </p>
                 </div>
               )}
@@ -415,105 +435,180 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
 
             <div className="px-5 py-4 space-y-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
 
-              {/* ── ENTRÉES ── */}
+              {/* ── REVENUS TOTAUX ── */}
               <div>
-                <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">Entrées</p>
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">👤 Revenus Perso (bancaire)</label>
-                    <input type="number" inputMode="decimal"
-                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
-                      placeholder="0 €" value={form.totalIncomePerso} onFocus={e => e.target.select()}
-                      onChange={e => setForm(f => ({ ...f, totalIncomePerso: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">💵 Revenus Perso (espèces)</label>
-                    <input type="number" inputMode="decimal"
-                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
-                      placeholder="0 €" value={form.totalIncomeCash} onFocus={e => e.target.select()}
-                      onChange={e => setForm(f => ({ ...f, totalIncomeCash: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">💼 Revenus Pro</label>
-                    <input type="number" inputMode="decimal"
-                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
-                      placeholder="0 €" value={form.totalRevenuesPro} onFocus={e => e.target.select()}
-                      onChange={e => setForm(f => ({ ...f, totalRevenuesPro: e.target.value }))} />
-                  </div>
+                <button
+                  onClick={() => setShowRevenueDetail(!showRevenueDetail)}
+                  className="flex items-center justify-between w-full mb-2"
+                >
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                    💰 Revenus Totaux Pro & Perso
+                  </p>
+                  {showRevenueDetail ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </button>
+
+                {/* Summary line */}
+                <div className="flex justify-between items-center bg-emerald-500/8 border border-emerald-500/20 rounded-xl px-3 py-2 mb-2">
+                  <span className="text-[11px] text-muted-foreground">Total revenus</span>
+                  <span className="text-sm font-bold text-emerald-400">
+                    {formatCurrency(totalIncome(form))}
+                  </span>
                 </div>
+
+                {/* Detail */}
+                {showRevenueDetail && (
+                  <div className="space-y-2 pl-2 border-l-2 border-emerald-500/20 ml-1">
+                    <div>
+                      <label className="text-[11px] text-muted-foreground">👤 Revenus Perso (bancaire)</label>
+                      <input type="number" inputMode="decimal"
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
+                        placeholder="0 €" value={form.totalIncomePerso} onFocus={e => e.target.select()}
+                        onChange={e => setForm(f => ({ ...f, totalIncomePerso: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground">💵 Revenus Perso (espèces)</label>
+                      <input type="number" inputMode="decimal"
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
+                        placeholder="0 €" value={form.totalIncomeCash} onFocus={e => e.target.select()}
+                        onChange={e => setForm(f => ({ ...f, totalIncomeCash: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground">💼 Revenus Pro</label>
+                      <input type="number" inputMode="decimal"
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
+                        placeholder="0 €" value={form.totalRevenuesPro} onFocus={e => e.target.select()}
+                        onChange={e => setForm(f => ({ ...f, totalRevenuesPro: e.target.value }))} />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* ── DÉPENSES ── */}
+              {/* ── CHARGES TOTALES ── */}
               <div>
-                <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">Dépenses</p>
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">👤 Charges Perso</label>
-                    <input type="number" inputMode="decimal"
-                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
-                      placeholder="0 €" value={form.totalChargesPerso} onFocus={e => e.target.select()}
-                      onChange={e => setForm(f => ({ ...f, totalChargesPerso: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">💼 Charges Pro</label>
-                    <input type="number" inputMode="decimal"
-                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
-                      placeholder="0 €" value={form.totalChargesPro} onFocus={e => e.target.select()}
-                      onChange={e => setForm(f => ({ ...f, totalChargesPro: e.target.value }))} />
-                  </div>
+                <button
+                  onClick={() => setShowChargesDetail(!showChargesDetail)}
+                  className="flex items-center justify-between w-full mb-2"
+                >
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                    💸 Charges Totales Pro & Perso
+                  </p>
+                  {showChargesDetail ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </button>
+
+                <div className="flex justify-between items-center bg-rose-500/8 border border-rose-500/20 rounded-xl px-3 py-2 mb-2">
+                  <span className="text-[11px] text-muted-foreground">Total charges</span>
+                  <span className="text-sm font-bold text-rose-400">
+                    {formatCurrency(totalCharges(form))}
+                  </span>
                 </div>
+
+                {showChargesDetail && (
+                  <div className="space-y-2 pl-2 border-l-2 border-rose-500/20 ml-1">
+                    <div>
+                      <label className="text-[11px] text-muted-foreground">👤 Dépenses Perso</label>
+                      <input type="number" inputMode="decimal"
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
+                        placeholder="0 €" value={form.totalChargesPerso} onFocus={e => e.target.select()}
+                        onChange={e => setForm(f => ({ ...f, totalChargesPerso: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground">💼 Dépenses Pro</label>
+                      <input type="number" inputMode="decimal"
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-0.5 placeholder:text-muted-foreground/50"
+                        placeholder="0 €" value={form.totalChargesPro} onFocus={e => e.target.select()}
+                        onChange={e => setForm(f => ({ ...f, totalChargesPro: e.target.value }))} />
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* ── SOLDE ── */}
+              {hasFormData(form) && (
+                <div className={`flex justify-between items-center rounded-xl px-3 py-2 border ${solde(form) >= 0 ? 'bg-emerald-500/8 border-emerald-500/20' : 'bg-rose-500/8 border-rose-500/20'}`}>
+                  <span className="text-xs font-semibold text-muted-foreground">Solde du mois</span>
+                  <span className={`text-sm font-bold ${solde(form) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {formatCurrency(solde(form))}
+                  </span>
+                </div>
+              )}
 
               {/* ── DETTES ── */}
               <div>
-                <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">Dettes totales</p>
+                <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">📉 Dettes Totales</p>
                 <input type="number" inputMode="decimal"
                   className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground/50"
                   placeholder="0 €" value={form.totalDebts} onFocus={e => e.target.select()}
                   onChange={e => setForm(f => ({ ...f, totalDebts: e.target.value }))} />
               </div>
 
-              {/* ── COMPTES (individuel) ── */}
+              {/* ── ÉTAT FINAL DES COMPTES (grouped) ── */}
               {activeAccounts.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">Comptes</p>
-                  <p className="text-[10px] text-muted-foreground mb-2">
-                    💰 Livret/Épargne → Livret épargne · 🏦 Courant/Liquide/Pro → Cash
-                  </p>
-                  <div className="space-y-2">
-                    {activeAccounts.map(acc => {
-                      const cls = ACCOUNT_TYPE_TO_CLASS[acc.type] || 'cash'
-                      const emoji = cls === 'livret' ? '💰' : acc.type === 'pro' ? '💼' : '🏦'
-                      const isMissing = !!form.accountMissing[acc.id]
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">🏦 État final des comptes</p>
+                  <div className="space-y-3">
+                    {BILAN_ACCOUNT_GROUPS.map(group => {
+                      const accs = activeAccounts.filter(group.filter)
+                      if (accs.length === 0) return null
+
+                      // Compute group total
+                      let groupTotal = 0
+                      let allMissing = true
+                      accs.forEach(acc => {
+                        if (!form.accountMissing[acc.id]) {
+                          groupTotal += parseFloat(form.accountBalances[acc.id] || '0') || 0
+                          allMissing = false
+                        }
+                      })
+
                       return (
-                        <div key={acc.id} className="flex items-center gap-2">
-                          <span className="text-sm flex-shrink-0">{emoji}</span>
-                          <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{acc.name}</span>
-                          {isMissing ? (
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className="text-[10px] text-amber-400/70 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1 italic">Manquant</span>
-                              <button
-                                onClick={() => setForm(f => ({ ...f, accountMissing: { ...f.accountMissing, [acc.id]: false }, accountBalances: { ...f.accountBalances, [acc.id]: '0' } }))}
-                                className="text-[10px] text-primary bg-primary/10 px-2 py-1 rounded-lg active:bg-primary/20"
-                              >Saisir</button>
+                        <div key={group.key} className="bg-muted/20 rounded-xl border border-border/30 overflow-hidden">
+                          <div className="flex items-center justify-between px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{group.emoji}</span>
+                              <span className="text-xs font-semibold text-foreground">{group.label}</span>
+                              {accs.length > 1 && (
+                                <span className="text-[10px] text-muted-foreground/60">({accs.length} comptes)</span>
+                              )}
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <input
-                                type="number" inputMode="decimal"
-                                className="w-24 bg-muted/50 rounded-xl px-2 py-2 text-sm text-right text-foreground outline-none"
-                                placeholder="0" value={form.accountBalances[acc.id] || ''}
-                                onFocus={e => e.target.select()}
-                                onChange={e => setForm(f => ({ ...f, accountBalances: { ...f.accountBalances, [acc.id]: e.target.value } }))}
-                              />
-                              <span className="text-xs text-muted-foreground">€</span>
-                              <button
-                                onClick={() => setForm(f => ({ ...f, accountMissing: { ...f.accountMissing, [acc.id]: true }, accountBalances: { ...f.accountBalances, [acc.id]: '' } }))}
-                                className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-amber-400 active:bg-muted/50 text-[11px]"
-                                title="Marquer comme manquant"
-                              >?</button>
-                            </div>
-                          )}
+                            {!allMissing && (
+                              <span className="text-xs font-bold text-foreground">{formatCurrency(groupTotal)}</span>
+                            )}
+                            {allMissing && (
+                              <span className="text-xs font-bold text-amber-400">X</span>
+                            )}
+                          </div>
+                          <div className="px-3 pb-2 space-y-1.5">
+                            {accs.map(acc => {
+                              const isMissing = !!form.accountMissing[acc.id]
+                              return (
+                                <div key={acc.id} className="flex items-center gap-2">
+                                  <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{acc.name}</span>
+                                  {isMissing ? (
+                                    <button
+                                      onClick={() => setForm(f => ({ ...f, accountMissing: { ...f.accountMissing, [acc.id]: false }, accountBalances: { ...f.accountBalances, [acc.id]: '0' } }))}
+                                      className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1 active:bg-amber-500/20 min-w-[40px] text-center"
+                                    >X</button>
+                                  ) : (
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <input
+                                        type="number" inputMode="decimal"
+                                        className="w-24 bg-muted/50 rounded-xl px-2 py-1.5 text-sm text-right text-foreground outline-none"
+                                        placeholder="0" value={form.accountBalances[acc.id] || ''}
+                                        onFocus={e => e.target.select()}
+                                        onChange={e => setForm(f => ({ ...f, accountBalances: { ...f.accountBalances, [acc.id]: e.target.value } }))}
+                                      />
+                                      <span className="text-xs text-muted-foreground">€</span>
+                                      <button
+                                        onClick={() => setForm(f => ({ ...f, accountMissing: { ...f.accountMissing, [acc.id]: true }, accountBalances: { ...f.accountBalances, [acc.id]: '' } }))}
+                                        className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-amber-400 active:bg-muted/50 text-[11px] font-bold"
+                                        title="Marquer comme inconnu"
+                                      >X</button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
                       )
                     })}
@@ -521,11 +616,11 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                 </div>
               )}
 
-              {/* ── ACTIFS (non-account) ── */}
+              {/* ── ACTIFS ── */}
               <div>
-                <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">Actifs</p>
+                <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">📈 Actifs</p>
                 <div className="space-y-2">
-                  {ASSET_CLASSES_FORM.map(cls => (
+                  {ASSET_CLASSES.map(cls => (
                     <div key={cls.key} className="flex items-center gap-2">
                       <span className="text-base w-6 flex-shrink-0">{cls.emoji}</span>
                       <span className="text-[11px] text-muted-foreground w-28 flex-shrink-0">{cls.label}</span>
@@ -550,35 +645,19 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                 )}
               </div>
 
-              {/* ── Aperçu bilan ── */}
+              {/* ── Aperçu patrimoine net ── */}
               {hasFormData(form) && (
                 <div className="bg-muted/20 rounded-xl p-3 border border-border/30">
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Aperçu du bilan</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Aperçu patrimoine net</p>
                   <div className="space-y-1">
-                    {(parseFloat(form.totalIncomePerso) || 0) > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">👤 Revenus Perso</span>
-                        <span className="text-emerald-400">+{formatCurrency((parseFloat(form.totalIncomePerso) || 0) + (parseFloat(form.totalIncomeCash) || 0))}</span>
-                      </div>
-                    )}
-                    {(parseFloat(form.totalRevenuesPro) || 0) > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">💼 Revenus Pro</span>
-                        <span className="text-emerald-400">+{formatCurrency(parseFloat(form.totalRevenuesPro) || 0)}</span>
-                      </div>
-                    )}
-                    {(parseFloat(form.totalChargesPerso) || 0) > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">👤 Charges Perso</span>
-                        <span className="text-rose-400">−{formatCurrency(parseFloat(form.totalChargesPerso) || 0)}</span>
-                      </div>
-                    )}
-                    {(parseFloat(form.totalChargesPro) || 0) > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">💼 Charges Pro</span>
-                        <span className="text-rose-400">−{formatCurrency(parseFloat(form.totalChargesPro) || 0)}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Revenus totaux</span>
+                      <span className="text-emerald-400">+{formatCurrency(totalIncome(form))}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Charges totales</span>
+                      <span className="text-rose-400">−{formatCurrency(totalCharges(form))}</span>
+                    </div>
                     <div className="flex justify-between text-xs pt-1 border-t border-border/30 mt-1">
                       <span className="text-muted-foreground font-semibold">Solde net</span>
                       <span className={`font-bold ${solde(form) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -587,7 +666,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                     </div>
                     {activeAccounts.some(a => form.accountMissing[a.id]) && (
                       <p className="text-[10px] text-amber-400/70 mt-2">
-                        ⚠️ Données partielles — {activeAccounts.filter(a => form.accountMissing[a.id]).length} compte(s) marqué(s) manquant(s), non inclus dans le total actifs.
+                        ⚠️ Données partielles — {activeAccounts.filter(a => form.accountMissing[a.id]).length} compte(s) marqué(s) X, non inclus dans le total.
                       </p>
                     )}
                   </div>
