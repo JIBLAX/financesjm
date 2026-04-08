@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Check, Settings2, ArrowLeftRight } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, X, Check, Settings2, ArrowLeftRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
@@ -58,6 +58,8 @@ export const OperationsPage: React.FC<Props> = ({
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [newCatName, setNewCatName] = useState('')
   const [newCatIcon, setNewCatIcon] = useState('')
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set())
+  const toggleCatCollapse = (id: string) => setCollapsedCats(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   const currentMonthKey = getCurrentMonthKey()
 
   // Extra form fields (encoded into note on save)
@@ -146,6 +148,12 @@ export const OperationsPage: React.FC<Props> = ({
   const closeModal = () => {
     setModal(null); setScopePicker(null); setDeleteConfirm(null); setNewCatName(''); setNewCatIcon('')
     setPaymentMode(''); setRecurrenceMode(''); setRecurrenceCount(1)
+  }
+
+  // Change scope directly inside the form (Pro has no charge_variable)
+  const changeFormScope = (newScope: ScopeTab) => {
+    const newFamily = newScope === 'pro' && form.family === 'charge_variable' ? 'charge_fixe' : form.family
+    setForm(f => ({ ...f, scope: newScope, family: newFamily, categoryId: '', subcategoryId: '' }))
   }
 
   const handleSave = () => {
@@ -255,19 +263,23 @@ export const OperationsPage: React.FC<Props> = ({
             const ops = grouped.get(cat.id) || []
             if (ops.length === 0) return null
             const catTotal = ops.reduce((s, op) => s + (op.actual || op.forecast || 0), 0)
+            const isCollapsed = collapsedCats.has(cat.id)
             return (
               <div key={cat.id}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-base">{cat.icon}</span>
-                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">{cat.name}</h2>
-                  <span className={`text-xs font-semibold ${isRevenu ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {isRevenu ? '+' : '−'}{formatCurrency(catTotal)}
-                  </span>
-                  <button onClick={() => openAdd(cat.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50 ml-1">
+                  <button onClick={() => toggleCatCollapse(cat.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                    <span className="text-base flex-shrink-0">{cat.icon}</span>
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1 truncate">{cat.name}</h2>
+                    <span className={`text-xs font-semibold shrink-0 ${isRevenu ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {isRevenu ? '+' : '−'}{formatCurrency(catTotal)}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground/40 flex-shrink-0 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
+                  </button>
+                  <button onClick={() => openAdd(cat.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground active:bg-muted/50 ml-1 flex-shrink-0">
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="space-y-1.5">
+                {!isCollapsed && <div className="space-y-1.5">
                   {ops.map(op => {
                     const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
                     const amount = op.actual || op.forecast || 0
@@ -313,7 +325,7 @@ export const OperationsPage: React.FC<Props> = ({
                       </div>
                     )
                   })}
-                </div>
+                </div>}
               </div>
             )
           })}
@@ -353,15 +365,23 @@ export const OperationsPage: React.FC<Props> = ({
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" style={{ touchAction: 'none' }} onClick={closeModal}>
           <div className="w-full bg-background rounded-t-2xl max-h-[92vh] overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border/50">
-              <div>
-                <h2 className="text-base font-bold text-foreground">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-bold text-foreground mb-2">
                   {modal.mode === 'add' ? 'Nouvelle opération' : 'Modifier'}
                 </h2>
-                <p className={`text-xs font-semibold ${form.scope === 'perso' ? 'text-cyan-400' : 'text-violet-400'}`}>
-                  {form.scope === 'perso' ? '👤 Personnel' : '💼 Professionnel'}
-                </p>
+                {/* Scope toggle inline */}
+                <div className="flex bg-muted/25 rounded-xl p-0.5 gap-0.5 w-fit">
+                  <button onClick={() => changeFormScope('perso')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${form.scope === 'perso' ? 'bg-cyan-500/20 text-cyan-400' : 'text-muted-foreground'}`}>
+                    👤 Perso
+                  </button>
+                  <button onClick={() => changeFormScope('pro')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${form.scope === 'pro' ? 'bg-violet-500/20 text-violet-400' : 'text-muted-foreground'}`}>
+                    💼 Pro
+                  </button>
+                </div>
               </div>
-              <button onClick={closeModal} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={closeModal} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground ml-3"><X className="w-4 h-4" /></button>
             </div>
 
             <div className="px-5 py-4 space-y-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
@@ -456,31 +476,19 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Récurrence — for perso Fixes + pro Revenus */}
-              {(form.family === 'charge_fixe' || (form.family === 'revenu' && form.scope === 'pro')) && (
+              {/* Récurrence détaillée — charges uniquement (jamais revenus) */}
+              {form.family !== 'revenu' && (
                 <div>
                   <label className="text-xs text-muted-foreground">Récurrence</label>
                   <div className="flex gap-2 mt-1 flex-wrap">
-                    <button onClick={() => setRecurrenceMode(recurrenceMode === 'indefinite' ? '' : 'indefinite')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium ${recurrenceMode === 'indefinite' ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                      Durée indéterminée
-                    </button>
-                    <button onClick={() => setRecurrenceMode(recurrenceMode === 'x_months' ? '' : 'x_months')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium ${recurrenceMode === 'x_months' ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                      X mois
-                    </button>
-                    {form.family === 'revenu' && (
-                      <button onClick={() => setRecurrenceMode(recurrenceMode === 'x_fois' ? '' : 'x_fois')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium ${recurrenceMode === 'x_fois' ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                        X fois
+                    {(['indefinite', 'x_months', 'simple'] as const).map(mode => (
+                      <button key={mode} onClick={() => setRecurrenceMode(recurrenceMode === mode ? '' : mode)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium ${recurrenceMode === mode ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                        {mode === 'indefinite' ? 'Durée indéterminée' : mode === 'x_months' ? 'X mois' : 'Simple'}
                       </button>
-                    )}
-                    <button onClick={() => setRecurrenceMode(recurrenceMode === 'simple' ? '' : 'simple')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium ${recurrenceMode === 'simple' ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                      Simple
-                    </button>
+                    ))}
                   </div>
-                  {(recurrenceMode === 'x_months' || recurrenceMode === 'x_fois') && (
+                  {recurrenceMode === 'x_months' && (
                     <input type="number" min="1" inputMode="numeric" className="w-24 bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-2" placeholder="Nb" value={recurrenceCount} onChange={e => setRecurrenceCount(parseInt(e.target.value) || 1)} />
                   )}
                 </div>
@@ -502,17 +510,19 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Template toggle */}
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <p className="text-sm text-foreground">Récurrent</p>
-                  <p className="text-xs text-muted-foreground">Repris automatiquement les mois suivants</p>
+              {/* Récurrent toggle — revenus uniquement */}
+              {form.family === 'revenu' && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm text-foreground">Récurrent</p>
+                    <p className="text-xs text-muted-foreground">Repris automatiquement les mois suivants</p>
+                  </div>
+                  <button onClick={() => setForm(f => ({ ...f, isTemplate: !f.isTemplate }))}
+                    className={`w-12 h-6 rounded-full transition-colors ${form.isTemplate ? 'bg-primary' : 'bg-muted/50'}`}>
+                    <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform mx-0.5 ${form.isTemplate ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
                 </div>
-                <button onClick={() => setForm(f => ({ ...f, isTemplate: !f.isTemplate }))}
-                  className={`w-12 h-6 rounded-full transition-colors ${form.isTemplate ? 'bg-primary' : 'bg-muted/50'}`}>
-                  <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform mx-0.5 ${form.isTemplate ? 'translate-x-6' : 'translate-x-0'}`} />
-                </button>
-              </div>
+              )}
 
               <button onClick={handleSave} disabled={!form.label.trim() || !form.categoryId}
                 className={`w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-40 ${form.scope === 'perso' ? 'bg-cyan-500' : 'bg-violet-500'}`}>
