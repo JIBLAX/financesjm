@@ -147,15 +147,26 @@ export function useFinanceStore() {
     update(prev => ({ ...prev, operations: prev.operations.filter(op => op.id !== id) }))
   }, [update])
 
-  /** Copy template operations from the previous month into targetMonthKey (only if that month has no operations). */
+  /** Copy template operations from the previous month into targetMonthKey.
+   *  Uses templateId tracking to avoid duplicates — works even if some ops already exist. */
   const initMonthOperations = useCallback((targetMonthKey: string) => {
     update(prev => {
-      if (prev.operations.some(op => op.monthKey === targetMonthKey)) return prev
       const prevMonthKey = getPreviousMonthKey(targetMonthKey, 1)
       const templates = prev.operations.filter(op => op.monthKey === prevMonthKey && op.isTemplate)
       if (templates.length === 0) return prev
+
+      // Collect templateIds already copied into this month (avoid double-copy)
+      const copiedTemplateIds = new Set(
+        prev.operations
+          .filter(op => op.monthKey === targetMonthKey && op.templateId)
+          .map(op => op.templateId as string)
+      )
+
+      const toCopy = templates.filter(op => !copiedTemplateIds.has(op.templateId || op.id))
+      if (toCopy.length === 0) return prev
+
       const base = Date.now()
-      const newOps: Operation[] = templates.map((op, i) => ({
+      const newOps: Operation[] = toCopy.map((op, i) => ({
         ...op,
         id: `op_${base}_${i}`,
         monthKey: targetMonthKey,

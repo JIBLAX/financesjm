@@ -63,7 +63,11 @@ export const OperationsPage: React.FC<Props> = ({
   const [recurrenceMode, setRecurrenceMode] = useState<'indefinite' | 'x_months' | ''>('indefinite')
   const [recurrenceCount, setRecurrenceCount] = useState<number>(1)
 
-  useEffect(() => { onInitMonth(monthKey) }, [monthKey, onInitMonth])
+  useEffect(() => {
+    onInitMonth(monthKey)
+    // Pré-initialiser le mois suivant pour que les récurrences apparaissent en prévision
+    if (monthKey === currentMonthKey) onInitMonth(getNextMonthKey(currentMonthKey))
+  }, [monthKey, currentMonthKey, onInitMonth])
 
   // Lock body scroll when any modal/sheet is open
   useEffect(() => {
@@ -248,7 +252,7 @@ export const OperationsPage: React.FC<Props> = ({
           <ChevronLeft className="w-4 h-4" />
         </button>
         <span className="text-sm font-semibold text-foreground capitalize">{getMonthLabel(monthKey)}</span>
-        <button onClick={() => setMonthKey(k => getNextMonthKey(k))} disabled={monthKey >= currentMonthKey} className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center text-muted-foreground active:bg-muted/50 disabled:opacity-30">
+        <button onClick={() => setMonthKey(k => getNextMonthKey(k))} disabled={monthKey >= getNextMonthKey(currentMonthKey)} className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center text-muted-foreground active:bg-muted/50 disabled:opacity-30">
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
