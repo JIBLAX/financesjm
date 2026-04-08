@@ -134,6 +134,7 @@ export interface MonthlySnapshot {
   dismissed?: boolean
   isManual?: boolean
   assetBreakdown?: Record<string, number>
+  accountBalances?: Record<string, number>  // per-account balances for re-editing
   totalRevenuesPro?: number   // revenus ops pro
   totalChargesPro?: number    // charges ops pro
 }

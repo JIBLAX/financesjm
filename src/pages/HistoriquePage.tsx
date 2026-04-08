@@ -195,14 +195,32 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
       Object.entries(existing.assetBreakdown || {}).forEach(([k, v]) => {
         if (k !== 'cash' && k !== 'livret') breakdown[k] = String(v)
       })
-      const accData = buildAccountData(monthKey)
+      // Restore per-account balances from saved snapshot if available,
+      // otherwise fall back to check-in / current balance
+      let accData: { balances: Record<string, string>; missing: Record<string, boolean> }
+      if (existing.accountBalances && Object.keys(existing.accountBalances).length > 0) {
+        const balances: Record<string, string> = {}
+        const missing: Record<string, boolean> = {}
+        activeAccounts.forEach(acc => {
+          if (existing.accountBalances![acc.id] !== undefined) {
+            balances[acc.id] = String(existing.accountBalances![acc.id])
+            missing[acc.id] = false
+          } else {
+            balances[acc.id] = ''
+            missing[acc.id] = true
+          }
+        })
+        accData = { balances, missing }
+      } else {
+        accData = buildAccountData(monthKey)
+      }
       setForm({
-        totalIncomePerso:  String(existing.totalIncomeBank  || ''),
-        totalIncomeCash:   String(existing.totalIncomeCash  || ''),
-        totalRevenuesPro:  String(existing.totalRevenuesPro || ''),
-        totalChargesPerso: String(existing.totalExpenses    || ''),
-        totalChargesPro:   String(existing.totalChargesPro  || ''),
-        totalDebts:        String(existing.totalDebts       || ''),
+        totalIncomePerso:  existing.totalIncomeBank  > 0 ? String(existing.totalIncomeBank)  : '',
+        totalIncomeCash:   existing.totalIncomeCash  > 0 ? String(existing.totalIncomeCash)  : '',
+        totalRevenuesPro:  existing.totalRevenuesPro ? String(existing.totalRevenuesPro) : '',
+        totalChargesPerso: existing.totalExpenses    > 0 ? String(existing.totalExpenses)    : '',
+        totalChargesPro:   existing.totalChargesPro  ? String(existing.totalChargesPro)  : '',
+        totalDebts:        existing.totalDebts       > 0 ? String(existing.totalDebts)       : '',
         assetBreakdown:    breakdown,
         accountBalances:   accData.balances,
         accountMissing:    accData.missing,
@@ -254,6 +272,14 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
       }
     })
 
+    // Save per-account balances so they can be restored on re-edit
+    const savedAccountBalances: Record<string, number> = {}
+    activeAccounts.forEach(acc => {
+      if (!form.accountMissing[acc.id]) {
+        savedAccountBalances[acc.id] = parseFloat(form.accountBalances[acc.id] || '0') || 0
+      }
+    })
+
     const snapshot: MonthlySnapshot = {
       id:               existing?.id || crypto.randomUUID(),
       monthKey:         editingMonth,
@@ -267,6 +293,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
       netWorth:         totalAssets - debts - reserveFiscaleVal,
       isManual:         true,
       assetBreakdown,
+      accountBalances:  Object.keys(savedAccountBalances).length > 0 ? savedAccountBalances : undefined,
       dismissed:        existing?.dismissed,
     }
     onSaveSnapshot(snapshot)
@@ -298,6 +325,9 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
     accs.forEach(acc => {
       if (checkIn?.accountBalances?.[acc.id] !== undefined) {
         total += checkIn.accountBalances[acc.id]
+        hasAny = true
+      } else if (snapshot.accountBalances?.[acc.id] !== undefined) {
+        total += snapshot.accountBalances[acc.id]
         hasAny = true
       }
     })
