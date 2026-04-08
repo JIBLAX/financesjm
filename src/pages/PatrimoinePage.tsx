@@ -73,12 +73,14 @@ export const PatrimoinePage: React.FC<Props> = ({
     const assetsTotal = store.assets.filter(a => a.type !== 'dette').reduce((s, a) => s + a.value, 0)
     const debtAssets = store.assets.filter(a => a.type === 'dette').reduce((s, a) => s + (a.outstandingBalance || a.value), 0)
     const debtsTotal = store.debts.reduce((s, d) => s + d.outstandingBalance, 0) + debtAssets
+    // Réserve Fiscale exclue du patrimoine net
+    const reserveFiscale = store.accounts.filter(a => a.id === 'bunq-fiscal' && a.isActive).reduce((s, a) => s + a.currentBalance, 0)
     const brut = accountsTotal + assetsTotal
-    const net = brut - debtsTotal
+    const net = brut - debtsTotal - reserveFiscale
     const lastUpdate = store.assets.length > 0
       ? store.assets.reduce((latest, a) => a.updatedAt > latest ? a.updatedAt : latest, '')
       : null
-    return { accountsTotal, assetsTotal, debtsTotal, brut, net, lastUpdate }
+    return { accountsTotal, assetsTotal, debtsTotal, brut, net, lastUpdate, reserveFiscale }
   }, [store])
 
   const classBreakdown = useMemo(() => {
