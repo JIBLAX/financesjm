@@ -93,10 +93,16 @@ const App: React.FC = () => {
   // ─── Monthly check-in ──────────────────────────────────────────────────────
 
   const [showCheckin, setShowCheckin] = useState(false)
+  const [checkinTargetMonth, setCheckinTargetMonth] = useState<string | null>(null)
   const handleCheckinComplete = useCallback((c: MonthlyCheckIn) => {
     finance.saveCheckIn(c)
     setShowCheckin(false)
+    setCheckinTargetMonth(null)
   }, [finance])
+  const handleRequestCheckin = useCallback((monthKey: string) => {
+    setCheckinTargetMonth(monthKey)
+    setShowCheckin(true)
+  }, [])
 
   // Must be before any conditional return — Rules of Hooks
   useEffect(() => {
@@ -146,6 +152,8 @@ const App: React.FC = () => {
                 onUpdateAccount={finance.updateAccount}
                 onUpdateAsset={finance.updateAsset}
                 onUpdateDebt={finance.updateDebt}
+                targetMonthKey={checkinTargetMonth ?? undefined}
+                onClose={checkinTargetMonth ? () => { setShowCheckin(false); setCheckinTargetMonth(null) } : undefined}
               />
             )}
             <Routes>
@@ -168,7 +176,7 @@ const App: React.FC = () => {
               <Route path="/liberte2" element={<Liberte2Page store={store} />} />
               <Route path="/trajectoire" element={<TrajectoryPage store={store} />} />
               <Route path="/objectifs" element={<ProjectsPage store={store} onAdd={finance.addProject} onUpdate={finance.updateProject} onRemove={finance.removeProject} onAddXp={finance.addXp} />} />
-              <Route path="/historique" element={<HistoriquePage store={store} onSaveSnapshot={finance.saveSnapshot} />} />
+              <Route path="/historique" element={<HistoriquePage store={store} onSaveSnapshot={finance.saveSnapshot} onRequestCheckin={handleRequestCheckin} />} />
             </Routes>
           </div>
           <BottomNav />
