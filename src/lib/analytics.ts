@@ -278,7 +278,7 @@ export function computeMissions(store: FinanceStore): ComputedMission[] {
   const hasPEA = store.accounts.some(a => a.name.toLowerCase().includes('pea') && a.isActive)
     || store.assets.some(a => a.name.toLowerCase().includes('pea'))
   const hasAV = store.accounts.some(a => a.name.toLowerCase().includes('assurance vie') && a.isActive)
-    || store.assets.some(a => a.name.toLowerCase().includes('assurance vie'))
+    || store.assets.some(a => a.type === 'assurance_vie' || a.name.toLowerCase().includes('assurance vie'))
   const peaValue = store.assets.filter(a => a.name.toLowerCase().includes('pea')).reduce((s, a) => s + a.value, 0)
   const allocationConfigured = store.settings.allocationRules.groups.length > 0
     && store.settings.allocationRules.groups.some(g => g.slots.length > 0)

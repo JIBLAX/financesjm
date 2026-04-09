@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { supabase } from '@/integrations/supabase/client'
+import { loadStore } from '@/lib/storage'
 import type { FinanceStore } from '@/types/finance'
 
 /** Debounced cloud sync for FinanceStore */
@@ -41,7 +42,10 @@ export function useCloudSync() {
       console.error('[CloudSync] pull error', error.message)
       return null
     }
-    return data?.data ?? null
+    if (!data?.data) return null
+    // Merge cloud data with local defaults so new fields are always initialized
+    const local = loadStore()
+    return { ...local, ...data.data } as FinanceStore
   }, [])
 
   return { pushToCloud, debouncedPush, pullFromCloud }
