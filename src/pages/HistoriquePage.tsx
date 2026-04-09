@@ -14,6 +14,9 @@ interface Props {
 const AUTO_FROM = '2026-04'
 
 // ── Bilan Account Groups ─────────────────────────────────────────────────────
+const BILAN_COVERED_IDS = ['qonto', 'bunq-fiscal']
+const BILAN_COVERED_GROUPS = ['Vie', 'Réserve', 'Urgence', 'Voyage', 'Projet']
+
 const BILAN_ACCOUNT_GROUPS = [
   { key: 'jm_be_activ',      label: 'JM BE ACTIV',      emoji: '💪', filter: (a: Account) => a.id === 'qonto' },
   { key: 'vie',              label: 'VIE',               emoji: '🏠', filter: (a: Account) => a.group === 'Vie' },
@@ -21,6 +24,7 @@ const BILAN_ACCOUNT_GROUPS = [
   { key: 'voyage',           label: 'Voyage',            emoji: '✈️', filter: (a: Account) => a.group === 'Voyage' },
   { key: 'projet',           label: 'Projet',            emoji: '🎯', filter: (a: Account) => a.group === 'Projet' },
   { key: 'reserve_fiscale',  label: 'Réserve Fiscale',   emoji: '📋', filter: (a: Account) => a.id === 'bunq-fiscal' },
+  { key: 'autres_comptes',   label: 'Autres Comptes',    emoji: '🏦', filter: (a: Account) => !BILAN_COVERED_IDS.includes(a.id) && !BILAN_COVERED_GROUPS.includes(a.group || '') },
 ]
 
 // ── Asset classes for bilan ──────────────────────────────────────────────────
