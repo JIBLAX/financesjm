@@ -106,6 +106,11 @@ export const SettingsPage: React.FC<Props> = ({ settings, accounts, onUpdate, on
         <button onClick={handleLock} className="w-full py-2 rounded-xl text-sm font-medium bg-destructive/10 text-destructive mb-2">
           Verrouiller maintenant
         </button>
+        {onSignOut && (
+          <button onClick={onSignOut} className="w-full py-2 rounded-xl text-sm font-medium bg-orange-500/10 text-orange-400 mb-2">
+            Se déconnecter du cloud
+          </button>
+        )}
         {!showPinChange ? (
           <button onClick={() => setShowPinChange(true)} className="w-full py-2 rounded-xl text-sm font-medium bg-muted/50 text-foreground">
             Changer le PIN
