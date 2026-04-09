@@ -428,14 +428,14 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted/30 text-muted-foreground text-xs font-medium border border-border/30 active:bg-muted/50"
                   >
                     <Pencil className="w-3 h-3" />
-                    {hasData ? 'Modifier' : isAuto ? 'Générer' : 'Saisir'}
+                    {hasData ? 'Revenus/Charges' : isAuto ? 'Générer' : 'Revenus/Charges'}
                   </button>
                   {onRequestCheckin && !isCurrent && (
                     <button
                       onClick={() => onRequestCheckin(monthKey)}
-                      className={`flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border active:opacity-70 ${hasCheckIn ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-muted/20 text-muted-foreground/60 border-border/20'}`}
+                      className={`flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border active:opacity-70 ${hasCheckIn ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}
                     >
-                      {hasCheckIn ? '✓' : '+'} Détaillé
+                      🏦 {hasCheckIn ? 'Patrimoine ✓' : 'Patrimoine'}
                     </button>
                   )}
                 </div>

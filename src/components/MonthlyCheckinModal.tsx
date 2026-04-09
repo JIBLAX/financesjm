@@ -156,10 +156,14 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
   const prevMonthKey = getPreviousMonthKey(currentMonthKey)
   const isRetroactive = !!targetMonthKey
 
-  // For retroactive: load existing check-in data if any
+  // For retroactive: load existing check-in OR existing snapshot as pre-fill source
   const existingCheckIn = useMemo(
     () => isRetroactive ? (store.monthlyCheckIns || []).find(c => c.monthKey === targetMonthKey) : undefined,
     [isRetroactive, store.monthlyCheckIns, targetMonthKey]
+  )
+  const existingSnapshot = useMemo(
+    () => isRetroactive ? store.monthlySnapshots.find(s => s.monthKey === targetMonthKey) : undefined,
+    [isRetroactive, store.monthlySnapshots, targetMonthKey]
   )
 
   const wrappedCards = useMemo(() => buildWrappedCards(store, prevMonthKey), [store, prevMonthKey])
@@ -177,10 +181,13 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
   const [stepIdx, setStepIdx] = useState(0)
   const currentStep = steps[stepIdx]
 
-  // Editable balances — pre-fill from existing check-in for retroactive, empty for new retroactive, current balance for normal
+  // Editable balances — priority: existingCheckIn > existingSnapshot > empty (retroactive) > current (normal)
   const [accountEdits, setAccountEdits] = useState<Record<string, string>>(() => {
     if (existingCheckIn?.accountBalances) {
       return Object.fromEntries(activeAccounts.map(a => [a.id, String(existingCheckIn.accountBalances[a.id] ?? '')]))
+    }
+    if (isRetroactive && existingSnapshot?.accountBalances) {
+      return Object.fromEntries(activeAccounts.map(a => [a.id, existingSnapshot.accountBalances![a.id] != null ? String(existingSnapshot.accountBalances![a.id]) : '']))
     }
     if (isRetroactive) return Object.fromEntries(activeAccounts.map(a => [a.id, '']))
     return Object.fromEntries(activeAccounts.map(a => [a.id, String(a.currentBalance)]))
@@ -188,6 +195,9 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
   const [assetEdits, setAssetEdits] = useState<Record<string, string>>(() => {
     if (existingCheckIn?.assetValues) {
       return Object.fromEntries(store.assets.map(a => [a.id, String(existingCheckIn.assetValues[a.id] ?? '')]))
+    }
+    if (isRetroactive && existingSnapshot?.assetValues) {
+      return Object.fromEntries(store.assets.map(a => [a.id, existingSnapshot.assetValues![a.id] != null ? String(existingSnapshot.assetValues![a.id]) : '']))
     }
     if (isRetroactive) return Object.fromEntries(store.assets.map(a => [a.id, '']))
     return Object.fromEntries(store.assets.map(a => [a.id, String(a.value)]))
