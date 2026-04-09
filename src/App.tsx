@@ -1,11 +1,14 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { BottomNav } from '@/components/BottomNav'
 import { PinLock } from '@/components/PinLock'
+import { AuthPage } from '@/pages/AuthPage'
 import { useFinanceStore } from '@/hooks/useFinanceStore'
-import { isSessionValid, createSession, clearSession, loadStore } from '@/lib/storage'
+import { useAuth } from '@/hooks/useAuth'
+import { useCloudSync } from '@/hooks/useCloudSync'
+import { isSessionValid, createSession, clearSession, loadStore, saveStore } from '@/lib/storage'
 
 import { DashboardPage } from '@/pages/DashboardPage'
 import { OperationsPage } from '@/pages/OperationsPage'
@@ -32,9 +35,40 @@ import { SideNav } from '@/components/SideNav'
 import type { MonthlyCheckIn } from '@/types/finance'
 
 const App: React.FC = () => {
+  const { user, loading: authLoading, signOut } = useAuth()
   const finance = useFinanceStore()
   const { store } = finance
+  const { debouncedPush, pullFromCloud } = useCloudSync()
   const [unlocked, setUnlocked] = useState(() => isSessionValid())
+  const [cloudSynced, setCloudSynced] = useState(false)
+
+  // Pull from cloud on first auth
+  useEffect(() => {
+    if (!user || cloudSynced) return
+    let cancelled = false
+    ;(async () => {
+      const cloudData = await pullFromCloud()
+      if (cancelled) return
+      if (cloudData) {
+        // Cloud has data → merge into local (cloud wins)
+        saveStore(cloudData as any)
+        finance.persist(cloudData as any)
+      } else {
+        // First time: push local data to cloud
+        debouncedPush(store)
+      }
+      setCloudSynced(true)
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, cloudSynced])
+
+  // Push to cloud on every store change (debounced)
+  useEffect(() => {
+    if (!user || !cloudSynced) return
+    debouncedPush(store)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store, user, cloudSynced])
 
   const handleUnlock = useCallback(() => { createSession(30); setUnlocked(true) }, [])
   const handleSetupPin = useCallback((pin: string) => { finance.updateSettings({ pin, pinConfigured: true }) }, [finance])
@@ -42,18 +76,44 @@ const App: React.FC = () => {
   const handleImport = useCallback((imported: typeof store) => { finance.persist(imported) }, [finance])
   const handleReset = useCallback(() => { const fresh = loadStore(); finance.persist(fresh) }, [finance])
 
+  const handleSignOut = useCallback(async () => {
+    await signOut()
+    clearSession()
+    setUnlocked(false)
+    setCloudSynced(false)
+  }, [signOut])
+
   const [showCheckin, setShowCheckin] = useState(false)
   const handleCheckinComplete = useCallback((c: MonthlyCheckIn) => {
     finance.saveCheckIn(c)
     setShowCheckin(false)
   }, [finance])
 
-  // Must be before any conditional return — Rules of Hooks
   React.useEffect(() => {
     if (unlocked && shouldShowCheckin(store)) setShowCheckin(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked])
 
+  // Loading state
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  // Not authenticated → show auth page
+  if (!user) {
+    return (
+      <TooltipProvider>
+        <Toaster />
+        <AuthPage onAuthenticated={() => {}} />
+      </TooltipProvider>
+    )
+  }
+
+  // Authenticated but PIN locked
   if (!unlocked) {
     return <PinLock correctPin={store.settings.pin} pinConfigured={store.settings.pinConfigured} onUnlock={handleUnlock} onSetupPin={handleSetupPin} />
   }
@@ -90,7 +150,7 @@ const App: React.FC = () => {
               <Route path="/transactions/new" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} onUpdateAsset={finance.updateAsset} />} />
               <Route path="/depenses" element={<ExpensesPage store={store} />} />
               <Route path="/export" element={<ExportPage onImport={handleImport} onReset={handleReset} />} />
-              <Route path="/parametres" element={<SettingsPage settings={store.settings} accounts={store.accounts} onUpdate={finance.updateSettings} onUpdateRegulation={finance.updateProfileRegulation} onLock={handleLock} />} />
+              <Route path="/parametres" element={<SettingsPage settings={store.settings} accounts={store.accounts} onUpdate={finance.updateSettings} onUpdateRegulation={finance.updateProfileRegulation} onLock={handleLock} onSignOut={handleSignOut} />} />
               <Route path="/profil" element={<ProfilePage store={store} onUpdateRegulation={finance.updateProfileRegulation} />} />
               <Route path="/questionnaire" element={<QuestionnairePage questionnaire={store.settings.investorQuestionnaire} onUpdate={finance.updateSettings} />} />
               <Route path="/liberte2" element={<Liberte2Page store={store} />} />
