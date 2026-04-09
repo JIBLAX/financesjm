@@ -11,9 +11,10 @@ interface Props {
   onUpdate: (patch: Partial<AppSettings>) => void
   onUpdateRegulation: (patch: Partial<ProfileRegulation>) => void
   onLock: () => void
+  onSignOut?: () => void
 }
 
-export const SettingsPage: React.FC<Props> = ({ settings, accounts, onUpdate, onUpdateRegulation: _onUpdateRegulation, onLock }) => {
+export const SettingsPage: React.FC<Props> = ({ settings, accounts, onUpdate, onUpdateRegulation: _onUpdateRegulation, onLock, onSignOut }) => {
   const navigate = useNavigate()
   const [newPin, setNewPin] = useState('')
   const [showPinChange, setShowPinChange] = useState(false)
