@@ -234,37 +234,72 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   const activeProjects = projects.filter(p => !p.completedAt).slice(0, 2)
 
   const evolutionData = useMemo(() => {
-    const checkIns = [...(store.monthlyCheckIns || [])].sort((a, b) => a.monthKey.localeCompare(b.monthKey))
-    if (checkIns.length === 0) return []
-    return checkIns.map(checkIn => {
-      const [y, m] = checkIn.monthKey.split('-').map(Number)
+    // Merge monthlyCheckIns + monthlySnapshots (checkIn takes priority per month)
+    const monthKeys = new Set<string>()
+    ;(store.monthlyCheckIns || []).forEach(ci => monthKeys.add(ci.monthKey))
+    ;(store.monthlySnapshots || []).forEach(s => monthKeys.add(s.monthKey))
+    if (monthKeys.size === 0) return []
+
+    return [...monthKeys].sort().map(monthKey => {
+      const [y, m] = monthKey.split('-').map(Number)
       const raw = new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')
       const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
       let epargne = 0, tresoreriePerso = 0, tresoreriePro = 0, crypto = 0, dettes = 0
-      // Comptes bancaires
-      Object.entries(checkIn.accountBalances || {}).forEach(([accId, value]) => {
-        const acc = store.accounts.find(a => a.id === accId)
-        if (!acc) return
-        if (acc.type === 'livret' || acc.type === 'epargne_projet') epargne += value
-        else if (acc.type === 'dette') dettes += value
-        else if (acc.type === 'pro') tresoreriePro += value
-        else tresoreriePerso += value
-      })
-      // Actifs
-      Object.entries(checkIn.assetValues || {}).forEach(([assetId, value]) => {
-        const asset = store.assets.find(a => a.id === assetId)
-        if (!asset) return
-        const cls = ASSET_CLASS_MAP[asset.type]
-        if (cls === 'epargne') epargne += value
-        else if (cls === 'cash') tresoreriePerso += value
-        else if (cls === 'crypto') crypto += value
-        else if (cls === 'dettes') dettes += value
-      })
-      // Dettes explicites
-      Object.values(checkIn.debtBalances || {}).forEach(v => { dettes += v })
+
+      const checkIn = (store.monthlyCheckIns || []).find(ci => ci.monthKey === monthKey)
+      const snapshot = (store.monthlySnapshots || []).find(s => s.monthKey === monthKey)
+
+      if (checkIn) {
+        // Precise check-in data (monthly review)
+        Object.entries(checkIn.accountBalances || {}).forEach(([accId, value]) => {
+          const acc = store.accounts.find(a => a.id === accId)
+          if (!acc) return
+          if (acc.type === 'livret' || acc.type === 'epargne_projet') epargne += value
+          else if (acc.type === 'dette') dettes += value
+          else if (acc.type === 'pro') tresoreriePro += value
+          else tresoreriePerso += value
+        })
+        Object.entries(checkIn.assetValues || {}).forEach(([assetId, value]) => {
+          const asset = store.assets.find(a => a.id === assetId)
+          if (!asset) return
+          const cls = ASSET_CLASS_MAP[asset.type]
+          if (cls === 'epargne') epargne += value
+          else if (cls === 'cash') tresoreriePerso += value
+          else if (cls === 'crypto') crypto += value
+          else if (cls === 'dettes') dettes += value
+        })
+        Object.values(checkIn.debtBalances || {}).forEach(v => { dettes += v })
+      } else if (snapshot) {
+        // Fall back to manual bilan snapshot (Historique)
+        Object.entries(snapshot.accountBalances || {}).forEach(([accId, value]) => {
+          const acc = store.accounts.find(a => a.id === accId)
+          if (!acc) return
+          if (acc.type === 'livret' || acc.type === 'epargne_projet') epargne += value
+          else if (acc.type === 'dette') dettes += value
+          else if (acc.type === 'pro') tresoreriePro += value
+          else tresoreriePerso += value
+        })
+        // Use per-asset values if available (from detailed check-in saved on snapshot), else class totals
+        if (snapshot.assetValues && Object.keys(snapshot.assetValues).length > 0) {
+          Object.entries(snapshot.assetValues).forEach(([assetId, value]) => {
+            const asset = store.assets.find(a => a.id === assetId)
+            if (!asset) return
+            const cls = ASSET_CLASS_MAP[asset.type]
+            if (cls === 'epargne') epargne += value
+            else if (cls === 'cash') tresoreriePerso += value
+            else if (cls === 'crypto') crypto += value
+            else if (cls === 'dettes') dettes += value
+          })
+        } else {
+          crypto = snapshot.assetBreakdown?.['crypto'] || 0
+          epargne += (snapshot.assetBreakdown?.['livret'] || 0) + (snapshot.assetBreakdown?.['assurance_vie'] || 0)
+        }
+        dettes = snapshot.totalDebts || 0
+      }
+
       return { label, epargne, tresoreriePerso, tresoreriePro, crypto, dettes }
     })
-  }, [store.monthlyCheckIns, store.assets, store.accounts])
+  }, [store.monthlyCheckIns, store.monthlySnapshots, store.assets, store.accounts])
 
   const todayDate = new Date()
   const greeting = todayDate.getHours() < 18 ? 'Bonjour' : 'Bonsoir'

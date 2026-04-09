@@ -8,12 +8,16 @@ import type { FinanceStore, MonthlySnapshot, Account } from '@/types/finance'
 interface Props {
   store: FinanceStore
   onSaveSnapshot: (s: MonthlySnapshot) => void
+  onRequestCheckin?: (monthKey: string) => void
 }
 
 // April 2026 = first month with connected data
 const AUTO_FROM = '2026-04'
 
 // ── Bilan Account Groups ─────────────────────────────────────────────────────
+const BILAN_COVERED_IDS = ['qonto', 'bunq-fiscal']
+const BILAN_COVERED_GROUPS = ['Vie', 'Réserve', 'Urgence', 'Voyage', 'Projet']
+
 const BILAN_ACCOUNT_GROUPS = [
   { key: 'jm_be_activ',      label: 'JM BE ACTIV',      emoji: '💪', filter: (a: Account) => a.id === 'qonto' },
   { key: 'vie',              label: 'VIE',               emoji: '🏠', filter: (a: Account) => a.group === 'Vie' },
@@ -21,6 +25,7 @@ const BILAN_ACCOUNT_GROUPS = [
   { key: 'voyage',           label: 'Voyage',            emoji: '✈️', filter: (a: Account) => a.group === 'Voyage' },
   { key: 'projet',           label: 'Projet',            emoji: '🎯', filter: (a: Account) => a.group === 'Projet' },
   { key: 'reserve_fiscale',  label: 'Réserve Fiscale',   emoji: '📋', filter: (a: Account) => a.id === 'bunq-fiscal' },
+  { key: 'autres_comptes',   label: 'Autres Comptes',    emoji: '🏦', filter: (a: Account) => !BILAN_COVERED_IDS.includes(a.id) && !BILAN_COVERED_GROUPS.includes(a.group || '') },
 ]
 
 // ── Asset classes for bilan ──────────────────────────────────────────────────
@@ -93,7 +98,7 @@ function emptyForm(): FormState {
 
 const fmtN = (n: number) => n > 0 ? String(Math.round(n * 100) / 100) : ''
 
-export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
+export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onRequestCheckin }) => {
   const navigate = useNavigate()
   const months = useMemo(() => getAllMonthKeys(), [])
   const [editingMonth, setEditingMonth] = useState<string | null>(null)
@@ -105,6 +110,11 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
   const snapshotMap = useMemo(
     () => new Map(store.monthlySnapshots.map(s => [s.monthKey, s])),
     [store.monthlySnapshots]
+  )
+
+  const checkInMap = useMemo(
+    () => new Map((store.monthlyCheckIns || []).map(c => [c.monthKey, c])),
+    [store.monthlyCheckIns]
   )
 
   const activeAccounts = useMemo(
@@ -361,20 +371,22 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
       {/* Month list */}
       <div className="space-y-2">
         {months.map(monthKey => {
-          const snapshot  = snapshotMap.get(monthKey)
-          const isAuto    = monthKey >= AUTO_FROM
-          const isCurrent = monthKey === getCurrentMonthKey()
-          const totalInc  = snapshot ? snapshot.totalIncomeBank + snapshot.totalIncomeCash + (snapshot.totalRevenuesPro || 0) : null
-          const totalExp  = snapshot ? snapshot.totalExpenses + (snapshot.totalChargesPro || 0) : null
-          const hasData   = !!snapshot
+          const snapshot   = snapshotMap.get(monthKey)
+          const checkIn    = checkInMap.get(monthKey)
+          const isAuto     = monthKey >= AUTO_FROM
+          const isCurrent  = monthKey === getCurrentMonthKey()
+          const totalInc   = snapshot ? snapshot.totalIncomeBank + snapshot.totalIncomeCash + (snapshot.totalRevenuesPro || 0) : null
+          const totalExp   = snapshot ? snapshot.totalExpenses + (snapshot.totalChargesPro || 0) : null
+          const hasData    = !!snapshot
+          const hasCheckIn = !!checkIn
 
           return (
             <FinanceCard key={monthKey}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isAuto ? 'bg-emerald-500' : 'bg-primary'}`} />
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${isAuto ? 'bg-emerald-500' : 'bg-primary'}`} />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold text-foreground capitalize">{getMonthLabel(monthKey)}</p>
                       {isCurrent && (
                         <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-medium">En cours</span>
@@ -383,6 +395,9 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                         <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
                           <Zap className="w-2.5 h-2.5" />auto
                         </span>
+                      )}
+                      {hasCheckIn && (
+                        <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded-full font-medium">✓ Bilan détaillé</span>
                       )}
                     </div>
                     {hasData ? (
@@ -407,13 +422,23 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => openEdit(monthKey)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted/30 text-muted-foreground text-xs font-medium flex-shrink-0 border border-border/30 active:bg-muted/50"
-                >
-                  <Pencil className="w-3 h-3" />
-                  {hasData ? 'Modifier' : isAuto ? 'Générer' : 'Saisir'}
-                </button>
+                <div className="flex flex-col gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => openEdit(monthKey)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted/30 text-muted-foreground text-xs font-medium border border-border/30 active:bg-muted/50"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    {hasData ? 'Modifier' : isAuto ? 'Générer' : 'Saisir'}
+                  </button>
+                  {onRequestCheckin && !isCurrent && (
+                    <button
+                      onClick={() => onRequestCheckin(monthKey)}
+                      className={`flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border active:opacity-70 ${hasCheckIn ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-muted/20 text-muted-foreground/60 border-border/20'}`}
+                    >
+                      {hasCheckIn ? '✓' : '+'} Détaillé
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Asset breakdown preview */}
