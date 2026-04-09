@@ -197,12 +197,23 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
     return keys.map(key => {
       const [y, m] = key.split('-').map(Number)
       const label = new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')
-      const txs = store.transactions.filter(t => t.monthKey === key)
-      const ops = store.operations.filter(op => op.monthKey === key)
-      const income = ops.filter(op => op.family === 'revenu').reduce((s, op) => s + op.actual, 0)
-        || txs.filter(t => t.direction === 'income').reduce((s, t) => s + t.amount, 0)
-      const expense = ops.filter(op => op.family !== 'revenu').reduce((s, op) => s + op.actual, 0)
-        || txs.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
+      let income = 0
+      let expense = 0
+      // For months before the app was created (before 2026-04), use historique snapshot only
+      if (key < '2026-04') {
+        const snap = store.monthlySnapshots.find(s => s.monthKey === key)
+        if (snap) {
+          income = (snap.totalIncomeBank || 0) + (snap.totalIncomeCash || 0) + (snap.totalRevenuesPro || 0)
+          expense = (snap.totalExpenses || 0) + (snap.totalChargesPro || 0)
+        }
+      } else {
+        const txs = store.transactions.filter(t => t.monthKey === key)
+        const ops = store.operations.filter(op => op.monthKey === key)
+        income = ops.filter(op => op.family === 'revenu').reduce((s, op) => s + op.actual, 0)
+          || txs.filter(t => t.direction === 'income').reduce((s, t) => s + t.amount, 0)
+        expense = ops.filter(op => op.family !== 'revenu').reduce((s, op) => s + op.actual, 0)
+          || txs.filter(t => t.direction === 'expense').reduce((s, t) => s + t.amount, 0)
+      }
       return { label: label.charAt(0).toUpperCase() + label.slice(1, 3), income, expense }
     })
   }, [store, monthKey])
