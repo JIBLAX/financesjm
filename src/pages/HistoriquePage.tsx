@@ -393,6 +393,9 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
                         {totalExp !== null && totalExp > 0 && (
                           <span className="text-[11px] text-rose-400">−{formatCurrency(totalExp)}</span>
                         )}
+                        {(totalInc === null || totalInc === 0) && (totalExp === null || totalExp === 0) && (
+                          <span className="text-[11px] text-amber-400 font-semibold">⚠ Revenus & charges non renseignés</span>
+                        )}
                         {snapshot!.totalAssets > 0 && (
                           <span className="text-[11px] text-blue-400">Actifs {formatCurrency(snapshot!.totalAssets)}</span>
                         )}

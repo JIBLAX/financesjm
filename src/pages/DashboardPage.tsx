@@ -388,7 +388,20 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
         const totalIncome  = activeCashflow.reduce((s, d) => s + d.income, 0)
         const totalExpense = activeCashflow.reduce((s, d) => s + d.expense, 0)
         const cashflowMax  = Math.max(totalIncome, totalExpense, 1)
-        const hasCashflowChart = activeCashflow.length >= 2
+        const hasCashflowChart = barData.length >= 2
+
+        // Custom XAxis tick: ⚠ in amber for months with no data
+        const CashflowTick = ({ x, y, payload }: any) => {
+          const d = barData.find(b => b.label === payload.value)
+          const empty = !d || (d.income === 0 && d.expense === 0)
+          return (
+            <text x={x} y={y + 10} textAnchor="middle"
+              fill={empty ? 'hsl(38 70% 55%)' : 'hsl(215 10% 48%)'}
+              fontSize={empty ? 11 : 9} fontWeight={600}>
+              {empty ? '⚠' : payload.value}
+            </text>
+          )
+        }
         return (
           <div className="rounded-2xl bg-card border border-border/40 p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -417,8 +430,8 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
             {hasCashflowChart && (
               <div className="border-t border-border/20 pt-3">
                 <ResponsiveContainer width="100%" height={100}>
-                  <BarChart data={activeCashflow} barGap={3} barCategoryGap="30%">
-                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'hsl(215 10% 48%)', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <BarChart data={barData} barGap={3} barCategoryGap="30%">
+                    <XAxis dataKey="label" tick={<CashflowTick />} axisLine={false} tickLine={false} />
                     <Tooltip content={<BarTooltip />} cursor={{ fill: 'hsl(225 12% 16% / 0.5)', radius: 6 }} />
                     <Bar dataKey="income"  fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
                     <Bar dataKey="expense" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={22} />
