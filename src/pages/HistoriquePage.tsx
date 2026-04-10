@@ -8,7 +8,6 @@ import type { FinanceStore, MonthlySnapshot, Account } from '@/types/finance'
 interface Props {
   store: FinanceStore
   onSaveSnapshot: (s: MonthlySnapshot) => void
-  onRequestCheckin?: (monthKey: string) => void
 }
 
 // April 2026 = first month with connected data
@@ -98,7 +97,7 @@ function emptyForm(): FormState {
 
 const fmtN = (n: number) => n > 0 ? String(Math.round(n * 100) / 100) : ''
 
-export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onRequestCheckin }) => {
+export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot }) => {
   const navigate = useNavigate()
   const months = useMemo(() => getAllMonthKeys(), [])
   const [editingMonth, setEditingMonth] = useState<string | null>(null)
@@ -110,11 +109,6 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
   const snapshotMap = useMemo(
     () => new Map(store.monthlySnapshots.map(s => [s.monthKey, s])),
     [store.monthlySnapshots]
-  )
-
-  const checkInMap = useMemo(
-    () => new Map((store.monthlyCheckIns || []).map(c => [c.monthKey, c])),
-    [store.monthlyCheckIns]
   )
 
   const activeAccounts = useMemo(
@@ -371,22 +365,20 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
       {/* Month list */}
       <div className="space-y-2">
         {months.map(monthKey => {
-          const snapshot   = snapshotMap.get(monthKey)
-          const checkIn    = checkInMap.get(monthKey)
-          const isAuto     = monthKey >= AUTO_FROM
-          const isCurrent  = monthKey === getCurrentMonthKey()
-          const totalInc   = snapshot ? snapshot.totalIncomeBank + snapshot.totalIncomeCash + (snapshot.totalRevenuesPro || 0) : null
-          const totalExp   = snapshot ? snapshot.totalExpenses + (snapshot.totalChargesPro || 0) : null
-          const hasData    = !!snapshot
-          const hasCheckIn = !!checkIn
+          const snapshot  = snapshotMap.get(monthKey)
+          const isAuto    = monthKey >= AUTO_FROM
+          const isCurrent = monthKey === getCurrentMonthKey()
+          const totalInc  = snapshot ? snapshot.totalIncomeBank + snapshot.totalIncomeCash + (snapshot.totalRevenuesPro || 0) : null
+          const totalExp  = snapshot ? snapshot.totalExpenses + (snapshot.totalChargesPro || 0) : null
+          const hasData   = !!snapshot
 
           return (
             <FinanceCard key={monthKey}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${isAuto ? 'bg-emerald-500' : 'bg-primary'}`} />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isAuto ? 'bg-emerald-500' : 'bg-primary'}`} />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-foreground capitalize">{getMonthLabel(monthKey)}</p>
                       {isCurrent && (
                         <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-medium">En cours</span>
@@ -396,9 +388,6 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
                           <Zap className="w-2.5 h-2.5" />auto
                         </span>
                       )}
-                      {hasCheckIn && (
-                        <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded-full font-medium">✓ Bilan détaillé</span>
-                      )}
                     </div>
                     {hasData ? (
                       <div className="flex gap-3 mt-0.5 flex-wrap">
@@ -407,9 +396,6 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
                         )}
                         {totalExp !== null && totalExp > 0 && (
                           <span className="text-[11px] text-rose-400">−{formatCurrency(totalExp)}</span>
-                        )}
-                        {(totalInc === null || totalInc === 0) && (totalExp === null || totalExp === 0) && (
-                          <span className="text-[11px] text-amber-400 font-semibold">⚠ Revenus & charges non renseignés</span>
                         )}
                         {snapshot!.totalAssets > 0 && (
                           <span className="text-[11px] text-blue-400">Actifs {formatCurrency(snapshot!.totalAssets)}</span>
@@ -422,23 +408,13 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={() => openEdit(monthKey)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted/30 text-muted-foreground text-xs font-medium border border-border/30 active:bg-muted/50"
-                  >
-                    <Pencil className="w-3 h-3" />
-                    {hasData ? 'Revenus/Charges' : isAuto ? 'Générer' : 'Revenus/Charges'}
-                  </button>
-                  {onRequestCheckin && !isCurrent && (
-                    <button
-                      onClick={() => onRequestCheckin(monthKey)}
-                      className={`flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border active:opacity-70 ${hasCheckIn ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}
-                    >
-                      🏦 {hasCheckIn ? 'Patrimoine ✓' : 'Patrimoine'}
-                    </button>
-                  )}
-                </div>
+                <button
+                  onClick={() => openEdit(monthKey)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted/30 text-muted-foreground text-xs font-medium flex-shrink-0 border border-border/30 active:bg-muted/50"
+                >
+                  <Pencil className="w-3 h-3" />
+                  {hasData ? 'Modifier' : isAuto ? 'Générer' : 'Saisir'}
+                </button>
               </div>
 
               {/* Asset breakdown preview */}
