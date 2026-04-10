@@ -13,13 +13,21 @@ export function useAuth() {
       setLoading(false)
     })
 
-    // Then check current
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+    // Then check current — catch ensures loading never stays stuck
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setUser(session?.user ?? null)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
 
-    return () => subscription.unsubscribe()
+    // Safety timeout — if Supabase hangs for 5s, unblock the UI
+    const timeout = setTimeout(() => setLoading(false), 5000)
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
   }, [])
 
   const signOut = async () => {

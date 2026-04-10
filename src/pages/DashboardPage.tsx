@@ -279,21 +279,8 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
           else if (acc.type === 'pro') tresoreriePro += value
           else tresoreriePerso += value
         })
-        // Use per-asset values if available (from detailed check-in saved on snapshot), else class totals
-        if (snapshot.assetValues && Object.keys(snapshot.assetValues).length > 0) {
-          Object.entries(snapshot.assetValues).forEach(([assetId, value]) => {
-            const asset = store.assets.find(a => a.id === assetId)
-            if (!asset) return
-            const cls = ASSET_CLASS_MAP[asset.type]
-            if (cls === 'epargne') epargne += value
-            else if (cls === 'cash') tresoreriePerso += value
-            else if (cls === 'crypto') crypto += value
-            else if (cls === 'dettes') dettes += value
-          })
-        } else {
-          crypto = snapshot.assetBreakdown?.['crypto'] || 0
-          epargne += (snapshot.assetBreakdown?.['livret'] || 0) + (snapshot.assetBreakdown?.['assurance_vie'] || 0)
-        }
+        crypto = snapshot.assetBreakdown?.['crypto'] || 0
+        epargne += (snapshot.assetBreakdown?.['livret'] || 0) + (snapshot.assetBreakdown?.['assurance_vie'] || 0)
         dettes = snapshot.totalDebts || 0
       }
 
