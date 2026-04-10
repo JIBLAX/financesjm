@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getMonthLabel, getLevelForXp, getNextLevel } from '@/lib/constants'
 import { calculateHealthScore } from '@/lib/analytics'
 import type { FinanceStore, MonthlyCheckIn, Account, Asset, Debt } from '@/types/finance'
@@ -10,6 +10,10 @@ interface Props {
   onUpdateAccount: (id: string, patch: Partial<Account>) => void
   onUpdateAsset: (id: string, patch: Partial<Asset>) => void
   onUpdateDebt: (id: string, patch: Partial<Debt>) => void
+  /** Si défini → mode rétroactif : bilan pour un mois passé */
+  targetMonthKey?: string
+  /** Bouton fermer pour le mode rétroactif */
+  onClose?: () => void
 }
 
 export function shouldShowCheckin(store: FinanceStore): boolean {
@@ -148,11 +152,21 @@ type CheckinStep = 'intro' | 'comptes' | 'actifs' | 'dettes' | 'confirm'
 
 export const MonthlyCheckinModal: React.FC<Props> = ({
   store, onSaveCheckIn, onUpdateAccount, onUpdateAsset, onUpdateDebt,
+  targetMonthKey, onClose,
 }) => {
+  const isRetroactive = !!targetMonthKey
   const currentMonthKey = getCurrentMonthKey()
   const prevMonthKey = getPreviousMonthKey(currentMonthKey)
 
-  const wrappedCards = useMemo(() => buildWrappedCards(store, prevMonthKey), [store, prevMonthKey])
+  // En mode rétroactif, on utilise le mois cible ; sinon le mois courant ou précédent (grace j1)
+  const bilanMonthKey = isRetroactive
+    ? targetMonthKey!
+    : (new Date().getDate() === 1 ? prevMonthKey : currentMonthKey)
+
+  const wrappedCards = useMemo(
+    () => isRetroactive ? [] : buildWrappedCards(store, prevMonthKey),
+    [store, prevMonthKey, isRetroactive]
+  )
   const hasWrapped = wrappedCards.length > 0
 
   // Wrapped state
@@ -167,41 +181,67 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
   const [stepIdx, setStepIdx] = useState(0)
   const currentStep = steps[stepIdx]
 
-  // Editable balances (string for input value)
-  const [accountEdits, setAccountEdits] = useState<Record<string, string>>(
-    () => Object.fromEntries(activeAccounts.map(a => [a.id, String(a.currentBalance)]))
+  // Pré-remplissage : check-in existant > snapshot > valeur actuelle
+  const existingCheckIn = useMemo(
+    () => (store.monthlyCheckIns || []).find(ci => ci.monthKey === bilanMonthKey),
+    [store.monthlyCheckIns, bilanMonthKey]
   )
-  const [assetEdits, setAssetEdits] = useState<Record<string, string>>(
-    () => Object.fromEntries(store.assets.map(a => [a.id, String(a.value)]))
-  )
-  const [debtEdits, setDebtEdits] = useState<Record<string, string>>(
-    () => Object.fromEntries(store.debts.map(d => [d.id, String(d.outstandingBalance)]))
+  const existingSnapshot = useMemo(
+    () => (store.monthlySnapshots || []).find(s => s.monthKey === bilanMonthKey),
+    [store.monthlySnapshots, bilanMonthKey]
   )
 
+  const [accountEdits, setAccountEdits] = useState<Record<string, string>>(() => {
+    return Object.fromEntries(activeAccounts.map(a => {
+      if (existingCheckIn?.accountBalances?.[a.id] !== undefined)
+        return [a.id, String(existingCheckIn.accountBalances[a.id])]
+      if (existingSnapshot?.accountBalances?.[a.id] !== undefined)
+        return [a.id, String(existingSnapshot.accountBalances[a.id])]
+      return [a.id, isRetroactive ? '' : String(a.currentBalance)]
+    }))
+  })
+
+  const [assetEdits, setAssetEdits] = useState<Record<string, string>>(() => {
+    return Object.fromEntries(store.assets.map(a => {
+      if (existingCheckIn?.assetValues?.[a.id] !== undefined)
+        return [a.id, String(existingCheckIn.assetValues[a.id])]
+      return [a.id, isRetroactive ? '' : String(a.value)]
+    }))
+  })
+
+  const [debtEdits, setDebtEdits] = useState<Record<string, string>>(() => {
+    return Object.fromEntries(store.debts.map(d => {
+      if (existingCheckIn?.debtBalances?.[d.id] !== undefined)
+        return [d.id, String(existingCheckIn.debtBalances[d.id])]
+      return [d.id, isRetroactive ? '' : String(d.outstandingBalance)]
+    }))
+  })
+
   const handleFinish = () => {
-    // Apply balance updates
-    activeAccounts.forEach(a => {
-      const val = parseFloat(accountEdits[a.id]) || 0
-      if (val !== a.currentBalance) onUpdateAccount(a.id, { currentBalance: val })
-    })
-    store.assets.forEach(a => {
-      const val = parseFloat(assetEdits[a.id]) || 0
-      if (val !== a.value) onUpdateAsset(a.id, { value: val })
-    })
-    store.debts.forEach(d => {
-      const val = parseFloat(debtEdits[d.id]) || 0
-      if (val !== d.outstandingBalance) onUpdateDebt(d.id, { outstandingBalance: val })
-    })
-    // Save check-in: if done on day 1 (grace), it belongs to the previous month
-    const bilanMonthKey = new Date().getDate() === 1 ? prevMonthKey : currentMonthKey
+    // En mode normal : mettre à jour les soldes courants
+    if (!isRetroactive) {
+      activeAccounts.forEach(a => {
+        const val = parseFloat(accountEdits[a.id]) || 0
+        if (val !== a.currentBalance) onUpdateAccount(a.id, { currentBalance: val })
+      })
+      store.assets.forEach(a => {
+        const val = parseFloat(assetEdits[a.id]) || 0
+        if (val !== a.value) onUpdateAsset(a.id, { value: val })
+      })
+      store.debts.forEach(d => {
+        const val = parseFloat(debtEdits[d.id]) || 0
+        if (val !== d.outstandingBalance) onUpdateDebt(d.id, { outstandingBalance: val })
+      })
+    }
     onSaveCheckIn({
-      id: `checkin_${Date.now()}`,
+      id: existingCheckIn?.id || `checkin_${Date.now()}`,
       monthKey: bilanMonthKey,
       doneAt: new Date().toISOString(),
       accountBalances: Object.fromEntries(activeAccounts.map(a => [a.id, parseFloat(accountEdits[a.id]) || 0])),
       assetValues: Object.fromEntries(store.assets.map(a => [a.id, parseFloat(assetEdits[a.id]) || 0])),
       debtBalances: Object.fromEntries(store.debts.map(d => [d.id, parseFloat(debtEdits[d.id]) || 0])),
     })
+    if (isRetroactive && onClose) onClose()
   }
 
   // ─── Wrapped phase ──────────────────────────────────────────────────────────
@@ -254,13 +294,27 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
       {/* Header */}
       <div className="px-5 pt-6 pb-4 border-b border-border/50">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs text-primary uppercase tracking-wider font-semibold">Bilan d'ouverture</p>
-          <p className="text-xs text-muted-foreground">{stepIdx + 1} / {totalSteps}</p>
+          <p className="text-xs text-primary uppercase tracking-wider font-semibold">
+            {isRetroactive ? '📅 Bilan rétroactif' : 'Bilan d\'ouverture'}
+          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground">{stepIdx + 1} / {totalSteps}</p>
+            {isRetroactive && onClose && (
+              <button onClick={onClose} className="text-muted-foreground active:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
         </div>
         <div className="w-full bg-muted/40 rounded-full h-1">
           <div className="h-1 rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
         </div>
-        <h2 className="text-lg font-bold text-foreground mt-3 capitalize">{getMonthLabel(currentMonthKey)}</h2>
+        <h2 className="text-lg font-bold text-foreground mt-3 capitalize">{getMonthLabel(bilanMonthKey)}</h2>
+        {isRetroactive && (
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Les soldes saisis alimenteront les courbes d'évolution — pas de mise à jour des valeurs actuelles.
+          </p>
+        )}
       </div>
 
       {/* Content */}
@@ -268,19 +322,23 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
 
         {currentStep === 'intro' && (
           <div className="flex flex-col items-center text-center gap-6 py-8">
-            <p className="text-6xl">📋</p>
+            <p className="text-6xl">{isRetroactive ? '📅' : '📋'}</p>
             <div>
-              <h3 className="text-xl font-bold text-foreground mb-2">Mise à jour mensuelle</h3>
+              <h3 className="text-xl font-bold text-foreground mb-2">
+                {isRetroactive ? `Patrimoine de ${getMonthLabel(bilanMonthKey)}` : 'Mise à jour mensuelle'}
+              </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Chaque 1er du mois, prenez 2 minutes pour mettre à jour les soldes de vos comptes, actifs et dettes.{'\n\n'}
-                Cela permet de garder votre patrimoine net à jour et de suivre votre progression réelle.
+                {isRetroactive
+                  ? `Entrez les soldes de vos comptes, actifs et dettes tels qu'ils étaient fin ${getMonthLabel(bilanMonthKey)}. Cela alimentera toutes les courbes d'évolution.`
+                  : 'Chaque 1er du mois, prenez 2 minutes pour mettre à jour les soldes de vos comptes, actifs et dettes.\n\nCela permet de garder votre patrimoine net à jour et de suivre votre progression réelle.'
+                }
               </p>
             </div>
             <div className="w-full space-y-2 text-left">
               {[
-                `${activeAccounts.length} compte${activeAccounts.length > 1 ? 's' : ''} à mettre à jour`,
-                ...(hasAssets ? [`${store.assets.length} actif${store.assets.length > 1 ? 's' : ''} à vérifier`] : []),
-                ...(hasDebts ? [`${store.debts.length} dette${store.debts.length > 1 ? 's' : ''} à ajuster`] : []),
+                `${activeAccounts.length} compte${activeAccounts.length > 1 ? 's' : ''} à renseigner`,
+                ...(hasAssets ? [`${store.assets.length} actif${store.assets.length > 1 ? 's' : ''} à renseigner`] : []),
+                ...(hasDebts ? [`${store.debts.length} dette${store.debts.length > 1 ? 's' : ''} à renseigner`] : []),
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-2 bg-muted/20 rounded-xl px-4 py-3">
                   <span className="text-primary">✓</span>
@@ -295,7 +353,9 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
           <div className="space-y-3">
             <div className="mb-4">
               <h3 className="text-base font-bold text-foreground">Soldes des comptes</h3>
-              <p className="text-xs text-muted-foreground mt-1">Entrez le solde actuel de chaque compte</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isRetroactive ? `Soldes fin ${getMonthLabel(bilanMonthKey)}` : 'Entrez le solde actuel de chaque compte'}
+              </p>
             </div>
             {activeAccounts.map(a => (
               <div key={a.id} className="bg-card/60 rounded-2xl border border-border/30 px-4 py-3">
@@ -307,7 +367,9 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
+                      inputMode="decimal"
                       className="w-28 bg-muted/50 rounded-xl px-3 py-2 text-sm font-medium text-right text-foreground outline-none border border-border/30 focus:border-primary/50"
+                      placeholder="0"
                       value={accountEdits[a.id] ?? ''}
                       onChange={e => setAccountEdits(prev => ({ ...prev, [a.id]: e.target.value }))}
                     />
@@ -323,7 +385,9 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
           <div className="space-y-3">
             <div className="mb-4">
               <h3 className="text-base font-bold text-foreground">Valeur des actifs</h3>
-              <p className="text-xs text-muted-foreground mt-1">Mettez à jour la valeur estimée de chaque actif</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isRetroactive ? `Valeur estimée fin ${getMonthLabel(bilanMonthKey)}` : 'Mettez à jour la valeur estimée de chaque actif'}
+              </p>
             </div>
             {store.assets.map(a => (
               <div key={a.id} className="bg-card/60 rounded-2xl border border-border/30 px-4 py-3">
@@ -335,7 +399,9 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
+                      inputMode="decimal"
                       className="w-28 bg-muted/50 rounded-xl px-3 py-2 text-sm font-medium text-right text-foreground outline-none border border-border/30 focus:border-primary/50"
+                      placeholder="0"
                       value={assetEdits[a.id] ?? ''}
                       onChange={e => setAssetEdits(prev => ({ ...prev, [a.id]: e.target.value }))}
                     />
@@ -351,7 +417,9 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
           <div className="space-y-3">
             <div className="mb-4">
               <h3 className="text-base font-bold text-foreground">Solde des dettes</h3>
-              <p className="text-xs text-muted-foreground mt-1">Entrez le capital restant dû pour chaque dette</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isRetroactive ? `Capital restant dû fin ${getMonthLabel(bilanMonthKey)}` : 'Entrez le capital restant dû pour chaque dette'}
+              </p>
             </div>
             {store.debts.map(d => (
               <div key={d.id} className="bg-card/60 rounded-2xl border border-border/30 px-4 py-3">
@@ -363,7 +431,9 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
+                      inputMode="decimal"
                       className="w-28 bg-muted/50 rounded-xl px-3 py-2 text-sm font-medium text-right text-foreground outline-none border border-border/30 focus:border-primary/50"
+                      placeholder="0"
                       value={debtEdits[d.id] ?? ''}
                       onChange={e => setDebtEdits(prev => ({ ...prev, [d.id]: e.target.value }))}
                     />
@@ -381,7 +451,10 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
             <div>
               <h3 className="text-xl font-bold text-foreground mb-2">Tout est prêt</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Votre situation financière du {getMonthLabel(currentMonthKey)} va être enregistrée.
+                {isRetroactive
+                  ? `Le patrimoine de ${getMonthLabel(bilanMonthKey)} va être enregistré et alimentera toutes les courbes.`
+                  : `Votre situation financière du ${getMonthLabel(bilanMonthKey)} va être enregistrée.`
+                }
               </p>
             </div>
             {/* Summary */}
@@ -429,7 +502,7 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
         ) : (
           <button onClick={handleFinish}
             className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">
-            Enregistrer et continuer →
+            Enregistrer →
           </button>
         )}
       </div>
