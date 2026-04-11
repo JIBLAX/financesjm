@@ -403,20 +403,25 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
           : new Set<string>()
 
         // Construire les groupes de distribution intelligents
-        const simGroups = store.settings.allocationRules.groups
+        const allocationGroups = Array.isArray(store.settings.allocationRules && store.settings.allocationRules.groups)
+          ? store.settings.allocationRules.groups
+          : []
+
+        const allNonFiscalPct = allocationGroups
+          .filter(g => g.incomeType === simType)
+          .reduce((sum, g) => (
+            sum + g.slots
+              .filter(sl => !fiscalIds.has(sl.accountId))
+              .reduce((groupSum, sl) => groupSum + sl.percent, 0)
+          ), 0)
+
+        const simGroups = allocationGroups
           .filter(g => g.incomeType === simType)
           .map(group => {
             // Slots non-fiscaux de CE groupe
             const nonFiscalSlots = group.slots.filter(sl => !fiscalIds.has(sl.accountId))
             // Slots fiscaux de CE groupe (→ obligations état)
             const fiscalSlots = group.slots.filter(sl => fiscalIds.has(sl.accountId))
-
-            // Total pct de tous les slots non-fiscaux dans TOUS les groupes (pour redistribution)
-            const allNonFiscalPct = store.settings.allocationRules.groups
-              .filter(g2 => g2.incomeType === simType)
-              .flatMap(g2 => g2.slots)
-              .filter(sl => !fiscalIds.has(sl.accountId))
-              .reduce((s, sl) => s + sl.percent, 0)
 
             const slots = [
               // Slots fiscaux → montant dynamique (charges + impôts)
