@@ -49,9 +49,7 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
   const [simAmount, setSimAmount] = useState('')
   const [simTva, setSimTva] = useState<'none' | '20' | '10' | '5.5'>('none')
   const [simCharges, setSimCharges] = useState('22')
-  const [simImpots, setSimImpots] = useState('15')
   const [simType, setSimType] = useState<'bancaire' | 'cash'>('bancaire')
-  const [simImpotMode, setSimImpotMode] = useState<'pct' | 'previsionnel'>('pct')
   const currentMonthKey = getCurrentMonthKey()
 
   const navigateMonth = (dir: number) => {
@@ -364,12 +362,9 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         const htAmt      = raw - tvaAmt
         const isBancaire = simType === 'bancaire'
         const chargesAmt = isBancaire ? htAmt * (parseFloat(simCharges) || 0) / 100 : 0
-        const annualRevenu = htAmt * 12
-        const impotsAnnuels = isBancaire && simImpotMode === 'previsionnel' ? calcIR(annualRevenu) : 0
-        const impotsPct = isBancaire && simImpotMode === 'pct' ? parseFloat(simImpots) || 0 : 0
-        const impotsAmt = simImpotMode === 'previsionnel'
-          ? impotsAnnuels / 12
-          : isBancaire ? htAmt * impotsPct / 100 : 0
+        // IR micro-BNC : abattement forfaitaire 34% → base imposable = CA × 66%
+        const baseIR = htAmt * 12 * 0.66
+        const impotsAmt = isBancaire ? calcIR(baseIR) / 12 : 0
         const impotsEffectivePct = htAmt > 0 ? (impotsAmt / htAmt) * 100 : 0
         const obligationsEtat = chargesAmt + impotsAmt   // → Réserve Fiscale
         const netDispo   = htAmt - obligationsEtat
@@ -487,28 +482,13 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                       onChange={e => setSimCharges(e.target.value)} />
                   </div>
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Impôts</p>
-                      <div className="flex gap-0.5 p-0.5 bg-muted/40 rounded-lg">
-                        {([['pct','% fixe'],['previsionnel','Prévisionnel']] as const).map(([v, l]) => (
-                          <button key={v} type="button" onClick={() => setSimImpotMode(v)}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${simImpotMode === v ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                            {l}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {simImpotMode === 'pct' ? (
-                      <input type="number" inputMode="decimal"
-                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
-                        value={simImpots} onFocus={e => e.target.select()}
-                        onChange={e => setSimImpots(e.target.value)} />
-                    ) : (
-                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 text-right">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Impôts (prévisionnel)</p>
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 text-right">
+                      {raw > 0 ? <>
                         <p className="text-sm font-bold text-amber-400">{fmt(impotsAmt)} €<span className="text-[10px] font-normal text-amber-400/70">/mois</span></p>
-                        <p className="text-[10px] text-muted-foreground/60">Taux effectif ≈ {impotsEffectivePct.toFixed(1)}% · Base annualisée {fmt(annualRevenu)} €</p>
-                      </div>
-                    )}
+                        <p className="text-[10px] text-muted-foreground/60">Taux effectif ≈ {impotsEffectivePct.toFixed(1)}% · Abattement micro-BNC 34% · Base {fmt(baseIR)} €/an</p>
+                      </> : <p className="text-xs text-muted-foreground/50">Calculé automatiquement</p>}
+                    </div>
                   </div>
                 </div>
               )}
@@ -540,12 +520,10 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                   </>}
                   {chargesAmt > 0 && <Row label={`Charges soc. (${simCharges}%) → Rés. Fiscale`} value={`− ${fmt(chargesAmt)} €`} color="text-amber-400" />}
                   {impotsAmt > 0 && <Row
-                    label={simImpotMode === 'previsionnel'
-                      ? `Impôts IR (≈${impotsEffectivePct.toFixed(1)}%, barème progressif) → Rés. Fiscale`
-                      : `Impôts (${simImpots}%) → Rés. Fiscale`}
+                    label={`Impôts IR (≈${impotsEffectivePct.toFixed(1)}%, micro-BNC) → Rés. Fiscale`}
                     value={`− ${fmt(impotsAmt)} €`}
                     color="text-amber-400"
-                    sub={simImpotMode === 'previsionnel' ? `Base annualisée : ${fmt(annualRevenu)} €` : undefined}
+                    sub={`Base annualisée après abattement 34% : ${fmt(baseIR)} €`}
                   />}
                   <div className="h-px bg-border/30" />
                   <div className="flex items-center justify-between bg-primary/8 rounded-xl px-3 py-2">
