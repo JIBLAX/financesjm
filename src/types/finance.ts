@@ -254,8 +254,10 @@ export interface MonthlyCheckIn {
   monthKey: string
   doneAt: string
   accountBalances: Record<string, number>
-  assetValues: Record<string, number>      // assetId → valeur €
-  assetQuantities?: Record<string, number> // assetId → quantité (pour cryptos)
+  assetValues: Record<string, number>       // assetId → valeur totale (devise choisie)
+  assetQuantities?: Record<string, number>  // assetId → quantité (bag, pour cryptos)
+  assetUnitPrices?: Record<string, number>  // assetId → prix unitaire au moment du bilan
+  assetCurrencies?: Record<string, 'EUR' | 'USD'> // assetId → devise du prix saisi
   debtBalances: Record<string, number>
 }
 
