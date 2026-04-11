@@ -217,6 +217,16 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
     }))
   })
 
+  // Quantités pour les cryptos uniquement
+  const cryptoAssets = store.assets.filter(a => a.type === 'crypto')
+  const [quantityEdits, setQuantityEdits] = useState<Record<string, string>>(() => {
+    return Object.fromEntries(cryptoAssets.map(a => {
+      if (existingCheckIn?.assetQuantities?.[a.id] !== undefined)
+        return [a.id, String(existingCheckIn.assetQuantities[a.id])]
+      return [a.id, '']
+    }))
+  })
+
   const handleFinish = () => {
     // En mode normal : mettre à jour les soldes courants
     if (!isRetroactive) {
@@ -233,12 +243,18 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
         if (val !== d.outstandingBalance) onUpdateDebt(d.id, { outstandingBalance: val })
       })
     }
+    const quantities = Object.fromEntries(
+      cryptoAssets
+        .filter(a => parseFloat(quantityEdits[a.id]) > 0)
+        .map(a => [a.id, parseFloat(quantityEdits[a.id])])
+    )
     onSaveCheckIn({
       id: existingCheckIn?.id || `checkin_${Date.now()}`,
       monthKey: bilanMonthKey,
       doneAt: new Date().toISOString(),
       accountBalances: Object.fromEntries(activeAccounts.map(a => [a.id, parseFloat(accountEdits[a.id]) || 0])),
       assetValues: Object.fromEntries(store.assets.map(a => [a.id, parseFloat(assetEdits[a.id]) || 0])),
+      assetQuantities: Object.keys(quantities).length > 0 ? quantities : undefined,
       debtBalances: Object.fromEntries(store.debts.map(d => [d.id, parseFloat(debtEdits[d.id]) || 0])),
     })
     if (isRetroactive && onClose) onClose()
@@ -389,27 +405,50 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
                 {isRetroactive ? `Valeur estimée fin ${getMonthLabel(bilanMonthKey)}` : 'Mettez à jour la valeur estimée de chaque actif'}
               </p>
             </div>
-            {store.assets.map(a => (
-              <div key={a.id} className="bg-card/60 rounded-2xl border border-border/30 px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{a.name}</p>
-                    <p className="text-xs text-muted-foreground">{a.platform || a.type}</p>
+            {store.assets.map(a => {
+              const isCrypto = a.type === 'crypto'
+              return (
+                <div key={a.id} className="bg-card/60 rounded-2xl border border-border/30 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{a.name}</p>
+                      <p className="text-xs text-muted-foreground">{a.platform || a.type}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      className="w-28 bg-muted/50 rounded-xl px-3 py-2 text-sm font-medium text-right text-foreground outline-none border border-border/30 focus:border-primary/50"
-                      placeholder="0"
-                      value={assetEdits[a.id] ?? ''}
-                      onChange={e => setAssetEdits(prev => ({ ...prev, [a.id]: e.target.value }))}
-                    />
-                    <span className="text-xs text-muted-foreground">€</span>
+                  <div className={`grid gap-2 ${isCrypto ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {isCrypto && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">Quantité (bag)</p>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-medium text-right text-foreground outline-none border border-border/30 focus:border-primary/50"
+                            placeholder="0"
+                            value={quantityEdits[a.id] ?? ''}
+                            onChange={e => setQuantityEdits(prev => ({ ...prev, [a.id]: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">{isCrypto ? 'Valeur totale (€)' : 'Valeur (€)'}</p>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-medium text-right text-foreground outline-none border border-border/30 focus:border-primary/50"
+                          placeholder="0"
+                          value={assetEdits[a.id] ?? ''}
+                          onChange={e => setAssetEdits(prev => ({ ...prev, [a.id]: e.target.value }))}
+                        />
+                        <span className="text-xs text-muted-foreground">€</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
