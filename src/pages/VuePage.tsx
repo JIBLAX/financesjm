@@ -346,26 +346,66 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         const htAmt      = raw - tvaAmt
         const chargesAmt = htAmt * (parseFloat(simCharges) || 0) / 100
         const impotsAmt  = htAmt * (parseFloat(simImpots)  || 0) / 100
-        const netDispo   = htAmt - chargesAmt - impotsAmt
+        const obligationsEtat = chargesAmt + impotsAmt   // → Réserve Fiscale
+        const netDispo   = htAmt - obligationsEtat
 
+        // Identifier les slots "réserve fiscale" (nom contient 'fiscal', insensible à la casse)
+        const fiscalIds = new Set(
+          store.accounts
+            .filter(a => a.name.toLowerCase().includes('fiscal'))
+            .map(a => a.id)
+        )
+
+        // Construire les groupes de distribution intelligents
         const simGroups = store.settings.allocationRules.groups
           .filter(g => g.incomeType === simType)
           .map(group => {
-            const groupPct = group.slots.reduce((s, sl) => s + sl.percent, 0)
-            return {
-              id: group.id, label: group.label,
-              groupPct,
-              groupAmount: netDispo * (groupPct / 100),
-              slots: group.slots.map(slot => {
+            // Slots non-fiscaux de CE groupe
+            const nonFiscalSlots = group.slots.filter(sl => !fiscalIds.has(sl.accountId))
+            // Slots fiscaux de CE groupe (→ obligations état)
+            const fiscalSlots = group.slots.filter(sl => fiscalIds.has(sl.accountId))
+
+            // Total pct de tous les slots non-fiscaux dans TOUS les groupes (pour redistribution)
+            const allNonFiscalPct = store.settings.allocationRules.groups
+              .filter(g2 => g2.incomeType === simType)
+              .flatMap(g2 => g2.slots)
+              .filter(sl => !fiscalIds.has(sl.accountId))
+              .reduce((s, sl) => s + sl.percent, 0)
+
+            const slots = [
+              // Slots fiscaux → montant dynamique (charges + impôts)
+              ...fiscalSlots.map(slot => {
                 const acc = store.accounts.find(a => a.id === slot.accountId)
                 return {
+                  accountId: slot.accountId,
                   name: acc?.name || slot.label,
                   institution: acc?.institution || '',
                   percent: slot.percent,
-                  amount: netDispo * (slot.percent / 100),
+                  amount: obligationsEtat,       // montant réel des obligations
+                  isFiscal: true,
+                  tag: `${parseFloat(simCharges)||0}% charges + ${parseFloat(simImpots)||0}% impôts`,
                 }
               }),
-            }
+              // Slots non-fiscaux → redistribution proportionnelle du net
+              ...nonFiscalSlots.map(slot => {
+                const acc = store.accounts.find(a => a.id === slot.accountId)
+                const amount = allNonFiscalPct > 0
+                  ? netDispo * (slot.percent / allNonFiscalPct)
+                  : 0
+                return {
+                  accountId: slot.accountId,
+                  name: acc?.name || slot.label,
+                  institution: acc?.institution || '',
+                  percent: slot.percent,
+                  amount,
+                  isFiscal: false,
+                  tag: null as string | null,
+                }
+              }),
+            ]
+
+            const groupAmount = slots.reduce((s, sl) => s + sl.amount, 0)
+            return { id: group.id, label: group.label, groupAmount, slots }
           })
 
         const totalDistribue = simGroups.reduce((s, g) => s + g.groupAmount, 0)
@@ -380,14 +420,14 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
           </div>
         )
 
+        const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 2 })
+
         return (
           <div className="space-y-4">
 
             {/* ── SAISIE ── */}
             <FinanceCard>
               <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Montant à simuler</h3>
-
-              {/* Montant */}
               <div className="flex items-center gap-2 mb-3">
                 <input
                   type="number" inputMode="decimal"
@@ -450,52 +490,56 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
               <FinanceCard>
                 <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Décomposition</h3>
                 <div className="space-y-2">
-                  <Row label={simTva !== 'none' ? 'Montant TTC saisi' : 'Montant brut'} value={`${raw.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} />
+                  <Row label={simTva !== 'none' ? 'Montant TTC saisi' : 'Montant brut'} value={`${fmt(raw)} €`} />
                   {simTva !== 'none' && <>
-                    <Row label={`TVA ${simTva}% à reverser`} value={`− ${tvaAmt.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} color="text-rose-400" />
+                    <Row label={`TVA ${simTva}% → État`} value={`− ${fmt(tvaAmt)} €`} color="text-rose-400" />
                     <div className="h-px bg-border/30" />
-                    <Row label="Montant HT" value={`${htAmt.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} color="text-foreground" />
+                    <Row label="Montant HT" value={`${fmt(htAmt)} €`} />
                   </>}
-                  {chargesAmt > 0 && <Row label={`Charges sociales (${simCharges}%)`} value={`− ${chargesAmt.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} color="text-amber-400" />}
-                  {impotsAmt > 0 && <Row label={`Impôts estimés (${simImpots}%)`} value={`− ${impotsAmt.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} color="text-amber-400" />}
+                  {chargesAmt > 0 && <Row label={`Charges soc. (${simCharges}%) → Rés. Fiscale`} value={`− ${fmt(chargesAmt)} €`} color="text-amber-400" />}
+                  {impotsAmt > 0 && <Row label={`Impôts (${simImpots}%) → Rés. Fiscale`} value={`− ${fmt(impotsAmt)} €`} color="text-amber-400" />}
                   <div className="h-px bg-border/30" />
                   <div className="flex items-center justify-between bg-primary/8 rounded-xl px-3 py-2">
-                    <span className="text-xs font-bold text-foreground">Net disponible</span>
-                    <span className="text-base font-extrabold text-primary">{netDispo.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €</span>
+                    <span className="text-xs font-bold text-foreground">Net à distribuer</span>
+                    <span className="text-base font-extrabold text-primary">{fmt(netDispo)} €</span>
                   </div>
                 </div>
               </FinanceCard>
             )}
 
-            {/* ── DISTRIBUTION ── */}
+            {/* ── DISTRIBUTION PAR GROUPE ── */}
             {raw > 0 && simGroups.map(group => (
               <FinanceCard key={group.id}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{group.label}</h3>
-                  <div className="text-right">
-                    <p className="text-sm font-extrabold text-foreground">{formatCurrency(group.groupAmount)}</p>
-                    <p className="text-[10px] text-muted-foreground">{group.groupPct}% du net</p>
-                  </div>
+                  <p className="text-sm font-extrabold text-foreground">{formatCurrency(group.groupAmount)}</p>
                 </div>
                 <div className="space-y-2.5">
                   {group.slots.map((slot, i) => (
                     <div key={i} className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
+                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${slot.isFiscal ? 'bg-amber-400/60' : 'bg-primary/40'}`} />
                         <div className="min-w-0">
                           <p className="text-xs text-foreground truncate">{slot.name}</p>
-                          {slot.institution && <p className="text-[10px] text-muted-foreground/50">{slot.institution}</p>}
+                          {slot.isFiscal && slot.tag
+                            ? <p className="text-[10px] text-amber-400/70">{slot.tag}</p>
+                            : slot.institution
+                              ? <p className="text-[10px] text-muted-foreground/50">{slot.institution}</p>
+                              : null
+                          }
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-xs font-bold text-foreground">{formatCurrency(slot.amount)}</p>
-                        <p className="text-[10px] text-muted-foreground">{slot.percent}%</p>
+                        <p className={`text-xs font-bold ${slot.isFiscal ? 'text-amber-400' : 'text-foreground'}`}>
+                          {formatCurrency(slot.amount)}
+                        </p>
+                        {slot.isFiscal
+                          ? <p className="text-[10px] text-amber-400/60">obligatoire</p>
+                          : <p className="text-[10px] text-muted-foreground">{slot.percent}%</p>
+                        }
                       </div>
                     </div>
                   ))}
-                </div>
-                <div className="mt-2.5 h-1 bg-muted/30 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary/50 rounded-full" style={{ width: `${Math.min(100, group.groupPct)}%` }} />
                 </div>
               </FinanceCard>
             ))}
@@ -505,13 +549,14 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
               <FinanceCard>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Récapitulatif</h3>
                 <div className="space-y-2">
-                  <Row label="Net disponible" value={`${netDispo.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} />
-                  <Row label="Distribué" value={formatCurrency(totalDistribue)} color="text-emerald-400" />
-                  {Math.abs(netDispo - totalDistribue) > 0.5 && (
-                    <Row label="Non attribué" value={formatCurrency(netDispo - totalDistribue)} color="text-amber-400" />
-                  )}
+                  {simTva !== 'none' && <Row label="TVA reversée à l'État" value={`${fmt(tvaAmt)} €`} color="text-rose-400" />}
+                  {obligationsEtat > 0 && <Row label="Obligations provisionées (Rés. Fiscale)" value={`${fmt(obligationsEtat)} €`} color="text-amber-400" />}
+                  <Row label="Net distribué (opérationnel)" value={formatCurrency(totalDistribue - obligationsEtat)} color="text-emerald-400" />
                   <div className="h-px bg-border/30" />
-                  <Row label="Taux de distribution" value={`${netDispo > 0 ? Math.round((totalDistribue / netDispo) * 100) : 0}%`} />
+                  <Row label="Total affecté" value={`${fmt(totalDistribue)} €`} />
+                  {Math.abs(htAmt - totalDistribue) > 0.5 && (
+                    <Row label="Non attribué" value={`${fmt(htAmt - totalDistribue)} €`} color="text-amber-400" />
+                  )}
                 </div>
               </FinanceCard>
             )}
