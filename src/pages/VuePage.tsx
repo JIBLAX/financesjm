@@ -344,17 +344,16 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
         const tvaRate    = simTva === 'none' ? 0 : parseFloat(simTva) / 100
         const tvaAmt     = simTva !== 'none' ? raw * tvaRate / (1 + tvaRate) : 0
         const htAmt      = raw - tvaAmt
-        const chargesAmt = htAmt * (parseFloat(simCharges) || 0) / 100
-        const impotsAmt  = htAmt * (parseFloat(simImpots)  || 0) / 100
+        const isBancaire = simType === 'bancaire'
+        const chargesAmt = isBancaire ? htAmt * (parseFloat(simCharges) || 0) / 100 : 0
+        const impotsAmt  = isBancaire ? htAmt * (parseFloat(simImpots)  || 0) / 100 : 0
         const obligationsEtat = chargesAmt + impotsAmt   // → Réserve Fiscale
         const netDispo   = htAmt - obligationsEtat
 
-        // Identifier les slots "réserve fiscale" (nom contient 'fiscal', insensible à la casse)
-        const fiscalIds = new Set(
-          store.accounts
-            .filter(a => a.name.toLowerCase().includes('fiscal'))
-            .map(a => a.id)
-        )
+        // Identifier les slots "réserve fiscale" — uniquement pour revenus bancaires
+        const fiscalIds = isBancaire
+          ? new Set(store.accounts.filter(a => a.name.toLowerCase().includes('fiscal')).map(a => a.id))
+          : new Set<string>()
 
         // Construire les groupes de distribution intelligents
         const simGroups = store.settings.allocationRules.groups
@@ -453,23 +452,25 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                 </div>
               </div>
 
-              {/* Charges & Impôts */}
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <div>
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Charges soc. %</p>
-                  <input type="number" inputMode="decimal"
-                    className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
-                    value={simCharges} onFocus={e => e.target.select()}
-                    onChange={e => setSimCharges(e.target.value)} />
+              {/* Charges & Impôts — uniquement pour revenus bancaires/pro */}
+              {simType === 'bancaire' && (
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Charges soc. %</p>
+                    <input type="number" inputMode="decimal"
+                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
+                      value={simCharges} onFocus={e => e.target.select()}
+                      onChange={e => setSimCharges(e.target.value)} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Impôts estimés %</p>
+                    <input type="number" inputMode="decimal"
+                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
+                      value={simImpots} onFocus={e => e.target.select()}
+                      onChange={e => setSimImpots(e.target.value)} />
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Impôts estimés %</p>
-                  <input type="number" inputMode="decimal"
-                    className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
-                    value={simImpots} onFocus={e => e.target.select()}
-                    onChange={e => setSimImpots(e.target.value)} />
-                </div>
-              </div>
+              )}
 
               {/* Type de revenu */}
               <div>
