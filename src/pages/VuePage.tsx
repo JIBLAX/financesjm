@@ -429,7 +429,7 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                   percent: slot.percent,
                   amount: obligationsEtat,       // montant réel des obligations
                   isFiscal: true,
-                  tag: `${parseFloat(simCharges)||0}% charges + ${parseFloat(simImpots)||0}% impôts`,
+                  tag: `${effectiveChargesPct.toFixed(1)}% charges + ${impotsEffectivePct.toFixed(1)}% IR`,
                 }
               }),
               // Slots non-fiscaux → redistribution proportionnelle du net
