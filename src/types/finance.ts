@@ -234,6 +234,17 @@ export interface ProfileRegulation {
 // Be Activ connection
 export type BeActivConnectionStatus = 'not_connected' | 'coming_soon' | 'connected'
 
+// Fiscal / professional status
+export type FiscalStatus =
+  | 'micro_bnc'            // Micro-entrepreneur BNC (coach, conseil, freelance libéral)
+  | 'micro_bic_services'   // Micro-entrepreneur BIC prestation de services
+  | 'micro_bic_vente'      // Micro-entrepreneur BIC vente/artisan
+  | 'salarie'              // Salarié uniquement
+  | 'portage_salarial'     // Portage salarial (JUMP, etc.)
+  | 'salarie_micro_bnc'    // Salarié + Micro BNC
+  | 'salarie_micro_bic'    // Salarié + Micro BIC
+  | 'salarie_portage'      // Salarié + Portage salarial
+
 export interface AppSettings {
   pin: string
   pinConfigured: boolean
@@ -247,6 +258,7 @@ export interface AppSettings {
   xp: number
   profileRegulation: ProfileRegulation
   beActivConnection: BeActivConnectionStatus
+  fiscalStatus?: FiscalStatus
 }
 
 export interface MonthlyCheckIn {

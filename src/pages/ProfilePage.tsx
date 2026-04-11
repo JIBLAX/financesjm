@@ -4,12 +4,31 @@ import { ArrowLeft, TrendingUp, Shield, ChevronDown, ChevronRight, Sliders, Rock
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getLevelForXp, getNextLevel, LEVELS } from '@/lib/constants'
 import { calculateHealthScore } from '@/lib/analytics'
-import type { FinanceStore, ProfileRegulation, LifeSituation, RevenueStability } from '@/types/finance'
+import type { FinanceStore, ProfileRegulation, LifeSituation, RevenueStability, FiscalStatus, AppSettings } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
   onUpdateRegulation?: (patch: Partial<ProfileRegulation>) => void
+  onUpdateSettings?: (patch: Partial<AppSettings>) => void
 }
+
+type FiscalOption = {
+  id: FiscalStatus
+  label: string
+  sub: string
+  emoji: string
+}
+
+const FISCAL_OPTIONS: FiscalOption[] = [
+  { id: 'micro_bnc',          label: 'Micro BNC',          sub: 'Coach, consultant, freelance libéral — 23,1% cotis. · abat. 34%', emoji: '🧑‍💼' },
+  { id: 'micro_bic_services', label: 'Micro BIC services', sub: 'Prestation de services artisanale/commerciale — 21,2% · abat. 50%', emoji: '🔧' },
+  { id: 'micro_bic_vente',    label: 'Micro BIC vente',    sub: 'Vente de marchandises/artisan — 12,3% cotis. · abat. 71%',          emoji: '🛒' },
+  { id: 'salarie',            label: 'Salarié',             sub: 'Charges déjà déduites — abattement frais pro 10%',                 emoji: '💼' },
+  { id: 'portage_salarial',   label: 'Portage salarial',   sub: 'JUMP ou autre portage — salaire net reçu, abat. 10%',              emoji: '🏢' },
+  { id: 'salarie_micro_bnc',  label: 'Salarié + Micro BNC',sub: 'Deux flux : salaire net + revenus BNC indépendants',               emoji: '⚡' },
+  { id: 'salarie_micro_bic',  label: 'Salarié + Micro BIC',sub: 'Deux flux : salaire net + revenus BIC indépendants',               emoji: '⚡' },
+  { id: 'salarie_portage',    label: 'Salarié + Portage',  sub: 'Double emploi : salarié ET portage salarial',                      emoji: '⚡' },
+]
 
 // ─── Profile data ──────────────────────────────────────────────────────────
 
@@ -93,7 +112,7 @@ const WEAKEST_PRIORITY: Record<string, string> = {
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
-export const ProfilePage: React.FC<Props> = ({ store, onUpdateRegulation }) => {
+export const ProfilePage: React.FC<Props> = ({ store, onUpdateRegulation, onUpdateSettings }) => {
   const navigate = useNavigate()
   const [showAllLevels, setShowAllLevels] = useState(false)
   const [showCadre, setShowCadre] = useState(false)
@@ -342,7 +361,44 @@ export const ProfilePage: React.FC<Props> = ({ store, onUpdateRegulation }) => {
         )}
       </FinanceCard>
 
-      {/* ── D. Cadre stratégique ──────────────────────────────── */}
+      {/* ── D. Statut fiscal / professionnel ────────────────────── */}
+      {onUpdateSettings && (
+        <FinanceCard>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-lg">📋</span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Statut professionnel</p>
+              <p className="text-[10px] text-muted-foreground">Configure les taux du simulateur automatiquement</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {FISCAL_OPTIONS.map(opt => {
+              const isActive = (store.settings.fiscalStatus ?? 'micro_bnc') === opt.id
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => onUpdateSettings({ fiscalStatus: opt.id })}
+                  className={`w-full flex items-start gap-3 rounded-xl px-3 py-2.5 text-left border transition-colors ${
+                    isActive
+                      ? 'bg-primary/10 border-primary/30'
+                      : 'bg-muted/20 border-border/20 hover:border-border/40'
+                  }`}
+                >
+                  <span className="text-xl flex-shrink-0 mt-0.5">{opt.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold ${isActive ? 'text-primary' : 'text-foreground'}`}>{opt.label}</p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">{opt.sub}</p>
+                  </div>
+                  {isActive && <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-[10px] text-muted-foreground/50 mt-3 italic">* Taux URSSAF 2025 — micro-entrepreneur régime général. Ajustable dans le simulateur.</p>
+        </FinanceCard>
+      )}
+
+      {/* ── E. Cadre stratégique ──────────────────────────────── */}
       <FinanceCard>
         <button onClick={() => setShowCadre(v => !v)} className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
@@ -470,7 +526,7 @@ export const ProfilePage: React.FC<Props> = ({ store, onUpdateRegulation }) => {
         )}
       </FinanceCard>
 
-      {/* ── E. Trajectoire ────────────────────────────────────── */}
+      {/* ── F. Trajectoire ────────────────────────────────────── */}
       <FinanceCard onClick={() => navigate('/trajectoire')} className="cursor-pointer hover:border-primary/30 transition-colors">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
