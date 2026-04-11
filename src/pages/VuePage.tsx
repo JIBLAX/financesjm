@@ -594,7 +594,7 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                     sub={`Abattement ${Math.round((1 - effectiveAbattement) * 100)}% · base ${fmt(baseIR)} €/an`}
                   />}
                   <div className="h-px bg-border/30" />
-                  <div className="flex items-center justify-between bg-primary/8 rounded-xl px-3 py-2">
+                  <div className="flex items-center justify-between bg-primary/10 rounded-xl px-3 py-2">
                     <span className="text-xs font-bold text-foreground">Net à distribuer</span>
                     <span className="text-base font-extrabold text-primary">{fmt(netDispo)} €</span>
                   </div>
