@@ -28,8 +28,12 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
   const [viewMode, setViewMode] = useState<ViewMode>('perso')
   const [editingInjection, setEditingInjection] = useState<string | null>(null) // accountId
   const [injectionInput, setInjectionInput] = useState('')
-  const [simBancaire, setSimBancaire] = useState('')
-  const [simCash, setSimCash] = useState('')
+  // Simulateur
+  const [simAmount, setSimAmount] = useState('')
+  const [simTva, setSimTva] = useState<'none' | '20' | '10' | '5.5'>('none')
+  const [simCharges, setSimCharges] = useState('22')
+  const [simImpots, setSimImpots] = useState('15')
+  const [simType, setSimType] = useState<'bancaire' | 'cash'>('bancaire')
   const currentMonthKey = getCurrentMonthKey()
 
   const navigateMonth = (dir: number) => {
@@ -336,93 +340,151 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
 
       {/* Simulateur tab */}
       {viewMode === 'simulateur' && (() => {
-        const bancaire = parseFloat(simBancaire) || 0
-        const cash     = parseFloat(simCash)     || 0
-        const total    = bancaire + cash
+        const raw        = parseFloat(simAmount) || 0
+        const tvaRate    = simTva === 'none' ? 0 : parseFloat(simTva) / 100
+        const tvaAmt     = simTva !== 'none' ? raw * tvaRate / (1 + tvaRate) : 0
+        const htAmt      = raw - tvaAmt
+        const chargesAmt = htAmt * (parseFloat(simCharges) || 0) / 100
+        const impotsAmt  = htAmt * (parseFloat(simImpots)  || 0) / 100
+        const netDispo   = htAmt - chargesAmt - impotsAmt
 
-        const simGroups = store.settings.allocationRules.groups.map(group => {
-          const base = group.incomeType === 'bancaire' ? bancaire : cash
-          const groupTotal = group.slots.reduce((s, sl) => s + sl.percent, 0)
-          const slots = group.slots.map(slot => {
-            const acc = store.accounts.find(a => a.id === slot.accountId)
+        const simGroups = store.settings.allocationRules.groups
+          .filter(g => g.incomeType === simType)
+          .map(group => {
+            const groupPct = group.slots.reduce((s, sl) => s + sl.percent, 0)
             return {
-              name: acc?.name || slot.label,
-              institution: acc?.institution || '',
-              percent: slot.percent,
-              amount: base * (slot.percent / 100),
+              id: group.id, label: group.label,
+              groupPct,
+              groupAmount: netDispo * (groupPct / 100),
+              slots: group.slots.map(slot => {
+                const acc = store.accounts.find(a => a.id === slot.accountId)
+                return {
+                  name: acc?.name || slot.label,
+                  institution: acc?.institution || '',
+                  percent: slot.percent,
+                  amount: netDispo * (slot.percent / 100),
+                }
+              }),
             }
           })
-          return { id: group.id, label: group.label, incomeType: group.incomeType, groupTotal, groupAmount: base * (groupTotal / 100), slots }
-        })
 
         const totalDistribue = simGroups.reduce((s, g) => s + g.groupAmount, 0)
 
+        const Row = ({ label, value, color = 'text-foreground', sub }: { label: string; value: string; color?: string; sub?: string }) => (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{label}</span>
+            <div className="text-right">
+              <span className={`text-xs font-bold ${color}`}>{value}</span>
+              {sub && <p className="text-[10px] text-muted-foreground/60">{sub}</p>}
+            </div>
+          </div>
+        )
+
         return (
           <div className="space-y-4">
-            {/* Inputs */}
+
+            {/* ── SAISIE ── */}
             <FinanceCard>
-              <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">💡 Simuler une distribution</h3>
-              <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Montant à simuler</h3>
+
+              {/* Montant */}
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="number" inputMode="decimal"
+                  className="flex-1 bg-muted/50 rounded-xl px-4 py-3 text-xl font-extrabold text-foreground outline-none border border-border/30 focus:border-primary/50"
+                  placeholder="0"
+                  value={simAmount}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setSimAmount(e.target.value)}
+                />
+                <span className="text-base text-muted-foreground font-bold">€</span>
+              </div>
+
+              {/* TVA */}
+              <div className="mb-3">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1.5">Régime TVA</p>
+                <div className="flex gap-1 p-1 bg-muted/30 rounded-xl">
+                  {([['none','Sans TVA'],['20','20%'],['10','10%'],['5.5','5,5%']] as const).map(([val, lbl]) => (
+                    <button key={val} onClick={() => setSimTva(val)}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${simTva === val ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Charges & Impôts */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
                 <div>
-                  <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Revenus bancaires (virement)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number" inputMode="decimal"
-                      className="flex-1 bg-muted/50 rounded-xl px-4 py-3 text-base font-bold text-foreground outline-none border border-border/30 focus:border-primary/50"
-                      placeholder="0"
-                      value={simBancaire}
-                      onFocus={e => e.target.select()}
-                      onChange={e => setSimBancaire(e.target.value)}
-                    />
-                    <span className="text-sm text-muted-foreground font-medium">€</span>
-                  </div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Charges soc. %</p>
+                  <input type="number" inputMode="decimal"
+                    className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
+                    value={simCharges} onFocus={e => e.target.select()}
+                    onChange={e => setSimCharges(e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Revenus en espèces (cash)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number" inputMode="decimal"
-                      className="flex-1 bg-muted/50 rounded-xl px-4 py-3 text-base font-bold text-foreground outline-none border border-border/30 focus:border-primary/50"
-                      placeholder="0"
-                      value={simCash}
-                      onFocus={e => e.target.select()}
-                      onChange={e => setSimCash(e.target.value)}
-                    />
-                    <span className="text-sm text-muted-foreground font-medium">€</span>
-                  </div>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Impôts estimés %</p>
+                  <input type="number" inputMode="decimal"
+                    className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
+                    value={simImpots} onFocus={e => e.target.select()}
+                    onChange={e => setSimImpots(e.target.value)} />
                 </div>
-                {total > 0 && (
-                  <div className="flex items-center justify-between bg-primary/8 rounded-xl px-4 py-2.5">
-                    <span className="text-xs text-muted-foreground">Total brut simulé</span>
-                    <span className="text-sm font-extrabold text-primary">{formatCurrency(total)}</span>
-                  </div>
-                )}
+              </div>
+
+              {/* Type de revenu */}
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1.5">Nature du revenu</p>
+                <div className="flex gap-1 p-1 bg-muted/30 rounded-xl">
+                  {([['bancaire','💳 Bancaire'],['cash','💵 Cash']] as const).map(([val, lbl]) => (
+                    <button key={val} onClick={() => setSimType(val)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${simType === val ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
               </div>
             </FinanceCard>
 
-            {/* Distribution results */}
-            {total > 0 && simGroups.map(group => (
-              <FinanceCard key={group.id}>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{group.label}</h3>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {group.incomeType === 'bancaire' ? `Sur ${formatCurrency(bancaire)} bancaire` : `Sur ${formatCurrency(cash)} cash`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-extrabold text-foreground">{formatCurrency(group.groupAmount)}</p>
-                    <p className="text-[10px] text-muted-foreground">{Math.round(group.groupTotal * 10) / 10}%</p>
+            {/* ── DÉCOMPOSITION ── */}
+            {raw > 0 && (
+              <FinanceCard>
+                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Décomposition</h3>
+                <div className="space-y-2">
+                  <Row label={simTva !== 'none' ? 'Montant TTC saisi' : 'Montant brut'} value={`${raw.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} />
+                  {simTva !== 'none' && <>
+                    <Row label={`TVA ${simTva}% à reverser`} value={`− ${tvaAmt.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} color="text-rose-400" />
+                    <div className="h-px bg-border/30" />
+                    <Row label="Montant HT" value={`${htAmt.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} color="text-foreground" />
+                  </>}
+                  {chargesAmt > 0 && <Row label={`Charges sociales (${simCharges}%)`} value={`− ${chargesAmt.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} color="text-amber-400" />}
+                  {impotsAmt > 0 && <Row label={`Impôts estimés (${simImpots}%)`} value={`− ${impotsAmt.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} color="text-amber-400" />}
+                  <div className="h-px bg-border/30" />
+                  <div className="flex items-center justify-between bg-primary/8 rounded-xl px-3 py-2">
+                    <span className="text-xs font-bold text-foreground">Net disponible</span>
+                    <span className="text-base font-extrabold text-primary">{netDispo.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €</span>
                   </div>
                 </div>
-                <div className="space-y-2">
+              </FinanceCard>
+            )}
+
+            {/* ── DISTRIBUTION ── */}
+            {raw > 0 && simGroups.map(group => (
+              <FinanceCard key={group.id}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{group.label}</h3>
+                  <div className="text-right">
+                    <p className="text-sm font-extrabold text-foreground">{formatCurrency(group.groupAmount)}</p>
+                    <p className="text-[10px] text-muted-foreground">{group.groupPct}% du net</p>
+                  </div>
+                </div>
+                <div className="space-y-2.5">
                   {group.slots.map((slot, i) => (
                     <div key={i} className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-1 h-1 rounded-full bg-primary/50 flex-shrink-0" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
                         <div className="min-w-0">
                           <p className="text-xs text-foreground truncate">{slot.name}</p>
-                          {slot.institution && <p className="text-[10px] text-muted-foreground/50 truncate">{slot.institution}</p>}
+                          {slot.institution && <p className="text-[10px] text-muted-foreground/50">{slot.institution}</p>}
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
@@ -432,37 +494,24 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                     </div>
                   ))}
                 </div>
-                {/* Barre de progression du groupe */}
-                <div className="mt-3 h-1 bg-muted/30 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${Math.min(100, group.groupTotal)}%` }} />
+                <div className="mt-2.5 h-1 bg-muted/30 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary/50 rounded-full" style={{ width: `${Math.min(100, group.groupPct)}%` }} />
                 </div>
               </FinanceCard>
             ))}
 
-            {/* Total récap */}
-            {total > 0 && (
+            {/* ── RÉCAP FINAL ── */}
+            {raw > 0 && simGroups.length > 0 && (
               <FinanceCard>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Récapitulatif</h3>
                 <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-xs text-muted-foreground">Total brut</span>
-                    <span className="text-xs font-bold text-foreground">{formatCurrency(total)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-xs text-muted-foreground">Distribué</span>
-                    <span className="text-xs font-bold text-emerald-400">{formatCurrency(totalDistribue)}</span>
-                  </div>
-                  {Math.abs(total - totalDistribue) > 0.01 && (
-                    <div className="flex justify-between">
-                      <span className="text-xs text-muted-foreground">Non distribué</span>
-                      <span className="text-xs font-bold text-amber-400">{formatCurrency(total - totalDistribue)}</span>
-                    </div>
+                  <Row label="Net disponible" value={`${netDispo.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`} />
+                  <Row label="Distribué" value={formatCurrency(totalDistribue)} color="text-emerald-400" />
+                  {Math.abs(netDispo - totalDistribue) > 0.5 && (
+                    <Row label="Non attribué" value={formatCurrency(netDispo - totalDistribue)} color="text-amber-400" />
                   )}
-                  <div className="h-px bg-border/30 my-1" />
-                  <div className="flex justify-between">
-                    <span className="text-xs text-muted-foreground">Taux de distribution</span>
-                    <span className="text-xs font-bold text-foreground">{total > 0 ? Math.round((totalDistribue / total) * 100) : 0}%</span>
-                  </div>
+                  <div className="h-px bg-border/30" />
+                  <Row label="Taux de distribution" value={`${netDispo > 0 ? Math.round((totalDistribue / netDispo) * 100) : 0}%`} />
                 </div>
               </FinanceCard>
             )}
