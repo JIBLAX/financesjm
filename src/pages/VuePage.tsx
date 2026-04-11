@@ -21,6 +21,19 @@ const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgC
 
 type ViewMode = 'perso' | 'pro' | 'repartition' | 'simulateur'
 
+// Taux de cotisations sociales micro-entrepreneur 2025 (URSSAF)
+// + abattement forfaitaire IR + TVA applicable
+const FISCAL_CONFIGS = {
+  micro_bnc:          { label: 'Micro BNC',          emoji: '🧑‍💼', chargesPct: 23.1, abattement: 0.34, tva: true,  hasMixed: false },
+  micro_bic_services: { label: 'Micro BIC services', emoji: '🔧',  chargesPct: 21.2, abattement: 0.50, tva: true,  hasMixed: false },
+  micro_bic_vente:    { label: 'Micro BIC vente',    emoji: '🛒',  chargesPct: 12.3, abattement: 0.71, tva: true,  hasMixed: false },
+  salarie:            { label: 'Salarié',             emoji: '💼',  chargesPct: 0,    abattement: 0.10, tva: false, hasMixed: false },
+  portage_salarial:   { label: 'Portage salarial',   emoji: '🏢',  chargesPct: 0,    abattement: 0.10, tva: false, hasMixed: false },
+  salarie_micro_bnc:  { label: 'Salarié + Micro BNC',emoji: '⚡',  chargesPct: 23.1, abattement: 0.34, tva: true,  hasMixed: true  },
+  salarie_micro_bic:  { label: 'Salarié + Micro BIC',emoji: '⚡',  chargesPct: 21.2, abattement: 0.50, tva: true,  hasMixed: true  },
+  salarie_portage:    { label: 'Salarié + Portage',  emoji: '⚡',  chargesPct: 0,    abattement: 0.10, tva: false, hasMixed: false },
+} as const
+
 // Barème progressif IR 2025 (revenus 2024) — 1 part, célibataire
 function calcIR(annualRevenu: number): number {
   const tranches = [
@@ -48,8 +61,12 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
   // Simulateur
   const [simAmount, setSimAmount] = useState('')
   const [simTva, setSimTva] = useState<'none' | '20' | '10' | '5.5'>('none')
-  const [simCharges, setSimCharges] = useState('22')
+  const [simCharges, setSimCharges] = useState(() => {
+    const cfg = FISCAL_CONFIGS[store.settings.fiscalStatus ?? 'micro_bnc']
+    return cfg.chargesPct > 0 ? cfg.chargesPct.toString() : '0'
+  })
   const [simType, setSimType] = useState<'bancaire' | 'cash'>('bancaire')
+  const [simIncomeStream, setSimIncomeStream] = useState<'pro' | 'salarie'>('pro')
   const currentMonthKey = getCurrentMonthKey()
 
   const navigateMonth = (dir: number) => {
@@ -356,14 +373,25 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
 
       {/* Simulateur tab */}
       {viewMode === 'simulateur' && (() => {
+        // ── Fiscal config ──────────────────────────────────────────────────────
+        const fiscalStatus = store.settings.fiscalStatus ?? 'micro_bnc'
+        const baseConfig   = FISCAL_CONFIGS[fiscalStatus]
+        const hasMixed     = baseConfig.hasMixed
+        // Pour les profils mixtes : flux "salarie" = 0 charges, abattement 10%
+        const isSalarieStream  = hasMixed && simIncomeStream === 'salarie'
+        const effectiveChargesPct  = isSalarieStream ? 0 : (parseFloat(simCharges) || baseConfig.chargesPct)
+        const effectiveAbattement  = isSalarieStream ? 0.10 : baseConfig.abattement
+        const effectiveTva         = !isSalarieStream && baseConfig.tva
+
+        // ── Montants ───────────────────────────────────────────────────────────
         const raw        = parseFloat(simAmount) || 0
         const tvaRate    = simTva === 'none' ? 0 : parseFloat(simTva) / 100
-        const tvaAmt     = simTva !== 'none' ? raw * tvaRate / (1 + tvaRate) : 0
+        const tvaAmt     = effectiveTva && simTva !== 'none' ? raw * tvaRate / (1 + tvaRate) : 0
         const htAmt      = raw - tvaAmt
         const isBancaire = simType === 'bancaire'
-        const chargesAmt = isBancaire ? htAmt * (parseFloat(simCharges) || 0) / 100 : 0
-        // IR micro-BNC : abattement forfaitaire 34% → base imposable = CA × 66%
-        const baseIR = htAmt * 12 * 0.66
+        const chargesAmt = isBancaire && effectiveChargesPct > 0 ? htAmt * effectiveChargesPct / 100 : 0
+        // IR : barème progressif sur base annualisée après abattement forfaitaire
+        const baseIR = htAmt * 12 * (1 - effectiveAbattement)
         const impotsAmt = isBancaire ? calcIR(baseIR) / 12 : 0
         const impotsEffectivePct = htAmt > 0 ? (impotsAmt / htAmt) * 100 : 0
         const obligationsEtat = chargesAmt + impotsAmt   // → Réserve Fiscale
@@ -458,21 +486,47 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                 <span className="text-base text-muted-foreground font-bold">€</span>
               </div>
 
-              {/* TVA */}
-              <div className="mb-3">
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1.5">Régime TVA</p>
-                <div className="flex gap-1 p-1 bg-muted/30 rounded-xl">
-                  {([['none','Sans TVA'],['20','20%'],['10','10%'],['5.5','5,5%']] as const).map(([val, lbl]) => (
-                    <button key={val} onClick={() => setSimTva(val)}
-                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${simTva === val ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                      {lbl}
-                    </button>
-                  ))}
+              {/* Statut fiscal actif */}
+              <div className="mb-3 flex items-center gap-2 bg-muted/20 rounded-xl px-3 py-2 border border-border/20">
+                <span className="text-base">{baseConfig.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Statut fiscal</p>
+                  <p className="text-xs font-semibold text-foreground truncate">{baseConfig.label}</p>
                 </div>
               </div>
 
-              {/* Charges & Impôts — uniquement pour revenus bancaires/pro */}
-              {simType === 'bancaire' && (
+              {/* Toggle Pro / Salarié — uniquement pour profils mixtes */}
+              {hasMixed && (
+                <div className="mb-3">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1.5">Flux à simuler</p>
+                  <div className="flex gap-1 p-1 bg-muted/30 rounded-xl">
+                    {([['pro','💼 Revenu pro'],['salarie','🏦 Salaire net']] as const).map(([val, lbl]) => (
+                      <button key={val} onClick={() => setSimIncomeStream(val)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${simIncomeStream === val ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TVA — uniquement si le statut l'autorise */}
+              {effectiveTva && (
+                <div className="mb-3">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1.5">Régime TVA</p>
+                  <div className="flex gap-1 p-1 bg-muted/30 rounded-xl">
+                    {([['none','Sans TVA'],['20','20%'],['10','10%'],['5.5','5,5%']] as const).map(([val, lbl]) => (
+                      <button key={val} onClick={() => setSimTva(val)}
+                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${simTva === val ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Charges & Impôts — uniquement pour revenus bancaires avec charges */}
+              {simType === 'bancaire' && effectiveChargesPct > 0 && (
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <div>
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Charges soc. %</p>
@@ -480,15 +534,29 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                       className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
                       value={simCharges} onFocus={e => e.target.select()}
                       onChange={e => setSimCharges(e.target.value)} />
+                    <p className="text-[9px] text-muted-foreground/50 text-right mt-0.5">Taux 2025 : {baseConfig.chargesPct}%</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Impôts (prévisionnel)</p>
                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 text-right">
                       {raw > 0 ? <>
                         <p className="text-sm font-bold text-amber-400">{fmt(impotsAmt)} €<span className="text-[10px] font-normal text-amber-400/70">/mois</span></p>
-                        <p className="text-[10px] text-muted-foreground/60">Taux effectif ≈ {impotsEffectivePct.toFixed(1)}% · Abattement micro-BNC 34% · Base {fmt(baseIR)} €/an</p>
-                      </> : <p className="text-xs text-muted-foreground/50">Calculé automatiquement</p>}
+                        <p className="text-[10px] text-muted-foreground/60">Abattement {Math.round((1 - effectiveAbattement) * 100)}% · {fmt(baseIR)} €/an</p>
+                      </> : <p className="text-xs text-muted-foreground/50">Auto</p>}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Pour salarié / portage : uniquement IR */}
+              {simType === 'bancaire' && effectiveChargesPct === 0 && (
+                <div className="mb-3">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Impôts (prévisionnel)</p>
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 text-right">
+                    {raw > 0 ? <>
+                      <p className="text-sm font-bold text-amber-400">{fmt(impotsAmt)} €<span className="text-[10px] font-normal text-amber-400/70">/mois</span></p>
+                      <p className="text-[10px] text-muted-foreground/60">Abattement frais pro 10% · Base {fmt(baseIR)} €/an</p>
+                    </> : <p className="text-xs text-muted-foreground/50">Auto</p>}
                   </div>
                 </div>
               )}
@@ -520,10 +588,10 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                   </>}
                   {chargesAmt > 0 && <Row label={`Charges soc. (${simCharges}%) → Rés. Fiscale`} value={`− ${fmt(chargesAmt)} €`} color="text-amber-400" />}
                   {impotsAmt > 0 && <Row
-                    label={`Impôts IR (≈${impotsEffectivePct.toFixed(1)}%, micro-BNC) → Rés. Fiscale`}
+                    label={`Impôts IR (≈${impotsEffectivePct.toFixed(1)}%) → Rés. Fiscale`}
                     value={`− ${fmt(impotsAmt)} €`}
                     color="text-amber-400"
-                    sub={`Base annualisée après abattement 34% : ${fmt(baseIR)} €`}
+                    sub={`Abattement ${Math.round((1 - effectiveAbattement) * 100)}% · base ${fmt(baseIR)} €/an`}
                   />}
                   <div className="h-px bg-border/30" />
                   <div className="flex items-center justify-between bg-primary/8 rounded-xl px-3 py-2">
