@@ -499,7 +499,7 @@ export const MonthlyCheckinModal: React.FC<Props> = ({
                       </div>
                       {/* Total calculé */}
                       <div className="flex items-center justify-between bg-primary/8 rounded-xl px-3 py-2">
-                        <span className="text-xs text-muted-foreground">Total à moi</span>
+                        <span className="text-xs text-muted-foreground">Valorisation</span>
                         <span className="text-sm font-bold text-primary">
                           {total > 0
                             ? `${total.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} ${currency === 'USD' ? '$' : '€'}`

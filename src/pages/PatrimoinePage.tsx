@@ -574,13 +574,20 @@ export const PatrimoinePage: React.FC<Props> = ({
                   <input className={numInput} placeholder="Ticker (ex: MSCI World)" value={ticker} onChange={e => setTicker(e.target.value)} />
                   <div className="grid grid-cols-2 gap-2">
                     <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Quantité" type="number" inputMode="decimal" value={quantity} onFocus={e => e.target.select()} onChange={e => setQuantity(e.target.value)} />
-                    <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Prix unitaire" type="number" inputMode="decimal" value={unitPrice} onFocus={e => e.target.select()} onChange={e => setUnitPrice(e.target.value)} />
+                    <div className="relative">
+                      <input className="bg-muted/50 rounded-xl px-3 py-2.5 pr-14 text-sm text-foreground placeholder:text-muted-foreground outline-none w-full" placeholder="Prix unitaire" type="number" inputMode="decimal" value={unitPrice} onFocus={e => e.target.select()} onChange={e => setUnitPrice(e.target.value)} />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex rounded-lg overflow-hidden border border-border/40 text-[11px] font-semibold">
+                        {(['USD', 'EUR'] as const).map(cur => (
+                          <button key={cur} type="button" onClick={() => setPriceCurrency(cur)}
+                            className={`px-2 py-1 transition-colors ${priceCurrency === cur ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+                            {cur === 'USD' ? '$' : '€'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <select className={numInput} value={priceCurrency} onChange={e => setPriceCurrency(e.target.value)}>
-                    <option value="EUR">EUR</option><option value="USD">USD</option>
-                  </select>
-                  <div className="bg-muted/30 rounded-xl px-3 py-2 flex justify-between">
-                    <span className="text-xs text-muted-foreground">Valeur totale calculée</span>
+                  <div className="bg-primary/8 rounded-xl px-3 py-2 flex justify-between">
+                    <span className="text-xs text-muted-foreground">Valorisation</span>
                     <span className="text-sm font-bold text-primary">{formatCurrency(computedValue, priceCurrency)}</span>
                   </div>
                 </>)}
@@ -589,13 +596,20 @@ export const PatrimoinePage: React.FC<Props> = ({
                   <input className={numInput} placeholder="Symbole (ex: BTC)" value={ticker} onChange={e => setTicker(e.target.value)} />
                   <div className="grid grid-cols-2 gap-2">
                     <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Quantité" type="number" inputMode="decimal" value={quantity} onFocus={e => e.target.select()} onChange={e => setQuantity(e.target.value)} />
-                    <input className="bg-muted/50 rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Prix spot" type="number" inputMode="decimal" value={unitPrice} onFocus={e => e.target.select()} onChange={e => setUnitPrice(e.target.value)} />
+                    <div className="relative">
+                      <input className="bg-muted/50 rounded-xl px-3 py-2.5 pr-14 text-sm text-foreground placeholder:text-muted-foreground outline-none w-full" placeholder="Prix / coin" type="number" inputMode="decimal" value={unitPrice} onFocus={e => e.target.select()} onChange={e => setUnitPrice(e.target.value)} />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex rounded-lg overflow-hidden border border-border/40 text-[11px] font-semibold">
+                        {(['USD', 'EUR'] as const).map(cur => (
+                          <button key={cur} type="button" onClick={() => setPriceCurrency(cur)}
+                            className={`px-2 py-1 transition-colors ${priceCurrency === cur ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+                            {cur === 'USD' ? '$' : '€'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <select className={numInput} value={priceCurrency} onChange={e => setPriceCurrency(e.target.value)}>
-                    <option value="EUR">EUR</option><option value="USD">USD</option>
-                  </select>
-                  <div className="bg-muted/30 rounded-xl px-3 py-2 flex justify-between">
-                    <span className="text-xs text-muted-foreground">Valeur totale</span>
+                  <div className="bg-primary/8 rounded-xl px-3 py-2 flex justify-between">
+                    <span className="text-xs text-muted-foreground">Valorisation</span>
                     <span className="text-sm font-bold text-primary">{formatCurrency(computedValue, priceCurrency)}</span>
                   </div>
                 </>)}
