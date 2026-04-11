@@ -19,7 +19,7 @@ const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgC
   { key: 'charge_variable', label: 'Charges variables', color: 'text-amber-400', bgColor: 'bg-amber-500/5', borderColor: 'border-amber-500/15' },
 ]
 
-type ViewMode = 'perso' | 'pro' | 'repartition'
+type ViewMode = 'perso' | 'pro' | 'repartition' | 'simulateur'
 
 export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUpdateBudget, onUpdateInjection }) => {
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
@@ -28,6 +28,8 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
   const [viewMode, setViewMode] = useState<ViewMode>('perso')
   const [editingInjection, setEditingInjection] = useState<string | null>(null) // accountId
   const [injectionInput, setInjectionInput] = useState('')
+  const [simBancaire, setSimBancaire] = useState('')
+  const [simCash, setSimCash] = useState('')
   const currentMonthKey = getCurrentMonthKey()
 
   const navigateMonth = (dir: number) => {
@@ -225,12 +227,13 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
       </FinanceCard>
 
 
-      {/* 3-button tab switch */}
+      {/* 4-button tab switch */}
       <div className="flex gap-1 p-1 bg-muted/30 rounded-2xl">
         {([
-          { id: 'perso', label: 'Perso' },
-          { id: 'pro', label: 'Pro' },
-          { id: 'repartition', label: 'Répartition' },
+          { id: 'perso',      label: 'Perso' },
+          { id: 'pro',        label: 'Pro' },
+          { id: 'repartition',label: 'Répartition' },
+          { id: 'simulateur', label: 'Simul' },
         ] as { id: ViewMode; label: string }[]).map(tab => (
           <button
             key={tab.id}
@@ -330,6 +333,142 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
           </div>
         )
       })}
+
+      {/* Simulateur tab */}
+      {viewMode === 'simulateur' && (() => {
+        const bancaire = parseFloat(simBancaire) || 0
+        const cash     = parseFloat(simCash)     || 0
+        const total    = bancaire + cash
+
+        const simGroups = store.settings.allocationRules.groups.map(group => {
+          const base = group.incomeType === 'bancaire' ? bancaire : cash
+          const groupTotal = group.slots.reduce((s, sl) => s + sl.percent, 0)
+          const slots = group.slots.map(slot => {
+            const acc = store.accounts.find(a => a.id === slot.accountId)
+            return {
+              name: acc?.name || slot.label,
+              institution: acc?.institution || '',
+              percent: slot.percent,
+              amount: base * (slot.percent / 100),
+            }
+          })
+          return { id: group.id, label: group.label, incomeType: group.incomeType, groupTotal, groupAmount: base * (groupTotal / 100), slots }
+        })
+
+        const totalDistribue = simGroups.reduce((s, g) => s + g.groupAmount, 0)
+
+        return (
+          <div className="space-y-4">
+            {/* Inputs */}
+            <FinanceCard>
+              <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">💡 Simuler une distribution</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Revenus bancaires (virement)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" inputMode="decimal"
+                      className="flex-1 bg-muted/50 rounded-xl px-4 py-3 text-base font-bold text-foreground outline-none border border-border/30 focus:border-primary/50"
+                      placeholder="0"
+                      value={simBancaire}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setSimBancaire(e.target.value)}
+                    />
+                    <span className="text-sm text-muted-foreground font-medium">€</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Revenus en espèces (cash)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" inputMode="decimal"
+                      className="flex-1 bg-muted/50 rounded-xl px-4 py-3 text-base font-bold text-foreground outline-none border border-border/30 focus:border-primary/50"
+                      placeholder="0"
+                      value={simCash}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setSimCash(e.target.value)}
+                    />
+                    <span className="text-sm text-muted-foreground font-medium">€</span>
+                  </div>
+                </div>
+                {total > 0 && (
+                  <div className="flex items-center justify-between bg-primary/8 rounded-xl px-4 py-2.5">
+                    <span className="text-xs text-muted-foreground">Total brut simulé</span>
+                    <span className="text-sm font-extrabold text-primary">{formatCurrency(total)}</span>
+                  </div>
+                )}
+              </div>
+            </FinanceCard>
+
+            {/* Distribution results */}
+            {total > 0 && simGroups.map(group => (
+              <FinanceCard key={group.id}>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{group.label}</h3>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {group.incomeType === 'bancaire' ? `Sur ${formatCurrency(bancaire)} bancaire` : `Sur ${formatCurrency(cash)} cash`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-extrabold text-foreground">{formatCurrency(group.groupAmount)}</p>
+                    <p className="text-[10px] text-muted-foreground">{Math.round(group.groupTotal * 10) / 10}%</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {group.slots.map((slot, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-1 h-1 rounded-full bg-primary/50 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-foreground truncate">{slot.name}</p>
+                          {slot.institution && <p className="text-[10px] text-muted-foreground/50 truncate">{slot.institution}</p>}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs font-bold text-foreground">{formatCurrency(slot.amount)}</p>
+                        <p className="text-[10px] text-muted-foreground">{slot.percent}%</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Barre de progression du groupe */}
+                <div className="mt-3 h-1 bg-muted/30 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${Math.min(100, group.groupTotal)}%` }} />
+                </div>
+              </FinanceCard>
+            ))}
+
+            {/* Total récap */}
+            {total > 0 && (
+              <FinanceCard>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Récapitulatif</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">Total brut</span>
+                    <span className="text-xs font-bold text-foreground">{formatCurrency(total)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">Distribué</span>
+                    <span className="text-xs font-bold text-emerald-400">{formatCurrency(totalDistribue)}</span>
+                  </div>
+                  {Math.abs(total - totalDistribue) > 0.01 && (
+                    <div className="flex justify-between">
+                      <span className="text-xs text-muted-foreground">Non distribué</span>
+                      <span className="text-xs font-bold text-amber-400">{formatCurrency(total - totalDistribue)}</span>
+                    </div>
+                  )}
+                  <div className="h-px bg-border/30 my-1" />
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">Taux de distribution</span>
+                    <span className="text-xs font-bold text-foreground">{total > 0 ? Math.round((totalDistribue / total) * 100) : 0}%</span>
+                  </div>
+                </div>
+              </FinanceCard>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Répartition tab */}
       {viewMode === 'repartition' && (
