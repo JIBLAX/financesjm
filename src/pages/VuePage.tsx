@@ -21,27 +21,27 @@ const FAMILY_SECTIONS: { key: OperationFamily; label: string; color: string; bgC
 
 type ViewMode = 'perso' | 'pro' | 'repartition' | 'simulateur'
 
-// Taux de cotisations sociales micro-entrepreneur 2025 (URSSAF)
+// Taux de cotisations sociales micro-entrepreneur 2026 (URSSAF)
 // + abattement forfaitaire IR + TVA applicable
 const FISCAL_CONFIGS = {
-  micro_bnc:          { label: 'Micro BNC',          emoji: '🧑‍💼', chargesPct: 23.1, abattement: 0.34, tva: true,  hasMixed: false },
+  micro_bnc:          { label: 'Micro BNC',          emoji: '🧑‍💼', chargesPct: 25.6, abattement: 0.34, tva: true,  hasMixed: false },
   micro_bic_services: { label: 'Micro BIC services', emoji: '🔧',  chargesPct: 21.2, abattement: 0.50, tva: true,  hasMixed: false },
   micro_bic_vente:    { label: 'Micro BIC vente',    emoji: '🛒',  chargesPct: 12.3, abattement: 0.71, tva: true,  hasMixed: false },
   salarie:            { label: 'Salarié',             emoji: '💼',  chargesPct: 0,    abattement: 0.10, tva: false, hasMixed: false },
   portage_salarial:   { label: 'Portage salarial',   emoji: '🏢',  chargesPct: 0,    abattement: 0.10, tva: false, hasMixed: false },
-  salarie_micro_bnc:  { label: 'Salarié + Micro BNC',emoji: '⚡',  chargesPct: 23.1, abattement: 0.34, tva: true,  hasMixed: true  },
+  salarie_micro_bnc:  { label: 'Salarié + Micro BNC',emoji: '⚡',  chargesPct: 25.6, abattement: 0.34, tva: true,  hasMixed: true  },
   salarie_micro_bic:  { label: 'Salarié + Micro BIC',emoji: '⚡',  chargesPct: 21.2, abattement: 0.50, tva: true,  hasMixed: true  },
   salarie_portage:    { label: 'Salarié + Portage',  emoji: '⚡',  chargesPct: 0,    abattement: 0.10, tva: false, hasMixed: false },
 } as const
 
-// Barème progressif IR 2025 (revenus 2024) — 1 part, célibataire
+// Barème progressif IR 2026 (revenus 2025) — 1 part, célibataire — +0.9% inflation
 function calcIR(annualRevenu: number): number {
   const tranches = [
-    { min: 0,       max: 11_294,  rate: 0    },
-    { min: 11_294,  max: 28_797,  rate: 0.11 },
-    { min: 28_797,  max: 82_341,  rate: 0.30 },
-    { min: 82_341,  max: 177_106, rate: 0.41 },
-    { min: 177_106, max: Infinity, rate: 0.45 },
+    { min: 0,       max: 11_600,  rate: 0    },
+    { min: 11_600,  max: 29_579,  rate: 0.11 },
+    { min: 29_579,  max: 84_577,  rate: 0.30 },
+    { min: 84_577,  max: 181_917, rate: 0.41 },
+    { min: 181_917, max: Infinity, rate: 0.45 },
   ]
   let tax = 0
   for (const t of tranches) {
@@ -534,7 +534,7 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                       className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none border border-border/30 focus:border-primary/50 text-right"
                       value={simCharges} onFocus={e => e.target.select()}
                       onChange={e => setSimCharges(e.target.value)} />
-                    <p className="text-[9px] text-muted-foreground/50 text-right mt-0.5">Taux 2025 : {baseConfig.chargesPct}%</p>
+                    <p className="text-[9px] text-muted-foreground/50 text-right mt-0.5">Taux 2026 : {baseConfig.chargesPct}%</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Impôts (prévisionnel)</p>
@@ -594,7 +594,7 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                     sub={`Abattement ${Math.round((1 - effectiveAbattement) * 100)}% · base ${fmt(baseIR)} €/an`}
                   />}
                   <div className="h-px bg-border/30" />
-                  <div className="flex items-center justify-between bg-primary/8 rounded-xl px-3 py-2">
+                  <div className="flex items-center justify-between bg-primary/10 rounded-xl px-3 py-2">
                     <span className="text-xs font-bold text-foreground">Net à distribuer</span>
                     <span className="text-base font-extrabold text-primary">{fmt(netDispo)} €</span>
                   </div>
