@@ -20,7 +20,7 @@ type FiscalOption = {
 }
 
 const FISCAL_OPTIONS: FiscalOption[] = [
-  { id: 'micro_bnc',          label: 'Micro BNC',          sub: 'Coach, consultant, freelance libéral — 23,1% cotis. · abat. 34%', emoji: '🧑‍💼' },
+  { id: 'micro_bnc',          label: 'Micro BNC',          sub: 'Coach, consultant, freelance libéral — 25,6% cotis. · abat. 34%', emoji: '🧑‍💼' },
   { id: 'micro_bic_services', label: 'Micro BIC services', sub: 'Prestation de services artisanale/commerciale — 21,2% · abat. 50%', emoji: '🔧' },
   { id: 'micro_bic_vente',    label: 'Micro BIC vente',    sub: 'Vente de marchandises/artisan — 12,3% cotis. · abat. 71%',          emoji: '🛒' },
   { id: 'salarie',            label: 'Salarié',             sub: 'Charges déjà déduites — abattement frais pro 10%',                 emoji: '💼' },
