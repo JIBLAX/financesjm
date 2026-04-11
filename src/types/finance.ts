@@ -254,7 +254,8 @@ export interface MonthlyCheckIn {
   monthKey: string
   doneAt: string
   accountBalances: Record<string, number>
-  assetValues: Record<string, number>
+  assetValues: Record<string, number>      // assetId → valeur €
+  assetQuantities?: Record<string, number> // assetId → quantité (pour cryptos)
   debtBalances: Record<string, number>
 }
 
