@@ -9,7 +9,7 @@ export const MorePage: React.FC = () => {
   const items = [
     { label: 'Transactions', desc: 'Revenus, dépenses et transferts enregistrés', icon: Receipt, path: '/transactions', color: 'text-cyan-400' },
     { label: 'Comptes', desc: 'Gestion et répartition de vos comptes', icon: Wallet, path: '/comptes', color: 'text-emerald-400' },
-    { label: 'Répartition', desc: 'Simuler la répartition de vos revenus', icon: PieChart, path: '/allocation', color: 'text-indigo-400' },
+    { label: 'Simulation', desc: 'Simuler vos revenus — fiscal, charges, répartition', icon: PieChart, path: '/allocation', color: 'text-indigo-400' },
     { label: 'Guide Financier', desc: 'Missions chiffrées, progression, conseils', icon: Map, path: '/plan', color: 'text-sky-400' },
     { label: 'Objectifs', desc: "Projets d'épargne, XP et progression", icon: Gift, path: '/objectifs', color: 'text-amber-400' },
     { label: 'Historique', desc: 'Bilans mensuels — saisie manuelle ou auto', icon: History, path: '/historique', color: 'text-violet-400' },

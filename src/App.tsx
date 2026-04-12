@@ -171,7 +171,7 @@ const App: React.FC = () => {
               <Route path="/trajectoire" element={<TrajectoryPage store={store} />} />
               <Route path="/objectifs" element={<ProjectsPage store={store} onAdd={finance.addProject} onUpdate={finance.updateProject} onRemove={finance.removeProject} onAddXp={finance.addXp} />} />
               <Route path="/historique" element={<HistoriquePage store={store} onSaveSnapshot={finance.saveSnapshot} onRequestCheckin={handleRequestCheckin} />} />
-              <Route path="/allocation" element={<AllocationPage rules={store.settings.allocationRules} accounts={store.accounts} />} />
+              <Route path="/allocation" element={<AllocationPage store={store} />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
