@@ -44,13 +44,21 @@ type ModalState = { mode: 'add' } | { mode: 'edit'; account: Account } | null
 export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove }) => {
   const [modal, setModal] = useState<ModalState>(null)
   const [form, setForm] = useState<Omit<Account, 'id'>>(emptyForm())
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      const stored = sessionStorage.getItem('accounts_collapsed')
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>()
+    } catch { return new Set<string>() }
+  })
   const [editMode, setEditMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleteStep, setDeleteStep] = useState(false)
 
   const toggleCollapse = (key: string) => setCollapsed(s => {
-    const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n
+    const n = new Set(s)
+    n.has(key) ? n.delete(key) : n.add(key)
+    try { sessionStorage.setItem('accounts_collapsed', JSON.stringify([...n])) } catch {}
+    return n
   })
 
   const toggleSelect = (id: string) => setSelectedIds(s => {

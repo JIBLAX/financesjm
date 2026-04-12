@@ -8,13 +8,13 @@ export const MorePage: React.FC = () => {
 
   const items = [
     { label: 'Transactions', desc: 'Revenus, dépenses et transferts enregistrés', icon: Receipt, path: '/transactions', color: 'text-cyan-400' },
-    { label: 'Comptes', desc: 'Gestion et répartition de vos comptes', icon: Wallet, path: '/comptes', color: 'text-muted-foreground' },
-    { label: 'Guide Financier', desc: 'Missions chiffrées, progression, conseils', icon: Map, path: '/plan', color: 'text-emerald-400' },
+    { label: 'Comptes', desc: 'Gestion et répartition de vos comptes', icon: Wallet, path: '/comptes', color: 'text-emerald-400' },
+    { label: 'Guide Financier', desc: 'Missions chiffrées, progression, conseils', icon: Map, path: '/plan', color: 'text-sky-400' },
     { label: 'Objectifs', desc: "Projets d'épargne, XP et progression", icon: Gift, path: '/objectifs', color: 'text-amber-400' },
     { label: 'Historique', desc: 'Bilans mensuels — saisie manuelle ou auto', icon: History, path: '/historique', color: 'text-violet-400' },
     { label: 'Profil', desc: 'Niveau, score santé, profil investisseur', icon: User, path: '/profil', color: 'text-blue-400' },
-    { label: 'Export', desc: 'Sauvegarder vos données', icon: FileDown, path: '/export', color: 'text-blue-400' },
-    { label: 'Paramètres', desc: 'PIN, thème, pourcentages, régulation', icon: Settings, path: '/parametres', color: 'text-muted-foreground' },
+    { label: 'Export', desc: 'Sauvegarder vos données', icon: FileDown, path: '/export', color: 'text-orange-400' },
+    { label: 'Paramètres', desc: 'PIN, thème, pourcentages, régulation', icon: Settings, path: '/parametres', color: 'text-rose-400' },
   ]
 
   return (

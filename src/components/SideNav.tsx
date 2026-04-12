@@ -1,13 +1,13 @@
 import React from 'react'
-import { Home, ListChecks, Map, Wallet, MoreHorizontal } from 'lucide-react'
+import { Home, ListChecks, BarChart2, Landmark, MoreHorizontal } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
 const tabs = [
   { path: '/', label: 'Accueil', icon: Home },
   { path: '/operations', label: 'Opérations', icon: ListChecks },
-  { path: '/comptes', label: 'Comptes', icon: Wallet },
-  { path: '/plan', label: 'Plan', icon: Map },
+  { path: '/vue', label: 'Vue', icon: BarChart2 },
+  { path: '/patrimoine', label: 'Patrimoine', icon: Landmark },
   { path: '/plus', label: 'Plus', icon: MoreHorizontal },
 ]
 
