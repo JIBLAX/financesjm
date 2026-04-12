@@ -3,6 +3,7 @@ import { Plus, ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, X, Check,
 import { useNavigate } from 'react-router-dom'
 import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
+import { FISCAL_CONFIGS } from '@/lib/fiscal'
 import type { FinanceStore, Operation, OperationFamily, OperationScope, OpCategory, OpSubcategory } from '@/types/finance'
 
 interface Props {
@@ -72,6 +73,7 @@ export const OperationsPage: React.FC<Props> = ({
   const [revenuType, setRevenuType] = useState<'fixe' | 'variable'>('variable')
   const [recurrenceMode, setRecurrenceMode] = useState<'indefinite' | 'x_months'>('indefinite')
   const [recurrenceCount, setRecurrenceCount] = useState<number>(3)
+  const [opTvaRate, setOpTvaRate] = useState<'none' | '20' | '10' | '5.5'>('none')
 
   useEffect(() => {
     onInitMonth(monthKey)
@@ -151,15 +153,17 @@ export const OperationsPage: React.FC<Props> = ({
       setRevenuType(op.isTemplate ? 'fixe' : 'variable')
       if (op.recurrenceMonths) { setRecurrenceMode('x_months'); setRecurrenceCount(op.recurrenceMonths) }
       else { setRecurrenceMode('indefinite') }
+      setOpTvaRate(op.tvaRate === 0.20 ? '20' : op.tvaRate === 0.10 ? '10' : op.tvaRate === 0.055 ? '5.5' : 'none')
     } else {
       setRevenuType('variable')
+      setOpTvaRate('none')
     }
     setModal({ mode: 'edit', op })
   }
 
   const closeModal = () => {
     setModal(null); setScopePicker(null); setDeleteConfirm(null); setNewCatName(''); setNewCatIcon('')
-    setRevenuType('variable'); setRecurrenceMode('indefinite'); setRecurrenceCount(3)
+    setRevenuType('variable'); setRecurrenceMode('indefinite'); setRecurrenceCount(3); setOpTvaRate('none')
   }
 
   const changeFormScope = (newScope: ScopeTab) => {
@@ -176,7 +180,12 @@ export const OperationsPage: React.FC<Props> = ({
     const recurrenceMonths = (form.family === 'revenu' && revenuType === 'fixe' && recurrenceMode === 'x_months')
       ? recurrenceCount
       : undefined
-    const clean = { ...form, isTemplate, recurrenceMonths, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined }
+    // tvaRate: only for pro revenue when fiscal status supports TVA
+    const hasFiscalTva = FISCAL_CONFIGS[store.settings.fiscalStatus ?? 'micro_bnc'].tva
+    const tvaRate = (form.family === 'revenu' && form.scope === 'pro' && hasFiscalTva && opTvaRate !== 'none')
+      ? (opTvaRate === '20' ? 0.20 : opTvaRate === '10' ? 0.10 : 0.055)
+      : undefined
+    const clean = { ...form, isTemplate, recurrenceMonths, tvaRate, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined }
     if (modal?.mode === 'add') {
       onAdd({ ...clean, id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })
     } else if (modal?.mode === 'edit') {
@@ -199,6 +208,7 @@ export const OperationsPage: React.FC<Props> = ({
 
   const isRevenu = family === 'revenu'
   const isPerso  = scope === 'perso'
+  const hasFiscalTva = FISCAL_CONFIGS[store.settings.fiscalStatus ?? 'micro_bnc'].tva
 
   const formCategories = useMemo(
     () => store.opCategories
@@ -310,6 +320,11 @@ export const OperationsPage: React.FC<Props> = ({
                               {sub && <span className="text-[10px] text-muted-foreground/70">{sub.icon} {sub.name}</span>}
                               {op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
                               {op.isTemplate && <span className="text-[9px] text-primary/60">↻</span>}
+                              {op.tvaRate && op.tvaRate > 0 && (
+                                <span className="text-[9px] text-violet-400/70">
+                                  TVA {op.tvaRate === 0.20 ? '20' : op.tvaRate === 0.10 ? '10' : '5,5'}%
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -534,6 +549,30 @@ export const OperationsPage: React.FC<Props> = ({
                       📊 Variable
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* TVA — revenus pro uniquement */}
+              {form.family === 'revenu' && form.scope === 'pro' && hasFiscalTva && (
+                <div>
+                  <label className="text-xs text-muted-foreground">TVA applicable</label>
+                  <div className="flex gap-1 p-1 bg-muted/30 rounded-xl mt-1">
+                    {(['none', '20', '10', '5.5'] as const).map(val => (
+                      <button key={val} onClick={() => setOpTvaRate(val)}
+                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${opTvaRate === val ? 'bg-primary/20 text-primary' : 'text-muted-foreground'}`}>
+                        {val === 'none' ? 'Sans' : val === '5.5' ? '5,5%' : `${val}%`}
+                      </button>
+                    ))}
+                  </div>
+                  {opTvaRate !== 'none' && form.actual > 0 && (
+                    <p className="text-[10px] text-violet-400/70 mt-1">
+                      {(() => {
+                        const pct = parseFloat(opTvaRate) / 100
+                        const tvaAmt = form.actual * pct / (1 + pct)
+                        return `${formatCurrency(tvaAmt)} TVA — ${formatCurrency(form.actual - tvaAmt)} HT`
+                      })()}
+                    </p>
+                  )}
                 </div>
               )}
 

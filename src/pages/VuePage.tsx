@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel } from '@/lib/constants'
+import { FISCAL_CONFIGS, calcIR } from '@/lib/fiscal'
 import type { FinanceStore, OperationFamily } from '@/types/finance'
 
 interface Props {
@@ -81,7 +82,22 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     const bancaireActual = revActual - liquideActual
     const bancaireForecast = revOps.filter(op => !op.note || !op.note.toLowerCase().includes('espèces')).reduce((s, op) => s + op.forecast, 0)
 
-    return { revActual, revForecast, chargeActual, chargeForecast, solde, soldeForecast, bancaireActual, bancaireForecast, liquideActual, liquideForecast }
+    // TVA extraction from pro bancaire revenue ops
+    const proBancaireOps = revOps.filter(op =>
+      op.scope === 'pro' && (!op.note || !op.note.toLowerCase().includes('espèces'))
+    )
+    const totalTVA_actual = proBancaireOps.reduce((s, op) => {
+      if (!op.tvaRate || op.actual === 0) return s
+      return s + op.actual * op.tvaRate / (1 + op.tvaRate)
+    }, 0)
+    const totalTVA_forecast = proBancaireOps.reduce((s, op) => {
+      if (!op.tvaRate) return s
+      return s + op.forecast * op.tvaRate / (1 + op.tvaRate)
+    }, 0)
+    const bancaireHT_actual   = bancaireActual   - totalTVA_actual
+    const bancaireHT_forecast = bancaireForecast - totalTVA_forecast
+
+    return { revActual, revForecast, chargeActual, chargeForecast, solde, soldeForecast, bancaireActual, bancaireForecast, liquideActual, liquideForecast, totalTVA_actual, totalTVA_forecast, bancaireHT_actual, bancaireHT_forecast }
   }, [allCategories, operations])
 
   // Fallback: si pas d'opérations pour ce mois, utiliser les données de l'historique
@@ -100,31 +116,80 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
   const displayBancaire     = useSnapshotFallback ? snapshot!.totalIncomeBank : totals.bancaireActual
   const displayLiquide      = useSnapshotFallback ? snapshot!.totalIncomeCash : totals.liquideActual
 
-  // Répartition — computed from allocation rules groups
+  // Répartition — fiscal-aware distribution from allocation rules
   const repartitionGroups = useMemo(() => {
-    return store.settings.allocationRules.groups.map(group => {
-      const basePrevu = group.incomeType === 'bancaire' ? totals.bancaireForecast : totals.liquideForecast
-      const baseReel  = group.incomeType === 'bancaire' ? totals.bancaireActual  : totals.liquideActual
+    const fiscalStatus = store.settings.fiscalStatus ?? 'micro_bnc'
+    const cfg = FISCAL_CONFIGS[fiscalStatus]
+    const allocationGroups = store.settings.allocationRules.groups
+
+    // Fiscal account IDs (accounts whose name contains "fiscal")
+    const fiscalAccountIds = new Set(
+      store.accounts.filter(a => a.name.toLowerCase().includes('fiscal')).map(a => a.id)
+    )
+
+    // ─── Bancaire fiscal calc ───────────────────────────────────────
+    // Actual
+    const chargesA = cfg.chargesPct > 0 ? totals.bancaireHT_actual * cfg.chargesPct / 100 : 0
+    const irA      = calcIR(totals.bancaireHT_actual * 12 * (1 - cfg.abattement)) / 12
+    const obligA   = totals.totalTVA_actual + chargesA + irA
+    const netA     = totals.bancaireHT_actual - chargesA - irA
+
+    // Forecast
+    const chargesF = cfg.chargesPct > 0 ? totals.bancaireHT_forecast * cfg.chargesPct / 100 : 0
+    const irF      = calcIR(totals.bancaireHT_forecast * 12 * (1 - cfg.abattement)) / 12
+    const obligF   = totals.totalTVA_forecast + chargesF + irF
+    const netF     = totals.bancaireHT_forecast - chargesF - irF
+
+    // Non-fiscal % across all bancaire groups
+    const allNonFiscalPct = allocationGroups
+      .filter(g => g.incomeType === 'bancaire')
+      .reduce((sum, g) =>
+        sum + g.slots.filter(sl => !fiscalAccountIds.has(sl.accountId)).reduce((s, sl) => s + sl.percent, 0), 0)
+
+    // Total % across all cash groups
+    const allCashPct = allocationGroups
+      .filter(g => g.incomeType === 'cash')
+      .reduce((sum, g) => sum + g.slots.reduce((s, sl) => s + sl.percent, 0), 0)
+
+    return allocationGroups.map(group => {
+      const isBancaire = group.incomeType === 'bancaire'
       const groupTotal = group.slots.reduce((s, sl) => s + sl.percent, 0)
+
+      const slots = group.slots.map(slot => {
+        const acc = store.accounts.find(a => a.id === slot.accountId)
+        const isFiscal = isBancaire && fiscalAccountIds.has(slot.accountId)
+
+        let prevu: number
+        let reel: number
+        if (isFiscal) {
+          prevu = obligF
+          reel  = obligA
+        } else if (isBancaire) {
+          prevu = allNonFiscalPct > 0 ? netF * (slot.percent / allNonFiscalPct) : 0
+          reel  = allNonFiscalPct > 0 ? netA * (slot.percent / allNonFiscalPct) : 0
+        } else {
+          prevu = allCashPct > 0 ? totals.liquideForecast * (slot.percent / allCashPct) : 0
+          reel  = allCashPct > 0 ? totals.liquideActual   * (slot.percent / allCashPct) : 0
+        }
+
+        return {
+          accountId: slot.accountId,
+          name: acc?.name || slot.label,
+          institution: acc?.institution || '',
+          percent: slot.percent,
+          isFiscal,
+          prevu,
+          reel,
+        }
+      })
+
       return {
-        id: group.id,
-        label: group.label,
-        incomeType: group.incomeType,
-        groupTotal,
-        slots: group.slots.map(slot => {
-          const acc = store.accounts.find(a => a.id === slot.accountId)
-          return {
-            accountId: slot.accountId,
-            name: acc?.name || slot.label,
-            institution: acc?.institution || '',
-            percent: slot.percent,
-            prevu: basePrevu * (slot.percent / 100),
-            reel:  baseReel  * (slot.percent / 100),
-          }
-        }),
+        id: group.id, label: group.label, incomeType: group.incomeType, groupTotal,
+        groupPrevuTotal: slots.reduce((s, sl) => s + sl.prevu, 0),
+        slots,
       }
     })
-  }, [store.settings.allocationRules, store.accounts, totals])
+  }, [store.settings.allocationRules, store.settings.fiscalStatus, store.accounts, totals])
 
   // Over-budget categories
   const overBudgetCats = useMemo(() => {
@@ -337,7 +402,7 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
             <FinanceCard key={group.id}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{group.label}</h3>
-                <span className="text-[10px] text-muted-foreground">{Math.round(group.groupTotal * 10) / 10}%</span>
+                <span className="text-sm font-extrabold text-foreground">{formatCurrency(group.groupPrevuTotal)}</span>
               </div>
               <div className="grid grid-cols-[1fr_4.5rem_5.5rem] gap-x-2 mb-2">
                 <span className="text-[10px] text-muted-foreground">Compte</span>
@@ -351,10 +416,17 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
                   return (
                     <div key={i} className="grid grid-cols-[1fr_4.5rem_5.5rem] gap-x-2 items-center">
                       <div className="min-w-0">
-                        <p className="text-xs text-foreground truncate">{slot.name}</p>
-                        {slot.institution && <p className="text-[10px] text-muted-foreground/50 truncate">{slot.institution}</p>}
+                        <p className={`text-xs truncate ${slot.isFiscal ? 'text-amber-400' : 'text-foreground'}`}>{slot.name}</p>
+                        {slot.isFiscal
+                          ? <p className="text-[10px] text-amber-400/60">obligatoire</p>
+                          : slot.institution
+                            ? <p className="text-[10px] text-muted-foreground/50 truncate">{slot.institution}</p>
+                            : null
+                        }
                       </div>
-                      <span className="text-xs text-muted-foreground text-right">{formatCurrency(slot.prevu)}</span>
+                      <span className={`text-xs font-semibold text-right ${slot.isFiscal ? 'text-amber-400' : 'text-muted-foreground'}`}>
+                        {formatCurrency(slot.prevu)}
+                      </span>
                       {isEditing ? (
                         <input
                           type="number" inputMode="decimal"
