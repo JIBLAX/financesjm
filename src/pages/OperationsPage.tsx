@@ -70,6 +70,8 @@ export const OperationsPage: React.FC<Props> = ({
   const currentMonthKey = getCurrentMonthKey()
 
   const [revenuType, setRevenuType] = useState<'fixe' | 'variable'>('variable')
+  const [recurrenceMode, setRecurrenceMode] = useState<'indefinite' | 'x_months'>('indefinite')
+  const [recurrenceCount, setRecurrenceCount] = useState<number>(3)
 
   useEffect(() => {
     onInitMonth(monthKey)
@@ -144,9 +146,11 @@ export const OperationsPage: React.FC<Props> = ({
   }
 
   const openEdit = (op: Operation) => {
-    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, note: op.note || '', date: op.date || todayISO() })
+    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, recurrenceMonths: op.recurrenceMonths, note: op.note || '', date: op.date || todayISO() })
     if (op.family === 'revenu') {
       setRevenuType(op.isTemplate ? 'fixe' : 'variable')
+      if (op.recurrenceMonths) { setRecurrenceMode('x_months'); setRecurrenceCount(op.recurrenceMonths) }
+      else { setRecurrenceMode('indefinite') }
     } else {
       setRevenuType('variable')
     }
@@ -155,7 +159,7 @@ export const OperationsPage: React.FC<Props> = ({
 
   const closeModal = () => {
     setModal(null); setScopePicker(null); setDeleteConfirm(null); setNewCatName(''); setNewCatIcon('')
-    setRevenuType('variable')
+    setRevenuType('variable'); setRecurrenceMode('indefinite'); setRecurrenceCount(3)
   }
 
   const changeFormScope = (newScope: ScopeTab) => {
@@ -168,7 +172,11 @@ export const OperationsPage: React.FC<Props> = ({
     const isTemplate = form.family !== 'revenu'
       ? form.isTemplate
       : revenuType === 'fixe'
-    const clean = { ...form, isTemplate, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined }
+    // recurrenceMonths: only meaningful for fixed revenus
+    const recurrenceMonths = (form.family === 'revenu' && revenuType === 'fixe' && recurrenceMode === 'x_months')
+      ? recurrenceCount
+      : undefined
+    const clean = { ...form, isTemplate, recurrenceMonths, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined }
     if (modal?.mode === 'add') {
       onAdd({ ...clean, id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })
     } else if (modal?.mode === 'edit') {
@@ -526,6 +534,33 @@ export const OperationsPage: React.FC<Props> = ({
                       📊 Variable
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* Récurrence — revenus fixes uniquement */}
+              {form.family === 'revenu' && revenuType === 'fixe' && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Durée de récurrence</label>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => setRecurrenceMode('indefinite')}
+                      className={`flex-1 py-2 rounded-xl text-xs font-medium ${recurrenceMode === 'indefinite' ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                      Indéterminée
+                    </button>
+                    <button onClick={() => setRecurrenceMode('x_months')}
+                      className={`flex-1 py-2 rounded-xl text-xs font-medium ${recurrenceMode === 'x_months' ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                      X mois
+                    </button>
+                  </div>
+                  {recurrenceMode === 'x_months' && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <input type="number" min="1" max="60" inputMode="numeric"
+                        className="w-24 bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                        value={recurrenceCount}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setRecurrenceCount(Math.max(1, parseInt(e.target.value) || 1))} />
+                      <span className="text-xs text-muted-foreground">mois au total</span>
+                    </div>
+                  )}
                 </div>
               )}
 

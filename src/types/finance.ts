@@ -290,6 +290,7 @@ export interface Operation {
   actual: number           // réel (0 = not yet filled)
   isTemplate: boolean      // if true, auto-carry to next months
   templateId?: string      // links copies to their origin template
+  recurrenceMonths?: number // if set, stop copying after N total instances (undefined = indefinite)
   skipped?: boolean        // true = recurring op explicitly skipped this month (not re-created)
   note?: string
   clientName?: string      // kept for backwards compat — label is now the primary name
@@ -355,6 +356,7 @@ export interface Project {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface FinanceStore {
+  _schemaVersion: number   // bump when a breaking change is introduced — used in loadStore migrations
   settings: AppSettings
   accounts: Account[]
   transactions: Transaction[]

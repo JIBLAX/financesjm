@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/integrations/supabase/client'
 import { loadStore } from '@/lib/storage'
 import type { FinanceStore } from '@/types/finance'
@@ -6,6 +7,8 @@ import type { FinanceStore } from '@/types/finance'
 /** Debounced cloud sync for FinanceStore */
 export function useCloudSync() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Track consecutive failures to avoid spamming toasts
+  const failCountRef = useRef(0)
 
   /** Upload the full store to the cloud (upsert) */
   const pushToCloud = useCallback(async (store: FinanceStore) => {
@@ -18,7 +21,19 @@ export function useCloudSync() {
       { user_id: user.id, data: store },
       { onConflict: 'user_id' }
     )
-    if (error) console.error('[CloudSync] push error', error.message)
+    if (error) {
+      console.error('[CloudSync] push error', error.message)
+      failCountRef.current += 1
+      // Only notify on 1st failure to avoid toast spam; data is safe in localStorage
+      if (failCountRef.current === 1) {
+        toast.warning('Synchronisation cloud indisponible', {
+          description: 'Vos données sont sauvegardées localement. Elles se synchroniseront automatiquement.',
+          duration: 5000,
+        })
+      }
+    } else {
+      failCountRef.current = 0
+    }
   }, [])
 
   /** Debounced push — waits 2s after last call */
@@ -40,6 +55,10 @@ export function useCloudSync() {
 
     if (error) {
       console.error('[CloudSync] pull error', error.message)
+      toast.warning('Impossible de récupérer vos données cloud', {
+        description: 'Vos données locales sont utilisées.',
+        duration: 4000,
+      })
       return null
     }
     if (!data?.data) return null

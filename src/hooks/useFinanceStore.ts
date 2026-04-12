@@ -162,7 +162,18 @@ export function useFinanceStore() {
           .map(op => op.templateId as string)
       )
 
-      const toCopy = templates.filter(op => !copiedTemplateIds.has(op.templateId || op.id))
+      const toCopy = templates.filter(op => {
+        const rootId = op.templateId || op.id
+        if (copiedTemplateIds.has(rootId)) return false
+        // Respect recurrenceMonths limit: count all instances (original + copies)
+        if (op.recurrenceMonths && op.recurrenceMonths > 0) {
+          const instanceCount = prev.operations.filter(
+            o => o.id === rootId || o.templateId === rootId
+          ).length
+          if (instanceCount >= op.recurrenceMonths) return false
+        }
+        return true
+      })
       if (toCopy.length === 0) return prev
 
       const base = Date.now()

@@ -4,8 +4,11 @@ import { DEFAULT_SETTINGS, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, DEFAULT_CASH_EN
 const STORE_KEY = 'finances_jm_store'
 const PIN_SESSION_KEY = 'finances_jm_session'
 
+const CURRENT_SCHEMA_VERSION = 1
+
 function getDefaultStore(): FinanceStore {
   return {
+    _schemaVersion: CURRENT_SCHEMA_VERSION,
     settings: { ...DEFAULT_SETTINGS },
     accounts: [...DEFAULT_ACCOUNTS],
     transactions: [],
@@ -36,6 +39,7 @@ export function loadStore(): FinanceStore {
     return {
       ...defaults,
       ...parsed,
+      _schemaVersion: CURRENT_SCHEMA_VERSION,
       settings: {
         ...defaults.settings,
         ...parsed.settings,
