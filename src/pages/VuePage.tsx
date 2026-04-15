@@ -75,16 +75,17 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
     const solde = revActual - chargeActual
     const soldeForecast = revForecast - chargeForecast
 
-    // Bancaire / Liquide split from note field
+    // Bancaire / Liquide split from sourceType field
+    // Falls back to bank for ops without sourceType (backwards compat)
     const revOps = operations.filter(op => op.family === 'revenu')
-    const liquideActual = revOps.filter(op => op.note && op.note.toLowerCase().includes('espèces')).reduce((s, op) => s + op.actual, 0)
-    const liquideForecast = revOps.filter(op => op.note && op.note.toLowerCase().includes('espèces')).reduce((s, op) => s + op.forecast, 0)
-    const bancaireActual = revActual - liquideActual
-    const bancaireForecast = revOps.filter(op => !op.note || !op.note.toLowerCase().includes('espèces')).reduce((s, op) => s + op.forecast, 0)
+    const liquideActual   = revOps.filter(op => op.sourceType === 'cash').reduce((s, op) => s + op.actual, 0)
+    const liquideForecast = revOps.filter(op => op.sourceType === 'cash').reduce((s, op) => s + op.forecast, 0)
+    const bancaireActual   = revActual   - liquideActual
+    const bancaireForecast = revForecast - liquideForecast
 
     // TVA extraction from pro bancaire revenue ops
     const proBancaireOps = revOps.filter(op =>
-      op.scope === 'pro' && (!op.note || !op.note.toLowerCase().includes('espèces'))
+      op.scope === 'pro' && op.sourceType !== 'cash'
     )
     const totalTVA_actual = proBancaireOps.reduce((s, op) => {
       if (!op.tvaRate || op.actual === 0) return s

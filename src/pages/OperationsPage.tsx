@@ -35,7 +35,7 @@ const todayISO = () => new Date().toISOString().split('T')[0]
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 
 function emptyForm(family: OperationFamily, scope: ScopeTab, monthKey: string): Omit<Operation, 'id'> {
-  return { monthKey, family, scope, label: '', categoryId: '', subcategoryId: '', forecast: 0, actual: 0, isTemplate: family === 'charge_fixe', note: '', date: todayISO() }
+  return { monthKey, family, scope, label: '', categoryId: '', subcategoryId: '', forecast: 0, actual: 0, isTemplate: family === 'charge_fixe', note: '', date: todayISO(), sourceType: 'bank' }
 }
 
 
@@ -154,7 +154,7 @@ export const OperationsPage: React.FC<Props> = ({
   }
 
   const openEdit = (op: Operation) => {
-    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, recurrenceMonths: op.recurrenceMonths, note: op.note || '', date: op.date || todayISO(), accountId: op.accountId || getDefaultAccountId(op.scope) })
+    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, recurrenceMonths: op.recurrenceMonths, note: op.note || '', date: op.date || todayISO(), accountId: op.accountId || getDefaultAccountId(op.scope), sourceType: op.sourceType || 'bank' })
     if (op.family === 'revenu') {
       setRevenuType(op.isTemplate ? 'fixe' : 'variable')
       if (op.recurrenceMonths) { setRecurrenceMode('x_months'); setRecurrenceCount(op.recurrenceMonths) }
@@ -190,7 +190,8 @@ export const OperationsPage: React.FC<Props> = ({
     const tvaRate = (form.family === 'revenu' && form.scope === 'pro' && hasFiscalTva && opTvaRate !== 'none')
       ? (opTvaRate === '20' ? 0.20 : opTvaRate === '10' ? 0.10 : 0.055)
       : undefined
-    const clean = { ...form, isTemplate, recurrenceMonths, tvaRate, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined, accountId: form.accountId || undefined }
+    const sourceType = form.family === 'revenu' ? (form.sourceType || 'bank') : undefined
+    const clean = { ...form, isTemplate, recurrenceMonths, tvaRate, sourceType, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined, accountId: form.accountId || undefined }
     if (modal?.mode === 'add') {
       onAdd({ ...clean, id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })
     } else if (modal?.mode === 'edit') {
@@ -327,6 +328,9 @@ export const OperationsPage: React.FC<Props> = ({
                               {sub && <span className="text-[10px] text-muted-foreground/70">{sub.icon} {sub.name}</span>}
                               {op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
                               {op.isTemplate && <span className="text-[9px] text-primary/60">↻</span>}
+                              {op.family === 'revenu' && op.sourceType === 'cash' && (
+                                <span className="text-[9px] text-amber-400/80">💵 Espèces</span>
+                              )}
                               {op.tvaRate && op.tvaRate > 0 && (
                                 <span className="text-[9px] text-violet-400/70">
                                   TVA {op.tvaRate === 0.20 ? '20' : op.tvaRate === 0.10 ? '10' : '5,5'}%
@@ -554,6 +558,25 @@ export const OperationsPage: React.FC<Props> = ({
                       onClick={() => setRevenuType('variable')}
                       className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${revenuType === 'variable' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground'}`}>
                       📊 Variable
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Mode d'encaissement — Bancaire / Espèces */}
+              {form.family === 'revenu' && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Encaissement</label>
+                  <div className="flex bg-muted/25 rounded-xl p-0.5 gap-0.5 mt-1">
+                    <button
+                      onClick={() => setForm(f => ({ ...f, sourceType: 'bank' }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${(form.sourceType || 'bank') === 'bank' ? 'bg-sky-500/20 text-sky-400' : 'text-muted-foreground'}`}>
+                      🏦 Bancaire
+                    </button>
+                    <button
+                      onClick={() => setForm(f => ({ ...f, sourceType: 'cash' }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${form.sourceType === 'cash' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground'}`}>
+                      💵 Espèces
                     </button>
                   </div>
                 </div>

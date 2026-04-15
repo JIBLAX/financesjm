@@ -301,6 +301,7 @@ export interface Operation {
   recurrenceMonths?: number // if set, stop copying after N total instances (undefined = indefinite)
   skipped?: boolean        // true = recurring op explicitly skipped this month (not re-created)
   accountId?: string       // account affected by this operation (used for dynamic balance)
+  sourceType?: 'bank' | 'cash'  // for revenue ops: how the money is received
   note?: string
   tvaRate?: number         // TVA rate on pro revenue: 0.20 | 0.10 | 0.055 — undefined = pas de TVA
   clientName?: string      // kept for backwards compat — label is now the primary name
