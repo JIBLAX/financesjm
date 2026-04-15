@@ -2,9 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight, ArrowLeftRight, ChevronDown } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
-import { formatCurrency, getCurrentMonthKey, getMonthLabel, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, BE_ACTIV_OFFER_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants'
+import { formatCurrency, getCurrentMonthKey, getMonthLabel, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants'
 import { NON_REAL_REVENUE_TYPES } from '@/types/finance'
-import type { FinanceStore, Transaction, Asset, RevenueSource, RevenueType, RevenueRecurrence, BeActivOffer, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
+import { BUSINESS_OFFERS, resolveLegacyOffer } from '@/lib/beActiv'
+import type { FinanceStore, Transaction, Asset, RevenueSource, RevenueType, RevenueRecurrence, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
@@ -59,9 +60,9 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const [installmentTotal, setInstallmentTotal] = useState('')
   const [installmentCount, setInstallmentCount] = useState('')
 
-  // Be Activ fields
-
-  const [baOffer, setBaOffer] = useState<BeActivOffer | ''>('')
+  // Be Activ fields — Business catalog
+  const [baBusinessOfferId, setBaBusinessOfferId] = useState('')
+  const [baCatalogPriceSnapshot, setBaCatalogPriceSnapshot] = useState('')
   const [baChannel, setBaChannel] = useState<BeActivChannel | ''>('')
   const [baPayment, setBaPayment] = useState<BeActivPaymentMode | ''>('')
   const [baStatus, setBaStatus] = useState<BeActivStatus>('recu')
@@ -185,7 +186,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
     setTxDate(todayISO())
     setRevenueSource('autre'); setRevenueType('autre_revenu'); setRevenueRecurrence('unique')
     setPaymentMode('unique'); setInstallmentTotal(''); setInstallmentCount('')
-    setBaOffer(''); setBaChannel(''); setBaPayment(''); setBaStatus('recu')
+    setBaBusinessOfferId(''); setBaCatalogPriceSnapshot(''); setBaChannel(''); setBaPayment(''); setBaStatus('recu')
     setBaIsInstallment(false); setBaTotalAmount(''); setBaInstallmentLabel('')
   }
 
@@ -215,9 +216,14 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
       tx.isRealRevenue = isRealRevenue
 
       if (revenueSource === 'be_activ') {
+        const selectedOffer = BUSINESS_OFFERS.find(o => o.id === baBusinessOfferId)
         tx.beActivDetails = {
           client: label,
-          offer: baOffer,
+          business_offer_id: baBusinessOfferId || undefined,
+          business_offer_name: selectedOffer?.name,
+          catalog_price_snapshot: baCatalogPriceSnapshot ? Number(baCatalogPriceSnapshot) : undefined,
+          actual_amount: Number(amount) || undefined,
+          needs_review: !baBusinessOfferId,
           channel: baChannel,
           paymentMode: baPayment,
           status: baStatus,
@@ -576,10 +582,51 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
               {revenueSource === 'be_activ' && (
                 <div className="space-y-2 border-t border-border/30 pt-3">
                   <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Détails Be Activ</p>
-                  <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={baOffer} onChange={e => setBaOffer(e.target.value as BeActivOffer)}>
-                    <option value="">Offre / prestation</option>
-                    {Object.entries(BE_ACTIV_OFFER_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
+
+                  {/* Business offer chip picker */}
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1.5">Offre Business</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {BUSINESS_OFFERS.map(offer => (
+                        <button
+                          key={offer.id}
+                          onClick={() => {
+                            setBaBusinessOfferId(baBusinessOfferId === offer.id ? '' : offer.id)
+                            if (offer.catalogPrice > 0) setBaCatalogPriceSnapshot(String(offer.catalogPrice))
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${baBusinessOfferId === offer.id ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40' : 'bg-muted/40 text-muted-foreground border border-border/30'}`}
+                        >
+                          {offer.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Catalog price */}
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1">Prix standard catalogue €</p>
+                    <input
+                      type="number" inputMode="decimal"
+                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                      placeholder="0"
+                      value={baCatalogPriceSnapshot}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setBaCatalogPriceSnapshot(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Variance display */}
+                  {baCatalogPriceSnapshot && Number(baCatalogPriceSnapshot) > 0 && Number(amount) > 0 && (() => {
+                    const diff = Number(amount) - Number(baCatalogPriceSnapshot)
+                    const pct = Math.round((diff / Number(baCatalogPriceSnapshot)) * 100)
+                    return (
+                      <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs ${diff < 0 ? 'bg-amber-500/10 text-amber-400' : diff > 0 ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                        <span>Écart catalogue</span>
+                        <span className="font-bold">{diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({pct >= 0 ? '+' : ''}{pct}%)</span>
+                      </div>
+                    )
+                  })()}
+
                   <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={baChannel} onChange={e => setBaChannel(e.target.value as BeActivChannel)}>
                     <option value="">Canal d'encaissement</option>
                     {Object.entries(BE_ACTIV_CHANNEL_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -666,12 +713,38 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                   {!isTransfer && t.direction === 'income' && t.isRealRevenue === false && (
                     <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">Non comptée comme revenu</span>
                   )}
-                  {t.beActivDetails && (
-                    <p className="text-[10px] text-blue-400 mt-0.5">
-                      {t.beActivDetails.client}{t.beActivDetails.offer ? ` · ${BE_ACTIV_OFFER_LABELS[t.beActivDetails.offer as keyof typeof BE_ACTIV_OFFER_LABELS] || ''}` : ''}
-                      {t.beActivDetails.status ? ` · ${BE_ACTIV_STATUS_LABELS[t.beActivDetails.status as keyof typeof BE_ACTIV_STATUS_LABELS] || ''}` : ''}
-                    </p>
-                  )}
+                  {t.beActivDetails && (() => {
+                    const ba = t.beActivDetails!
+                    const offerName = ba.business_offer_name
+                      || (ba.business_offer_id ? BUSINESS_OFFERS.find(o => o.id === ba.business_offer_id)?.name : null)
+                      || (ba.offer ? resolveLegacyOffer(ba.offer)?.name : null)
+                      || ba.offer || ''
+                    const needsLink = !ba.business_offer_id
+                    const variance = (ba.catalog_price_snapshot && ba.actual_amount)
+                      ? ba.actual_amount - ba.catalog_price_snapshot
+                      : null
+                    return (
+                      <div className="mt-0.5 space-y-0.5">
+                        <p className="text-[10px] text-blue-400">
+                          {ba.client}{offerName ? ` · ${offerName}` : ''}
+                          {ba.status ? ` · ${BE_ACTIV_STATUS_LABELS[ba.status] || ba.status}` : ''}
+                        </p>
+                        {ba.catalog_price_snapshot && ba.actual_amount && (
+                          <p className="text-[10px] text-muted-foreground/70">
+                            Catalogue {formatCurrency(ba.catalog_price_snapshot)} · Encaissé {formatCurrency(ba.actual_amount)}
+                            {variance !== null && variance !== 0 && (
+                              <span className={variance < 0 ? ' text-amber-400' : ' text-emerald-400'}>
+                                {' '}{variance >= 0 ? '+' : ''}{formatCurrency(variance)}
+                              </span>
+                            )}
+                          </p>
+                        )}
+                        {needsLink && (
+                          <span className="inline-block text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">⚠ À lier au catalogue Business</span>
+                        )}
+                      </div>
+                    )
+                  })()}
                   {t.note && !isTransfer && <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{t.note}</p>}
                 </div>
                 <div className="flex items-center gap-2">

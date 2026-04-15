@@ -30,7 +30,15 @@ export type BeActivStatus = 'prevu' | 'en_attente' | 'recu'
 
 export interface BeActivDetails {
   client: string
-  offer: BeActivOffer | ''
+  /** @deprecated Use business_offer_id instead — kept for backward compat */
+  offer?: BeActivOffer | ''
+  // ── Business catalog linkage ───────────────────────────────────────────────
+  business_offer_id?: string       // Offer ID from BE ACTIV Business catalog
+  business_offer_name?: string     // Name snapshot at time of sale
+  catalog_price_snapshot?: number  // Catalog (standard) price at time of sale
+  actual_amount?: number           // Amount actually collected — mirrors Transaction.amount
+  needs_review?: boolean           // true if offer not confirmed from Business catalog
+  // ─────────────────────────────────────────────────────────────────────────
   channel: BeActivChannel | ''
   paymentMode: BeActivPaymentMode | ''
   status: BeActivStatus
@@ -292,6 +300,7 @@ export interface Operation {
   templateId?: string      // links copies to their origin template
   recurrenceMonths?: number // if set, stop copying after N total instances (undefined = indefinite)
   skipped?: boolean        // true = recurring op explicitly skipped this month (not re-created)
+  accountId?: string       // account affected by this operation (used for dynamic balance)
   note?: string
   tvaRate?: number         // TVA rate on pro revenue: 0.20 | 0.10 | 0.055 — undefined = pas de TVA
   clientName?: string      // kept for backwards compat — label is now the primary name

@@ -136,6 +136,11 @@ export const OperationsPage: React.FC<Props> = ({
       })
   }, [store.opCategories, grouped])
 
+  const getDefaultAccountId = (s: ScopeTab): string => {
+    if (s === 'pro') return store.accounts.find(a => a.type === 'pro' && a.isActive)?.id || store.accounts.find(a => a.isActive)?.id || ''
+    return store.accounts.find(a => a.type === 'courant' && a.isActive)?.id || store.accounts.find(a => a.isActive)?.id || ''
+  }
+
   const openAdd = (categoryId?: string) => setScopePicker({ categoryId })
 
   const confirmScope = (s: ScopeTab) => {
@@ -143,12 +148,13 @@ export const OperationsPage: React.FC<Props> = ({
     setScopePicker(null)
     setScope(s)
     const base = emptyForm(family, s, monthKey)
-    setForm(pending?.categoryId ? { ...base, categoryId: pending.categoryId } : base)
+    const accountId = getDefaultAccountId(s)
+    setForm(pending?.categoryId ? { ...base, categoryId: pending.categoryId, accountId } : { ...base, accountId })
     setModal({ mode: 'add' })
   }
 
   const openEdit = (op: Operation) => {
-    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, recurrenceMonths: op.recurrenceMonths, note: op.note || '', date: op.date || todayISO() })
+    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, recurrenceMonths: op.recurrenceMonths, note: op.note || '', date: op.date || todayISO(), accountId: op.accountId || getDefaultAccountId(op.scope) })
     if (op.family === 'revenu') {
       setRevenuType(op.isTemplate ? 'fixe' : 'variable')
       if (op.recurrenceMonths) { setRecurrenceMode('x_months'); setRecurrenceCount(op.recurrenceMonths) }
@@ -181,11 +187,10 @@ export const OperationsPage: React.FC<Props> = ({
       ? recurrenceCount
       : undefined
     // tvaRate: only for pro revenue when fiscal status supports TVA
-    const hasFiscalTva = FISCAL_CONFIGS[store.settings.fiscalStatus ?? 'micro_bnc'].tva
     const tvaRate = (form.family === 'revenu' && form.scope === 'pro' && hasFiscalTva && opTvaRate !== 'none')
       ? (opTvaRate === '20' ? 0.20 : opTvaRate === '10' ? 0.10 : 0.055)
       : undefined
-    const clean = { ...form, isTemplate, recurrenceMonths, tvaRate, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined }
+    const clean = { ...form, isTemplate, recurrenceMonths, tvaRate, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined, accountId: form.accountId || undefined }
     if (modal?.mode === 'add') {
       onAdd({ ...clean, id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })
     } else if (modal?.mode === 'edit') {
@@ -193,6 +198,8 @@ export const OperationsPage: React.FC<Props> = ({
     }
     closeModal()
   }
+
+  const hasFiscalTva = FISCAL_CONFIGS[store.settings.fiscalStatus ?? 'micro_bnc'].tva
 
   const handleDelete = (id: string) => {
     if (deleteConfirm === id) { onRemove(id); setDeleteConfirm(null) }
@@ -607,6 +614,17 @@ export const OperationsPage: React.FC<Props> = ({
               <div>
                 <label className="text-xs text-muted-foreground">Note (optionnelle)</label>
                 <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" placeholder="Optionnel" value={form.note || ''} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
+              </div>
+
+              {/* Compte concerné */}
+              <div>
+                <label className="text-xs text-muted-foreground">Compte concerné (optionnel)</label>
+                <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1" value={form.accountId || ''} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
+                  <option value="">Aucun compte lié</option>
+                  {store.accounts.filter(a => a.isActive).map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Récurrent toggle — charges uniquement */}

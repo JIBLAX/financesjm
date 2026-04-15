@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Pencil, X, Check, Zap, ChevronDown, ChevronUp } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel } from '@/lib/constants'
+import { computeDynamicBalance } from '@/lib/balance'
 import type { FinanceStore, MonthlySnapshot, Account } from '@/types/finance'
 
 interface Props {
@@ -86,13 +87,14 @@ interface FormState {
   assetBreakdown: Record<string, string>
   accountBalances: Record<string, string>
   accountMissing: Record<string, boolean>
+  accountAutoComputed: Record<string, boolean>
 }
 
 function emptyForm(): FormState {
   return {
     totalIncomePerso: '', totalIncomeCash: '', totalRevenuesPro: '',
     totalChargesPerso: '', totalChargesPro: '', totalDebts: '',
-    assetBreakdown: {}, accountBalances: {}, accountMissing: {},
+    assetBreakdown: {}, accountBalances: {}, accountMissing: {}, accountAutoComputed: {},
   }
 }
 
@@ -131,23 +133,28 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
     return () => { document.body.style.overflow = '' }
   }, [editingMonth])
 
-  const buildAccountData = (monthKey: string): { balances: Record<string, string>; missing: Record<string, boolean> } => {
+  const buildAccountData = (monthKey: string): { balances: Record<string, string>; missing: Record<string, boolean>; autoComputed: Record<string, boolean> } => {
     const checkIn = store.monthlyCheckIns.find(ci => ci.monthKey === monthKey)
     const balances: Record<string, string> = {}
     const missing: Record<string, boolean> = {}
+    const autoComputed: Record<string, boolean> = {}
     activeAccounts.forEach(acc => {
       if (checkIn?.accountBalances?.[acc.id] !== undefined) {
         balances[acc.id] = String(checkIn.accountBalances[acc.id])
         missing[acc.id] = false
+        autoComputed[acc.id] = false
       } else if (monthKey >= AUTO_FROM) {
-        balances[acc.id] = String(acc.currentBalance ?? 0)
+        const db = computeDynamicBalance(acc.id, store)
+        balances[acc.id] = String(Math.round(db.dynamicBalance * 100) / 100)
         missing[acc.id] = false
+        autoComputed[acc.id] = true
       } else {
         balances[acc.id] = ''
         missing[acc.id] = true
+        autoComputed[acc.id] = false
       }
     })
-    return { balances, missing }
+    return { balances, missing, autoComputed }
   }
 
   const computeAutoData = (monthKey: string): FormState => {
@@ -191,7 +198,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
       totalChargesPro:   fmtN(chargesPro),
       totalDebts:        totalDebts > 0 ? fmtN(totalDebts) : '',
       assetBreakdown,
-      ...(() => { const d = buildAccountData(monthKey); return { accountBalances: d.balances, accountMissing: d.missing } })(),
+      ...(() => { const d = buildAccountData(monthKey); return { accountBalances: d.balances, accountMissing: d.missing, accountAutoComputed: d.autoComputed } })(),
     }
   }
 
@@ -207,33 +214,37 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
       })
       // Restore per-account balances from saved snapshot if available,
       // otherwise fall back to check-in / current balance
-      let accData: { balances: Record<string, string>; missing: Record<string, boolean> }
+      let accData: { balances: Record<string, string>; missing: Record<string, boolean>; autoComputed: Record<string, boolean> }
       if (existing.accountBalances && Object.keys(existing.accountBalances).length > 0) {
         const balances: Record<string, string> = {}
         const missing: Record<string, boolean> = {}
+        const autoComputed: Record<string, boolean> = {}
         activeAccounts.forEach(acc => {
           if (existing.accountBalances![acc.id] !== undefined) {
             balances[acc.id] = String(existing.accountBalances![acc.id])
             missing[acc.id] = false
+            autoComputed[acc.id] = false
           } else {
             balances[acc.id] = ''
             missing[acc.id] = true
+            autoComputed[acc.id] = false
           }
         })
-        accData = { balances, missing }
+        accData = { balances, missing, autoComputed }
       } else {
         accData = buildAccountData(monthKey)
       }
       setForm({
-        totalIncomePerso:  existing.totalIncomeBank  > 0 ? String(existing.totalIncomeBank)  : '',
-        totalIncomeCash:   existing.totalIncomeCash  > 0 ? String(existing.totalIncomeCash)  : '',
-        totalRevenuesPro:  existing.totalRevenuesPro ? String(existing.totalRevenuesPro) : '',
-        totalChargesPerso: existing.totalExpenses    > 0 ? String(existing.totalExpenses)    : '',
-        totalChargesPro:   existing.totalChargesPro  ? String(existing.totalChargesPro)  : '',
-        totalDebts:        existing.totalDebts       > 0 ? String(existing.totalDebts)       : '',
-        assetBreakdown:    breakdown,
-        accountBalances:   accData.balances,
-        accountMissing:    accData.missing,
+        totalIncomePerso:    existing.totalIncomeBank  > 0 ? String(existing.totalIncomeBank)  : '',
+        totalIncomeCash:     existing.totalIncomeCash  > 0 ? String(existing.totalIncomeCash)  : '',
+        totalRevenuesPro:    existing.totalRevenuesPro ? String(existing.totalRevenuesPro) : '',
+        totalChargesPerso:   existing.totalExpenses    > 0 ? String(existing.totalExpenses)    : '',
+        totalChargesPro:     existing.totalChargesPro  ? String(existing.totalChargesPro)  : '',
+        totalDebts:          existing.totalDebts       > 0 ? String(existing.totalDebts)       : '',
+        assetBreakdown:      breakdown,
+        accountBalances:     accData.balances,
+        accountMissing:      accData.missing,
+        accountAutoComputed: accData.autoComputed,
       })
       setAutoFilled(false)
     } else if (monthKey >= AUTO_FROM) {
@@ -241,7 +252,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
       setAutoFilled(true)
     } else {
       const accData = buildAccountData(monthKey)
-      setForm({ ...emptyForm(), accountBalances: accData.balances, accountMissing: accData.missing })
+      setForm({ ...emptyForm(), accountBalances: accData.balances, accountMissing: accData.missing, accountAutoComputed: accData.autoComputed })
       setAutoFilled(false)
     }
     setEditingMonth(monthKey)
@@ -312,6 +323,24 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
 
   const setAssetVal = (key: string, val: string) =>
     setForm(f => ({ ...f, assetBreakdown: { ...f.assetBreakdown, [key]: val } }))
+
+  // Variance warnings: auto-computed account vs entered value
+  const varianceWarnings = useMemo(() => {
+    if (!editingMonth) return []
+    return activeAccounts
+      .filter(acc => form.accountAutoComputed[acc.id] && !form.accountMissing[acc.id])
+      .flatMap(acc => {
+        const db = computeDynamicBalance(acc.id, store)
+        const entered = parseFloat(form.accountBalances[acc.id] || '0') || 0
+        const computed = db.dynamicBalance
+        if (computed <= 0) return []
+        const pct = Math.abs((entered - computed) / computed) * 100
+        if (pct <= 5) return []
+        const diff = entered - computed
+        return [`${acc.name} : saisi ${formatCurrency(entered)} vs calculé ${formatCurrency(computed)} (${diff >= 0 ? '+' : ''}${formatCurrency(diff)})`]
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.accountBalances, form.accountAutoComputed, form.accountMissing, editingMonth])
 
   const totalIncome  = (f: FormState) => (parseFloat(f.totalIncomePerso) || 0) + (parseFloat(f.totalIncomeCash) || 0) + (parseFloat(f.totalRevenuesPro) || 0)
   const totalCharges = (f: FormState) => (parseFloat(f.totalChargesPerso) || 0) + (parseFloat(f.totalChargesPro) || 0)
@@ -636,9 +665,15 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
                           <div className="px-3 pb-2 space-y-1.5">
                             {accs.map(acc => {
                               const isMissing = !!form.accountMissing[acc.id]
+                              const isAutoComputed = !!form.accountAutoComputed[acc.id]
                               return (
                                 <div key={acc.id} className="flex items-center gap-2">
-                                  <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{acc.name}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-[11px] text-muted-foreground truncate">{acc.name}</span>
+                                    {isAutoComputed && !isMissing && (
+                                      <span className="ml-1.5 text-[9px] text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded">⚡ Calculé</span>
+                                    )}
+                                  </div>
                                   {isMissing ? (
                                     <button
                                       onClick={() => setForm(f => ({ ...f, accountMissing: { ...f.accountMissing, [acc.id]: false }, accountBalances: { ...f.accountBalances, [acc.id]: '0' } }))}
@@ -651,7 +686,7 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
                                         className="w-24 bg-muted/50 rounded-xl px-2 py-1.5 text-sm text-right text-foreground outline-none"
                                         placeholder="0" value={form.accountBalances[acc.id] || ''}
                                         onFocus={e => e.target.select()}
-                                        onChange={e => setForm(f => ({ ...f, accountBalances: { ...f.accountBalances, [acc.id]: e.target.value } }))}
+                                        onChange={e => setForm(f => ({ ...f, accountBalances: { ...f.accountBalances, [acc.id]: e.target.value }, accountAutoComputed: { ...f.accountAutoComputed, [acc.id]: false } }))}
                                       />
                                       <span className="text-xs text-muted-foreground">€</span>
                                       <button
@@ -726,6 +761,16 @@ export const HistoriquePage: React.FC<Props> = ({ store, onSaveSnapshot, onReque
                       </p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {varianceWarnings.length > 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 space-y-1">
+                  <p className="text-[11px] font-semibold text-amber-400">⚠ Écart solde calculé vs saisi (&gt;5%)</p>
+                  {varianceWarnings.map((msg, i) => (
+                    <p key={i} className="text-[10px] text-amber-300/80">{msg}</p>
+                  ))}
+                  <p className="text-[10px] text-muted-foreground/60 mt-1">Vous pouvez tout de même enregistrer.</p>
                 </div>
               )}
 

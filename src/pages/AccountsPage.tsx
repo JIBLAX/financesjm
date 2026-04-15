@@ -3,6 +3,7 @@ import { Plus, X, Check, ChevronDown, Settings2 } from 'lucide-react'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, ACCOUNT_GROUPS } from '@/lib/constants'
 import type { FinanceStore, Account } from '@/types/finance'
+import { computeAllDynamicBalances } from '@/lib/balance'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from 'recharts'
 
 interface Props {
@@ -100,15 +101,17 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
     cancelEdit()
   }
 
+  const dynamicBalances = useMemo(() => computeAllDynamicBalances(store), [store])
+
   const chartData = useMemo(() => {
     const map = new Map<string, { name: string; value: number; color: string }>()
     store.accounts.filter(a => a.isActive).forEach(a => {
       const grp = a.group || a.name
       if (!map.has(grp)) map.set(grp, { name: grp, value: 0, color: TYPE_CFG[a.type]?.hex || '#6b7280' })
-      map.get(grp)!.value += a.currentBalance
+      map.get(grp)!.value += dynamicBalances[a.id]?.dynamicBalance ?? a.currentBalance
     })
     return Array.from(map.values()).sort((a, b) => b.value - a.value)
-  }, [store.accounts])
+  }, [store.accounts, dynamicBalances])
 
   // Group by type field
   const TYPE_SECTION_LABELS: Record<string, string> = {
@@ -131,7 +134,7 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
     return ordered
   }, [store.accounts])
 
-  const total = store.accounts.filter(a => a.isActive).reduce((s, a) => s + a.currentBalance, 0)
+  const total = store.accounts.filter(a => a.isActive).reduce((s, a) => s + (dynamicBalances[a.id]?.dynamicBalance ?? a.currentBalance), 0)
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-5">
@@ -190,7 +193,7 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
         const SECTION_COLORS: Record<string, string> = { PRO: 'text-indigo-400', COURANT: 'text-emerald-400', 'ÉPARGNE': 'text-amber-400', 'ESPÈCES': 'text-cyan-400', AUTRE: 'text-muted-foreground' }
         const icon = SECTION_ICONS[groupName] || '📁'
         const colorClass = SECTION_COLORS[groupName] || 'text-muted-foreground'
-        const groupTotal = accounts.reduce((s, a) => s + a.currentBalance, 0)
+        const groupTotal = accounts.reduce((s, a) => s + (dynamicBalances[a.id]?.dynamicBalance ?? a.currentBalance), 0)
         const isCollapsed = collapsed.has(groupName)
 
         return (
@@ -211,6 +214,10 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
               <div className="space-y-1.5">
                 {accounts.map(a => {
                   const isSelected = selectedIds.has(a.id)
+                  const db = dynamicBalances[a.id]
+                  const liveBalance = db?.dynamicBalance ?? a.currentBalance
+                  const delta = db?.delta ?? 0
+                  const hasCheckin = !!db?.lastCheckinMonthKey
                   return (
                     <div
                       key={a.id}
@@ -230,9 +237,16 @@ export const AccountsPage: React.FC<Props> = ({ store, onAdd, onUpdate, onRemove
                         <p className="text-sm font-semibold text-foreground truncate">{a.name}</p>
                         <p className="text-xs text-muted-foreground">{a.institution}{a.subtype ? ` · ${a.subtype}` : ''}</p>
                       </div>
-                      <p className={`text-sm font-bold shrink-0 ${a.currentBalance >= 0 ? 'text-foreground' : 'text-destructive'}`}>
-                        {formatCurrency(a.currentBalance)}
-                      </p>
+                      <div className="text-right shrink-0">
+                        <p className={`text-sm font-bold ${liveBalance >= 0 ? 'text-foreground' : 'text-destructive'}`}>
+                          {formatCurrency(liveBalance)}
+                        </p>
+                        {hasCheckin && delta !== 0 && (
+                          <p className={`text-[10px] ${delta >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {delta >= 0 ? '+' : ''}{formatCurrency(delta)} depuis bilan
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
