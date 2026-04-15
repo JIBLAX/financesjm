@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight, ArrowLeftRight, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight, ArrowLeftRight, ChevronDown, RefreshCw, Download } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
 import { formatCurrency, getCurrentMonthKey, getMonthLabel, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants'
 import { NON_REAL_REVENUE_TYPES } from '@/types/finance'
-import { BUSINESS_OFFERS, resolveLegacyOffer } from '@/lib/beActiv'
+import { resolveLegacyOffer } from '@/lib/beActiv'
+import { useBusinessOffers } from '@/hooks/useBusinessOffers'
+import { useBASync } from '@/hooks/useBASync'
 import type { FinanceStore, Transaction, Asset, RevenueSource, RevenueType, RevenueRecurrence, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
 
 interface Props {
@@ -24,6 +26,8 @@ const formatTxDate = (iso: string) => {
 export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUpdateAsset }) => {
   const navigate = useNavigate()
   const location = useLocation()
+  const { offers: businessOffers, legacyMap } = useBusinessOffers()
+  const { pendingSales, loading: syncLoading, synced, fetchPending, importSale, importAll } = useBASync()
 
   const [showForm, setShowForm] = useState(false)
   const [filterMonth, setFilterMonth] = useState(getCurrentMonthKey())
@@ -216,7 +220,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
       tx.isRealRevenue = isRealRevenue
 
       if (revenueSource === 'be_activ') {
-        const selectedOffer = BUSINESS_OFFERS.find(o => o.id === baBusinessOfferId)
+        const selectedOffer = businessOffers.find(o => o.id === baBusinessOfferId)
         tx.beActivDetails = {
           client: label,
           business_offer_id: baBusinessOfferId || undefined,
@@ -276,6 +280,64 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
           <Plus className="w-5 h-5" />
         </button>
       </div>
+
+      {/* ── Sync BE ACTIV Business ── */}
+      {!showForm && !showTransfer && (
+        <div>
+          {!synced ? (
+            <button
+              onClick={fetchPending}
+              disabled={syncLoading}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 active:bg-blue-500/20 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncLoading ? 'animate-spin' : ''}`} />
+              {syncLoading ? 'Vérification…' : 'Vérifier ventes BE ACTIV à importer'}
+            </button>
+          ) : pendingSales.length > 0 ? (
+            <FinanceCard className="space-y-3 border border-blue-500/20 bg-blue-500/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Download className="w-4 h-4 text-blue-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-400">{pendingSales.length} vente{pendingSales.length > 1 ? 's' : ''} à importer</p>
+                    <p className="text-[10px] text-muted-foreground">Depuis BE ACTIV Business — non encore dans Finances JM</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => importAll(store, onAdd)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-500 text-white active:bg-blue-600"
+                >
+                  Tout importer
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {pendingSales.map(sale => (
+                  <div key={sale.id} className="flex items-center gap-3 bg-muted/30 rounded-xl px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{sale.client_name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {sale.date} · {sale.offres?.name || 'Offre non liée'}
+                      </p>
+                    </div>
+                    <p className="text-xs font-bold text-emerald-400 shrink-0">+{formatCurrency(sale.amount)}</p>
+                    <button
+                      onClick={() => importSale(sale, store, onAdd)}
+                      className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 active:bg-emerald-500/30 shrink-0"
+                    >
+                      Importer
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </FinanceCard>
+          ) : (
+            <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/15 rounded-xl px-3 py-2">
+              <p className="text-[11px] text-emerald-400">Tout est à jour — aucune vente en attente</p>
+              <button onClick={fetchPending} className="text-[10px] text-muted-foreground underline">Actualiser</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Transfert interne */}
       {showTransfer && (
@@ -587,7 +649,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                   <div>
                     <p className="text-[10px] text-muted-foreground mb-1.5">Offre Business</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {BUSINESS_OFFERS.map(offer => (
+                      {businessOffers.map(offer => (
                         <button
                           key={offer.id}
                           onClick={() => {
@@ -716,8 +778,8 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                   {t.beActivDetails && (() => {
                     const ba = t.beActivDetails!
                     const offerName = ba.business_offer_name
-                      || (ba.business_offer_id ? BUSINESS_OFFERS.find(o => o.id === ba.business_offer_id)?.name : null)
-                      || (ba.offer ? resolveLegacyOffer(ba.offer)?.name : null)
+                      || (ba.business_offer_id ? businessOffers.find(o => o.id === ba.business_offer_id)?.name : null)
+                      || (ba.offer ? resolveLegacyOffer(ba.offer, businessOffers, legacyMap)?.name : null)
                       || ba.offer || ''
                     const needsLink = !ba.business_offer_id
                     const variance = (ba.catalog_price_snapshot && ba.actual_amount)
