@@ -19,7 +19,7 @@ export function useBAClients() {
   useEffect(() => {
     supabase
       .from('be_activ_clients')
-      .select('id, nom, prenom, name, offre, montant, profil_code, date_rdv')
+      .select('*')
       .not('offre', 'is', null)
       .order('name', { ascending: true })
       .then(({ data, error }) => {
@@ -30,18 +30,19 @@ export function useBAClients() {
         }
         setClients(
           ((data ?? []) as any[]).map(c => {
-            const prenom      = c.prenom ?? ''
-            const nom         = c.nom    ?? ''
-            const displayName = (c.name || `${prenom} ${nom}`).trim()
+            const prenom      = c.prenom ?? c.Prenom ?? c['Prénom'] ?? ''
+            const nom         = c.nom    ?? c.Nom    ?? ''
+            const name        = c.name   ?? c.Name   ?? ''
+            const displayName = (name || `${prenom} ${nom}`).trim()
             return {
-              id:          c.id          ?? '',
+              id:          c.id          ?? c.Id ?? '',
               nom,
               prenom,
               displayName,
-              offre:       c.offre       ?? null,
-              montant:     c.montant     ?? null,
-              profil_code: c.profil_code ?? null,
-              date_rdv:    c.date_rdv    ?? null,
+              offre:       c.offre       ?? c.Offre       ?? null,
+              montant:     c.montant     ?? c.Montant     ?? null,
+              profil_code: c.profil_code ?? c.Profil_code ?? null,
+              date_rdv:    c.date_rdv    ?? c.Date_rdv    ?? null,
             }
           }).filter(c => c.displayName && c.id)
         )
