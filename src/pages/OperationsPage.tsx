@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
 import { FISCAL_CONFIGS } from '@/lib/fiscal'
+import { supabase } from '@/integrations/supabase/client'
 import type { FinanceStore, Operation, OperationFamily, OperationScope, OpCategory, OpSubcategory } from '@/types/finance'
 
 interface Props {
@@ -193,7 +194,34 @@ export const OperationsPage: React.FC<Props> = ({
     const sourceType = form.family === 'revenu' ? (form.sourceType || 'bank') : undefined
     const clean = { ...form, isTemplate, recurrenceMonths, tvaRate, sourceType, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined, accountId: form.accountId || undefined }
     if (modal?.mode === 'add') {
-      onAdd({ ...clean, id: `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })
+      const opId = `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+      onAdd({ ...clean, id: opId })
+
+      // Write to shared ba_sales if this is a Be Activ revenue (fire-and-forget)
+      if (form.family === 'revenu') {
+        const selectedCat = store.opCategories.find(c => c.id === form.categoryId)
+        const isBeActiv = selectedCat?.name.toLowerCase().includes('be activ') || selectedCat?.name.toLowerCase().includes('beactiv')
+        if (isBeActiv) {
+          const selectedSub = form.subcategoryId ? store.opSubcategories.find(s => s.id === form.subcategoryId) : null
+          supabase.auth.getUser().then(({ data }) => {
+            supabase.from('ba_sales').insert({
+              client_name:        form.label,
+              offer_name:         selectedSub?.name || null,
+              offer_id:           null,
+              category:           'coaching',
+              amount:             form.actual || form.forecast || 0,
+              date:               form.date || todayISO(),
+              status:             'recu',
+              is_installment:     false,
+              installment_number: 1,
+              installment_total:  1,
+              payment_mode:       form.sourceType === 'cash' ? 'especes' : 'virement',
+              financesjm_tx_id:   opId,
+              user_id:            data.user?.id || null,
+            })
+          })
+        }
+      }
     } else if (modal?.mode === 'edit') {
       onUpdate(modal.op.id, clean)
     }
@@ -216,7 +244,6 @@ export const OperationsPage: React.FC<Props> = ({
 
   const isRevenu = family === 'revenu'
   const isPerso  = scope === 'perso'
-  const hasFiscalTva = FISCAL_CONFIGS[store.settings.fiscalStatus ?? 'micro_bnc'].tva
 
   const formCategories = useMemo(
     () => store.opCategories
