@@ -2,10 +2,14 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 
 export interface BAClient {
-  id: string
-  nom: string
-  prenom: string
+  id:          string
+  nom:         string
+  prenom:      string
   displayName: string
+  offre:       string | null
+  montant:     number | null
+  profil_code: string | null
+  date_rdv:    string | null
 }
 
 export function useBAClients() {
@@ -15,7 +19,7 @@ export function useBAClients() {
   useEffect(() => {
     supabase
       .from('be_activ_clients')
-      .select('*')
+      .select('id, nom, prenom, name, offre, montant, profil_code, date_rdv')
       .not('offre', 'is', null)
       .order('name', { ascending: true })
       .then(({ data, error }) => {
@@ -26,11 +30,19 @@ export function useBAClients() {
         }
         setClients(
           ((data ?? []) as any[]).map(c => {
-            const prenom = c.prenom ?? c.Prenom ?? c['Prénom'] ?? ''
-            const nom    = c.nom    ?? c.Nom    ?? ''
-            const name   = c.name   ?? c.Name   ?? ''
-            const displayName = (name || `${prenom} ${nom}`).trim()
-            return { id: c.id ?? c.Id, nom, prenom, displayName }
+            const prenom      = c.prenom ?? ''
+            const nom         = c.nom    ?? ''
+            const displayName = (c.name || `${prenom} ${nom}`).trim()
+            return {
+              id:          c.id          ?? '',
+              nom,
+              prenom,
+              displayName,
+              offre:       c.offre       ?? null,
+              montant:     c.montant     ?? null,
+              profil_code: c.profil_code ?? null,
+              date_rdv:    c.date_rdv    ?? null,
+            }
           }).filter(c => c.displayName && c.id)
         )
         setLoading(false)
