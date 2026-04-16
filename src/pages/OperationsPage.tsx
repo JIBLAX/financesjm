@@ -5,7 +5,10 @@ import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
 import { FISCAL_CONFIGS } from '@/lib/fiscal'
 import { supabase } from '@/integrations/supabase/client'
+import { useBusinessOffers } from '@/hooks/useBusinessOffers'
+import { useBAClients } from '@/hooks/useBAClients'
 import type { FinanceStore, Operation, OperationFamily, OperationScope, OpCategory, OpSubcategory } from '@/types/finance'
+import type { BusinessOffer } from '@/lib/beActiv'
 
 interface Props {
   store: FinanceStore
@@ -46,6 +49,8 @@ export const OperationsPage: React.FC<Props> = ({
   onAddOpSubcategory, onRemoveOpSubcategory,
 }) => {
   const navigate = useNavigate()
+  const { offers: businessOffers } = useBusinessOffers()
+  const { clients: baClients } = useBAClients()
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
   const [family, setFamily] = useState<FamilyTab>('charge_fixe')
   const [scope, setScope] = useState<ScopeTab>('perso')
@@ -75,6 +80,8 @@ export const OperationsPage: React.FC<Props> = ({
   const [recurrenceMode, setRecurrenceMode] = useState<'indefinite' | 'x_months'>('indefinite')
   const [recurrenceCount, setRecurrenceCount] = useState<number>(3)
   const [opTvaRate, setOpTvaRate] = useState<'none' | '20' | '10' | '5.5'>('none')
+  const [beActivOffer, setBeActivOffer] = useState<BusinessOffer | null>(null)
+  const [beActivClientId, setBeActivClientId] = useState('')
 
   useEffect(() => {
     onInitMonth(monthKey)
@@ -171,6 +178,7 @@ export const OperationsPage: React.FC<Props> = ({
   const closeModal = () => {
     setModal(null); setScopePicker(null); setDeleteConfirm(null); setNewCatName(''); setNewCatIcon('')
     setRevenuType('variable'); setRecurrenceMode('indefinite'); setRecurrenceCount(3); setOpTvaRate('none')
+    setBeActivOffer(null); setBeActivClientId('')
   }
 
   const changeFormScope = (newScope: ScopeTab) => {
@@ -202,12 +210,12 @@ export const OperationsPage: React.FC<Props> = ({
         const selectedCat = store.opCategories.find(c => c.id === form.categoryId)
         const isBeActiv = selectedCat?.name.toLowerCase().includes('be activ') || selectedCat?.name.toLowerCase().includes('beactiv')
         if (isBeActiv) {
-          const selectedSub = form.subcategoryId ? store.opSubcategories.find(s => s.id === form.subcategoryId) : null
           supabase.auth.getUser().then(({ data }) => {
             supabase.from('ba_sales').insert({
               client_name:        form.label,
-              offer_name:         selectedSub?.name || null,
-              offer_id:           null,
+              client_id:          beActivClientId || null,
+              offer_name:         beActivOffer?.name || null,
+              offer_id:           beActivOffer?.id || null,
               category:           'coaching',
               amount:             form.actual || form.forecast || 0,
               date:               form.date || todayISO(),
@@ -244,6 +252,12 @@ export const OperationsPage: React.FC<Props> = ({
 
   const isRevenu = family === 'revenu'
   const isPerso  = scope === 'perso'
+
+  const isBeActivCat = useMemo(() => {
+    const cat = store.opCategories.find(c => c.id === form.categoryId)
+    const name = cat?.name.toLowerCase() || ''
+    return name.includes('be activ') || name.includes('beactiv')
+  }, [store.opCategories, form.categoryId])
 
   const formCategories = useMemo(
     () => store.opCategories
@@ -521,19 +535,62 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Subcategory */}
-              {form.categoryId && store.opSubcategories.filter(s => s.categoryId === form.categoryId).length > 0 && (
+              {/* Client BE ACTIV (quand catégorie JM | Be Activ) */}
+              {isBeActivCat && form.family === 'revenu' && (
                 <div>
-                  <label className="text-xs text-muted-foreground">Offre / Sous-catégorie</label>
+                  <label className="text-xs text-muted-foreground">Client</label>
+                  <select
+                    className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
+                    value={beActivClientId}
+                    onChange={e => {
+                      setBeActivClientId(e.target.value)
+                      const client = baClients.find(c => c.id === e.target.value)
+                      if (client) setForm(f => ({ ...f, label: client.displayName }))
+                    }}
+                  >
+                    <option value="">Choisir un client…</option>
+                    {baClients.map(c => (
+                      <option key={c.id} value={c.id}>{c.displayName}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Offres BE ACTIV live (remplace sous-catégories locales) */}
+              {isBeActivCat && form.family === 'revenu' ? (
+                <div>
+                  <label className="text-xs text-muted-foreground">Offre BE ACTIV</label>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {store.opSubcategories.filter(s => s.categoryId === form.categoryId).map(sub => (
-                      <button key={sub.id} onClick={() => setForm(f => ({ ...f, subcategoryId: sub.id }))}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.subcategoryId === sub.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                        {sub.icon} {sub.name}
+                    {businessOffers.map(offer => (
+                      <button
+                        key={offer.id}
+                        onClick={() => {
+                          setBeActivOffer(beActivOffer?.id === offer.id ? null : offer)
+                          if (offer.catalogPrice > 0 && beActivOffer?.id !== offer.id)
+                            setForm(f => ({ ...f, forecast: offer.catalogPrice, actual: offer.catalogPrice }))
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${beActivOffer?.id === offer.id ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40' : 'bg-muted/30 text-muted-foreground'}`}
+                      >
+                        {offer.name}
                       </button>
                     ))}
                   </div>
                 </div>
+              ) : (
+                /* Sous-catégories locales pour les autres catégories */
+                form.categoryId && store.opSubcategories.filter(s => s.categoryId === form.categoryId).length > 0 && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">Offre / Sous-catégorie</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {store.opSubcategories.filter(s => s.categoryId === form.categoryId).map(sub => (
+                        <button key={sub.id} onClick={() => setForm(f => ({ ...f, subcategoryId: sub.id }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.subcategoryId === sub.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                          {sub.icon} {sub.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
               )}
 
               {/* Somme */}
