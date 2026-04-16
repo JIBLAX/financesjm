@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, X, Check, Settings2, ArrowLeftRight } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, X, Check, Settings2, ArrowLeftRight, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
@@ -82,6 +82,22 @@ export const OperationsPage: React.FC<Props> = ({
   const [opTvaRate, setOpTvaRate] = useState<'none' | '20' | '10' | '5.5'>('none')
   const [beActivOffer, setBeActivOffer] = useState<BusinessOffer | null>(null)
   const [beActivClientId, setBeActivClientId] = useState('')
+
+  // ── Historique export ──
+  interface ExportCandidate {
+    op: Operation
+    subName: string
+    selectedOfferId: string
+    selectedClientId: string
+    offerConfidence: 'exact' | 'partial' | 'none'
+    clientConfidence: 'exact' | 'partial' | 'none'
+    alreadySynced: boolean
+    skip: boolean
+  }
+  const [showExportReview, setShowExportReview] = useState(false)
+  const [exportLoading, setExportLoading] = useState(false)
+  const [exportDone, setExportDone] = useState(false)
+  const [candidates, setCandidates] = useState<ExportCandidate[]>([])
 
   useEffect(() => {
     onInitMonth(monthKey)
@@ -185,6 +201,81 @@ export const OperationsPage: React.FC<Props> = ({
     setForm(f => ({ ...f, scope: newScope, categoryId: '', subcategoryId: '' }))
   }
 
+  const normalizeStr = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[''`]/g, '').trim()
+
+  const openExportReview = async () => {
+    setExportDone(false)
+    setShowExportReview(true)
+    setExportLoading(true)
+    const beActivCatIds = store.opCategories
+      .filter(c => { const n = c.name.toLowerCase(); return n.includes('be activ') || n.includes('beactiv') })
+      .map(c => c.id)
+    const beActivOps = store.operations.filter(op =>
+      op.family === 'revenu' && beActivCatIds.includes(op.categoryId) && (op.actual || op.forecast)
+    )
+    const { data: existing } = await supabase
+      .from('ba_sales').select('financesjm_tx_id')
+      .in('financesjm_tx_id', beActivOps.map(op => op.id))
+    const syncedIds = new Set((existing ?? []).map((r: any) => r.financesjm_tx_id))
+
+    const cands: ExportCandidate[] = beActivOps.map(op => {
+      const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
+      const subName = sub?.name || ''
+      let selectedOfferId = ''; let offerConfidence: ExportCandidate['offerConfidence'] = 'none'
+      if (subName) {
+        const norm = normalizeStr(subName)
+        const exact = businessOffers.find(o => normalizeStr(o.name) === norm)
+        if (exact) { selectedOfferId = exact.id; offerConfidence = 'exact' }
+        else {
+          const partial = businessOffers.find(o => { const n = normalizeStr(o.name); return n.includes(norm) || norm.includes(n) })
+          if (partial) { selectedOfferId = partial.id; offerConfidence = 'partial' }
+        }
+      }
+      let selectedClientId = ''; let clientConfidence: ExportCandidate['clientConfidence'] = 'none'
+      const labelNorm = normalizeStr(op.label)
+      const exactC = baClients.find(c => normalizeStr(c.displayName) === labelNorm)
+      if (exactC) { selectedClientId = exactC.id; clientConfidence = 'exact' }
+      else {
+        const partialC = baClients.find(c => { const n = normalizeStr(c.displayName); return n.includes(labelNorm) || labelNorm.includes(n) })
+        if (partialC) { selectedClientId = partialC.id; clientConfidence = 'partial' }
+      }
+      return { op, subName, selectedOfferId, selectedClientId, offerConfidence, clientConfidence, alreadySynced: syncedIds.has(op.id), skip: syncedIds.has(op.id) }
+    }).sort((a, b) => (b.op.date || '').localeCompare(a.op.date || ''))
+    setCandidates(cands)
+    setExportLoading(false)
+  }
+
+  const handleExport = async () => {
+    setExportLoading(true)
+    const toExport = candidates.filter(c => !c.skip && !c.alreadySynced)
+    const { data: userData } = await supabase.auth.getUser()
+    const uid = userData.user?.id || null
+    for (const c of toExport) {
+      const offer = businessOffers.find(o => o.id === c.selectedOfferId)
+      const client = baClients.find(cl => cl.id === c.selectedClientId)
+      await supabase.from('ba_sales').insert({
+        client_name:        client?.displayName || c.op.label,
+        client_id:          c.selectedClientId || null,
+        offer_name:         offer?.name || c.subName || null,
+        offer_id:           c.selectedOfferId || null,
+        category:           'coaching',
+        amount:             c.op.actual || c.op.forecast || 0,
+        date:               c.op.date || new Date().toISOString().split('T')[0],
+        payment_mode:       c.op.sourceType === 'cash' ? 'especes' : 'virement',
+        is_installment:     false,
+        installment_number: 1,
+        installment_total:  1,
+        status:             'recu',
+        financesjm_tx_id:   c.op.id,
+        user_id:            uid,
+      })
+    }
+    setCandidates(prev => prev.map(c => ({ ...c, alreadySynced: true, skip: true })))
+    setExportLoading(false)
+    setExportDone(true)
+  }
+
   const handleSave = () => {
     if (!form.label.trim() || !form.categoryId) return
     // isTemplate: charges → driven by toggle, revenus → driven by revenuType
@@ -252,6 +343,13 @@ export const OperationsPage: React.FC<Props> = ({
 
   const isRevenu = family === 'revenu'
   const isPerso  = scope === 'perso'
+
+  const beActivOpsExist = useMemo(() => {
+    const ids = store.opCategories
+      .filter(c => { const n = c.name.toLowerCase(); return n.includes('be activ') || n.includes('beactiv') })
+      .map(c => c.id)
+    return store.operations.some(op => op.family === 'revenu' && ids.includes(op.categoryId))
+  }, [store.opCategories, store.operations])
 
   const isBeActivCat = useMemo(() => {
     const cat = store.opCategories.find(c => c.id === form.categoryId)
@@ -328,6 +426,17 @@ export const OperationsPage: React.FC<Props> = ({
 
       {/* Family tabs — scope-aware */}
       <SegmentedSwitch options={familyTabs} value={family} onChange={(v) => setFamily(v as FamilyTab)} />
+
+      {/* Sync historique banner */}
+      {scope === 'pro' && family === 'revenu' && beActivOpsExist && (
+        <button
+          onClick={openExportReview}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 active:bg-blue-500/20"
+        >
+          <Upload className="w-3.5 h-3.5 shrink-0" />
+          <span>Synchroniser l'historique JM | Be Activ → BA Business</span>
+        </button>
+      )}
 
       {/* ── BUDGET VIEW (Fixes / Variables / Revenus) ── */}
       <>
@@ -753,6 +862,127 @@ export const OperationsPage: React.FC<Props> = ({
                 {modal?.mode === 'add' ? 'Ajouter' : 'Enregistrer'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Export historique review modal ── */}
+      {showExportReview && (
+        <div className="fixed inset-0 bg-black/70 z-[70] flex items-end" style={{ overscrollBehavior: 'none' }} onClick={() => !exportLoading && setShowExportReview(false)}>
+          <div className="w-full bg-background rounded-t-2xl max-h-[92vh] flex flex-col" style={{ touchAction: 'pan-y' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
+              <div>
+                <h2 className="text-base font-bold text-foreground">Sync historique → BA Business</h2>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Vérifie les correspondances avant d'exporter</p>
+              </div>
+              <button onClick={() => setShowExportReview(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"><X className="w-4 h-4" /></button>
+            </div>
+
+            {exportLoading && !exportDone ? (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <p className="text-sm text-muted-foreground">Analyse en cours…</p>
+              </div>
+            ) : exportDone ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3">
+                <div className="text-4xl">✅</div>
+                <p className="text-sm font-semibold text-emerald-400">Historique synchronisé !</p>
+                <p className="text-xs text-muted-foreground">Les données sont maintenant dans BA Business</p>
+                <button onClick={() => setShowExportReview(false)} className="mt-4 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">Fermer</button>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-3 space-y-2">
+                  {/* Légende */}
+                  <div className="flex gap-3 text-[10px] text-muted-foreground pb-1">
+                    <span>✅ Match exact</span>
+                    <span>🔶 Match partiel</span>
+                    <span>❓ Non trouvé</span>
+                    <span>☑️ Déjà synchro</span>
+                  </div>
+
+                  {candidates.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">Aucune opération JM | Be Activ trouvée</p>
+                  )}
+
+                  {candidates.map((c, i) => {
+                    const offerBadge = c.alreadySynced ? '☑️' : c.offerConfidence === 'exact' ? '✅' : c.offerConfidence === 'partial' ? '🔶' : '❓'
+                    const clientBadge = c.alreadySynced ? '☑️' : c.clientConfidence === 'exact' ? '✅' : c.clientConfidence === 'partial' ? '🔶' : '❓'
+                    return (
+                      <div key={c.op.id} className={`rounded-xl border px-3 py-2.5 space-y-2 ${c.alreadySynced ? 'opacity-40 border-border/20' : c.skip ? 'opacity-40 border-border/20' : 'border-border/40 bg-card/40'}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{c.op.label}</p>
+                            <p className="text-[10px] text-muted-foreground">{c.op.date} · {formatCurrency(c.op.actual || c.op.forecast || 0)}</p>
+                          </div>
+                          {!c.alreadySynced && (
+                            <button
+                              onClick={() => setCandidates(prev => prev.map((x, j) => j === i ? { ...x, skip: !x.skip } : x))}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold ${c.skip ? 'bg-muted/30 text-muted-foreground' : 'bg-rose-500/10 text-rose-400'}`}
+                            >
+                              {c.skip ? 'Inclure' : 'Ignorer'}
+                            </button>
+                          )}
+                          {c.alreadySynced && <span className="text-[10px] text-emerald-400">Déjà synchro</span>}
+                        </div>
+                        {!c.alreadySynced && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <p className="text-[9px] text-muted-foreground mb-1">{offerBadge} Offre</p>
+                              <select
+                                className="w-full bg-muted/50 rounded-lg px-2 py-1.5 text-[11px] text-foreground outline-none"
+                                value={c.selectedOfferId}
+                                onChange={e => setCandidates(prev => prev.map((x, j) => j === i ? { ...x, selectedOfferId: e.target.value, offerConfidence: 'exact' } : x))}
+                              >
+                                <option value="">— Aucune —</option>
+                                {businessOffers.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <p className="text-[9px] text-muted-foreground mb-1">{clientBadge} Client</p>
+                              <select
+                                className="w-full bg-muted/50 rounded-lg px-2 py-1.5 text-[11px] text-foreground outline-none"
+                                value={c.selectedClientId}
+                                onChange={e => setCandidates(prev => prev.map((x, j) => j === i ? { ...x, selectedClientId: e.target.value, clientConfidence: 'exact' } : x))}
+                              >
+                                <option value="">— Aucun —</option>
+                                {baClients.map(cl => <option key={cl.id} value={cl.id}>{cl.displayName}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-4 border-t border-border/50 shrink-0 space-y-2">
+                  {(() => {
+                    const toExport = candidates.filter(c => !c.skip && !c.alreadySynced)
+                    const uncertain = toExport.filter(c => c.offerConfidence === 'none' || c.clientConfidence === 'none')
+                    return (
+                      <>
+                        {uncertain.length > 0 && (
+                          <p className="text-[10px] text-amber-400 text-center">
+                            ⚠️ {uncertain.length} entrée{uncertain.length > 1 ? 's' : ''} avec correspondance incomplète — vérifie les ❓ avant d'exporter
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <button onClick={() => setShowExportReview(false)} className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30">Annuler</button>
+                          <button
+                            onClick={handleExport}
+                            disabled={toExport.length === 0 || exportLoading}
+                            className="flex-[2] py-2.5 rounded-xl text-sm font-semibold bg-blue-500 text-white disabled:opacity-40"
+                          >
+                            {exportLoading ? 'Export…' : `Exporter ${toExport.length} opération${toExport.length > 1 ? 's' : ''}`}
+                          </button>
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
