@@ -15,17 +15,22 @@ export function useBAClients() {
   useEffect(() => {
     supabase
       .from('be_activ_clients')
-      .select('id, name, nom, prenom')
-      .order('name')
+      .select('*')
+      .order('name', { ascending: true })
       .then(({ data, error }) => {
-        if (error) console.error('[useBAClients]', error.message)
+        if (error) {
+          console.error('[useBAClients]', error.message, error.code)
+          setLoading(false)
+          return
+        }
         setClients(
           ((data ?? []) as any[]).map(c => {
-            const prenom = c.prenom ?? c.Prenom ?? ''
+            const prenom = c.prenom ?? c.Prenom ?? c['Prénom'] ?? ''
             const nom    = c.nom    ?? c.Nom    ?? ''
-            const displayName = (c.name ?? c.Name ?? `${prenom} ${nom}`).trim()
-            return { id: c.id, nom, prenom, displayName }
-          }).filter(c => c.displayName)
+            const name   = c.name   ?? c.Name   ?? ''
+            const displayName = (name || `${prenom} ${nom}`).trim()
+            return { id: c.id ?? c.Id, nom, prenom, displayName }
+          }).filter(c => c.displayName && c.id)
         )
         setLoading(false)
       })
