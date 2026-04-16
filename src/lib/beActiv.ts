@@ -9,8 +9,11 @@ import { supabase } from '@/integrations/supabase/client'
 export interface BusinessOffer {
   id: string
   name: string
-  catalogPrice: number   // Standard / reference price (0 = price set at point of sale)
+  catalogPrice: number
   type: 'sessions' | 'program' | 'product'
+  theme?: string
+  maxInstallments?: number
+  tvaEnabled?: boolean
   description?: string
 }
 
@@ -54,6 +57,9 @@ function rowToOffer(row: Record<string, unknown>): BusinessOffer {
     name: String(row.name),
     catalogPrice: Number(row.unit_price ?? row.price ?? 0),
     type: mapOfferType(row.offer_type as string | null),
+    theme: row.theme ? String(row.theme) : undefined,
+    maxInstallments: row.max_installments ? Number(row.max_installments) : undefined,
+    tvaEnabled: Boolean(row.tva_enabled),
   }
 }
 
@@ -63,7 +69,7 @@ function rowToOffer(row: Record<string, unknown>): BusinessOffer {
 export async function fetchBusinessOffers(): Promise<BusinessOffer[]> {
   const { data, error } = await supabase
     .from('offres')
-    .select('id, name, price, unit_price, offer_type')
+    .select('id, name, price, unit_price, offer_type, theme, max_installments, tva_enabled')
     .eq('active', true)
     .eq('is_draft', false)
     .order('name')

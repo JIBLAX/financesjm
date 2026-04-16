@@ -7,6 +7,8 @@ import { NON_REAL_REVENUE_TYPES } from '@/types/finance'
 import { resolveLegacyOffer } from '@/lib/beActiv'
 import { useBusinessOffers } from '@/hooks/useBusinessOffers'
 import { useBASync } from '@/hooks/useBASync'
+import { useBAClients } from '@/hooks/useBAClients'
+import { supabase } from '@/integrations/supabase/client'
 import type { FinanceStore, Transaction, Asset, RevenueSource, RevenueType, RevenueRecurrence, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
 
 interface Props {
@@ -28,6 +30,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const location = useLocation()
   const { offers: businessOffers, legacyMap } = useBusinessOffers()
   const { pendingSales, loading: syncLoading, synced, fetchPending, importSale, importAll } = useBASync()
+  const { clients: baClients } = useBAClients()
 
   const [showForm, setShowForm] = useState(false)
   const [filterMonth, setFilterMonth] = useState(getCurrentMonthKey())
@@ -65,6 +68,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const [installmentCount, setInstallmentCount] = useState('')
 
   // Be Activ fields — Business catalog
+  const [baClientId, setBaClientId] = useState('')
   const [baBusinessOfferId, setBaBusinessOfferId] = useState('')
   const [baCatalogPriceSnapshot, setBaCatalogPriceSnapshot] = useState('')
   const [baChannel, setBaChannel] = useState<BeActivChannel | ''>('')
@@ -72,7 +76,8 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const [baStatus, setBaStatus] = useState<BeActivStatus>('recu')
   const [baIsInstallment, setBaIsInstallment] = useState(false)
   const [baTotalAmount, setBaTotalAmount] = useState('')
-  const [baInstallmentLabel, setBaInstallmentLabel] = useState('')
+  const [baInstallmentNum, setBaInstallmentNum] = useState('1')
+  const [baInstallmentOf, setBaInstallmentOf] = useState('2')
 
   const isRealRevenue = !NON_REAL_REVENUE_TYPES.includes(revenueType)
 
@@ -190,15 +195,18 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
     setTxDate(todayISO())
     setRevenueSource('autre'); setRevenueType('autre_revenu'); setRevenueRecurrence('unique')
     setPaymentMode('unique'); setInstallmentTotal(''); setInstallmentCount('')
-    setBaBusinessOfferId(''); setBaCatalogPriceSnapshot(''); setBaChannel(''); setBaPayment(''); setBaStatus('recu')
-    setBaIsInstallment(false); setBaTotalAmount(''); setBaInstallmentLabel('')
+    setBaClientId(''); setBaBusinessOfferId(''); setBaCatalogPriceSnapshot('')
+    setBaChannel(''); setBaPayment(''); setBaStatus('recu')
+    setBaIsInstallment(false); setBaTotalAmount(''); setBaInstallmentNum('1'); setBaInstallmentOf('2')
   }
 
   const handleSubmit = () => {
     if (!label || !amount) return
+    const txId = `FJMTX-${Date.now()}`
     const dateMonthKey = txDate.substring(0, 7)
+    const installLabel = baIsInstallment ? `Versement ${baInstallmentNum}/${baInstallmentOf}` : undefined
     const tx: Transaction = {
-      id: crypto.randomUUID(),
+      id: txId,
       date: new Date(txDate + 'T12:00:00').toISOString(),
       label,
       amount: Number(amount),
@@ -233,8 +241,32 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
           status: baStatus,
           isInstallment: baIsInstallment,
           totalAmount: baIsInstallment ? Number(baTotalAmount) || undefined : undefined,
-          installmentLabel: baIsInstallment ? baInstallmentLabel || undefined : undefined,
+          installmentLabel: installLabel,
         }
+
+        // Write to shared ba_sales table (fire-and-forget)
+        supabase.auth.getUser().then(({ data }) => {
+          supabase.from('ba_sales').insert({
+            client_name:        label,
+            client_id:          baClientId || null,
+            offer_id:           baBusinessOfferId || null,
+            offer_name:         selectedOffer?.name || null,
+            category:           'coaching',
+            amount:             Number(amount),
+            catalog_price:      baCatalogPriceSnapshot ? Number(baCatalogPriceSnapshot) : null,
+            total_amount:       baIsInstallment ? Number(baTotalAmount) || null : null,
+            is_installment:     baIsInstallment,
+            installment_number: baIsInstallment ? Number(baInstallmentNum) || 1 : 1,
+            installment_total:  baIsInstallment ? Number(baInstallmentOf) || 1 : 1,
+            installment_label:  installLabel || null,
+            payment_mode:       baPayment || null,
+            channel:            baChannel || null,
+            status:             baStatus,
+            date:               txDate,
+            financesjm_tx_id:   txId,
+            user_id:            data.user?.id || null,
+          })
+        })
       }
     }
 
@@ -645,6 +677,25 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                 <div className="space-y-2 border-t border-border/30 pt-3">
                   <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Détails Be Activ</p>
 
+                  {/* Client selector */}
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1">Client</p>
+                    <select
+                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                      value={baClientId}
+                      onChange={e => {
+                        setBaClientId(e.target.value)
+                        const client = baClients.find(c => c.id === e.target.value)
+                        if (client) setLabel(client.displayName)
+                      }}
+                    >
+                      <option value="">Choisir un client…</option>
+                      {baClients.map(c => (
+                        <option key={c.id} value={c.id}>{c.displayName}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   {/* Business offer chip picker */}
                   <div>
                     <p className="text-[10px] text-muted-foreground mb-1.5">Offre Business</p>
@@ -704,9 +755,47 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                     {baIsInstallment ? '✓ Paiement en plusieurs fois' : 'Paiement en plusieurs fois ?'}
                   </button>
                   {baIsInstallment && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <input className="bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Total base €" type="number" value={baTotalAmount} onChange={e => setBaTotalAmount(e.target.value)} />
-                      <input className="bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="ex: 1/2, 2/3" value={baInstallmentLabel} onChange={e => setBaInstallmentLabel(e.target.value)} />
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">Total base €</p>
+                        <input
+                          className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                          placeholder="ex: 900"
+                          type="number" inputMode="decimal"
+                          value={baTotalAmount}
+                          onFocus={e => e.target.select()}
+                          onChange={e => setBaTotalAmount(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-1">Versement n°</p>
+                          <input
+                            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                            placeholder="ex: 1"
+                            type="number" inputMode="numeric"
+                            value={baInstallmentNum}
+                            onFocus={e => e.target.select()}
+                            onChange={e => setBaInstallmentNum(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-1">Sur X total</p>
+                          <input
+                            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                            placeholder="ex: 3"
+                            type="number" inputMode="numeric"
+                            value={baInstallmentOf}
+                            onFocus={e => e.target.select()}
+                            onChange={e => setBaInstallmentOf(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      {baInstallmentNum && baInstallmentOf && (
+                        <p className="text-[10px] text-blue-400 bg-blue-500/10 rounded-lg px-2.5 py-1.5">
+                          Versement {baInstallmentNum}/{baInstallmentOf}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

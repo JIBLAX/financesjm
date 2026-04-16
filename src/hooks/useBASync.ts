@@ -5,10 +5,12 @@ import type { FinanceStore, Transaction } from '@/types/finance'
 export interface BASale {
   id: string
   offer_id: string | null
+  offer_name: string | null
   client_id: string | null
   client_name: string
   amount: number
   catalog_price: number | null
+  category: string | null
   date: string
   channel: string | null
   payment_mode: string | null
@@ -16,6 +18,8 @@ export interface BASale {
   is_installment: boolean
   total_amount: number | null
   installment_label: string | null
+  installment_number: number | null
+  installment_total: number | null
   financesjm_tx_id: string | null
   offres?: { name: string; price: number } | null
 }
