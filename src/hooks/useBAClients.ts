@@ -8,9 +8,6 @@ export interface BAClient {
   displayName: string
 }
 
-/**
- * Fetches active clients from the shared `be_activ_clients` table.
- */
 export function useBAClients() {
   const [clients, setClients] = useState<BAClient[]>([])
   const [loading, setLoading] = useState(true)
@@ -18,16 +15,17 @@ export function useBAClients() {
   useEffect(() => {
     supabase
       .from('be_activ_clients')
-      .select('id, nom, prenom')
-      .order('nom')
-      .then(({ data }) => {
+      .select('id, name, nom, prenom')
+      .order('name')
+      .then(({ data, error }) => {
+        if (error) console.error('[useBAClients]', error.message)
         setClients(
-          (data ?? []).map(c => ({
-            id: c.id,
-            nom: c.nom ?? '',
-            prenom: c.prenom ?? '',
-            displayName: `${c.prenom ?? ''} ${c.nom ?? ''}`.trim(),
-          }))
+          ((data ?? []) as any[]).map(c => {
+            const prenom = c.prenom ?? c.Prenom ?? ''
+            const nom    = c.nom    ?? c.Nom    ?? ''
+            const displayName = (c.name ?? c.Name ?? `${prenom} ${nom}`).trim()
+            return { id: c.id, nom, prenom, displayName }
+          }).filter(c => c.displayName)
         )
         setLoading(false)
       })
