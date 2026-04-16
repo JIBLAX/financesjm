@@ -16,6 +16,7 @@ export function useBAClients() {
     supabase
       .from('be_activ_clients')
       .select('*')
+      .not('offre', 'is', null)
       .order('name', { ascending: true })
       .then(({ data, error }) => {
         if (error) {
