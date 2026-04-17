@@ -4,7 +4,7 @@
 // Offers are fetched live from the shared Supabase `offres` table.
 // Static arrays below are fallbacks for offline / cold-start.
 
-import { supabase } from '@/integrations/supabase/client'
+import { beActivClient as supabase } from '@/integrations/supabase/beActivClient'
 
 export interface BusinessOffer {
   id: string
