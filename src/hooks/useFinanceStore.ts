@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory, MonthlyCheckIn, Project } from '@/types/finance'
 import { loadStore, saveStore } from '@/lib/storage'
 import { getPreviousMonthKey } from '@/lib/constants'
+import { syncProOpUpsert, syncProOpDelete } from '@/lib/fjmProOpsSync'
 
 export function useFinanceStore() {
   const [store, setStore] = useState<FinanceStore>(loadStore)
@@ -136,15 +137,27 @@ export function useFinanceStore() {
   // ─── Operations ──────────────────────────────────────────────────────────────
 
   const addOperation = useCallback((op: Operation) => {
-    update(prev => ({ ...prev, operations: [...prev.operations, op] }))
+    update(prev => {
+      syncProOpUpsert(op, prev.opCategories, prev.opSubcategories)
+      return { ...prev, operations: [...prev.operations, op] }
+    })
   }, [update])
 
   const updateOperation = useCallback((id: string, patch: Partial<Operation>) => {
-    update(prev => ({ ...prev, operations: prev.operations.map(op => op.id === id ? { ...op, ...patch } : op) }))
+    update(prev => {
+      const updated = prev.operations.map(op => op.id === id ? { ...op, ...patch } : op)
+      const full = updated.find(op => op.id === id)
+      if (full) syncProOpUpsert(full, prev.opCategories, prev.opSubcategories)
+      return { ...prev, operations: updated }
+    })
   }, [update])
 
   const removeOperation = useCallback((id: string) => {
-    update(prev => ({ ...prev, operations: prev.operations.filter(op => op.id !== id) }))
+    update(prev => {
+      const op = prev.operations.find(o => o.id === id)
+      if (op?.scope === 'pro') syncProOpDelete(id)
+      return { ...prev, operations: prev.operations.filter(op => op.id !== id) }
+    })
   }, [update])
 
   /** Copy template operations from the previous month into targetMonthKey.
