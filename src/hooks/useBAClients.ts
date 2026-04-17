@@ -10,6 +10,7 @@ export interface BAClient {
   montant:     number | null
   profil_code: string | null
   date_rdv:    string | null
+  is_client:   boolean
 }
 
 export function useBAClients() {
@@ -20,7 +21,7 @@ export function useBAClients() {
     supabase
       .from('be_activ_clients')
       .select('*')
-      .not('offre', 'is', null)
+      .eq('is_client', true)
       .order('name', { ascending: true })
       .then(({ data, error }) => {
         if (error) {
@@ -43,6 +44,7 @@ export function useBAClients() {
               montant:     c.montant     ?? c.Montant     ?? null,
               profil_code: c.profil_code ?? c.Profil_code ?? null,
               date_rdv:    c.date_rdv    ?? c.Date_rdv    ?? null,
+              is_client:   c.is_client   ?? false,
             }
           }).filter(c => c.displayName && c.id)
         )
