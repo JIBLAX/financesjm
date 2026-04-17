@@ -5,9 +5,11 @@ import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
 import { FISCAL_CONFIGS } from '@/lib/fiscal'
 import { supabase } from '@/integrations/supabase/client'
+import { beActivClient } from '@/integrations/supabase/beActivClient'
 import { useBusinessOffers } from '@/hooks/useBusinessOffers'
 import { useBAClients } from '@/hooks/useBAClients'
-import type { FinanceStore, Operation, OperationFamily, OperationScope, OpCategory, OpSubcategory } from '@/types/finance'
+import { useBAGroups } from '@/hooks/useBAGroups'
+import type { FinanceStore, Operation, OperationFamily, OperationScope, OpCategory, OpSubcategory, BaSaleType } from '@/types/finance'
 import type { BusinessOffer } from '@/lib/beActiv'
 
 interface Props {
@@ -51,6 +53,7 @@ export const OperationsPage: React.FC<Props> = ({
   const navigate = useNavigate()
   const { offers: businessOffers } = useBusinessOffers()
   const { clients: baClients } = useBAClients()
+  const { groups: baGroups } = useBAGroups()
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
   const [family, setFamily] = useState<FamilyTab>('charge_fixe')
   const [scope, setScope] = useState<ScopeTab>('perso')
@@ -82,6 +85,13 @@ export const OperationsPage: React.FC<Props> = ({
   const [opTvaRate, setOpTvaRate] = useState<'none' | '20' | '10' | '5.5'>('none')
   const [beActivOffer, setBeActivOffer] = useState<BusinessOffer | null>(null)
   const [beActivClientId, setBeActivClientId] = useState('')
+  const [beActivSaleType, setBeActivSaleType] = useState<BaSaleType>('individual')
+  const [beActivGroupClientIds, setBeActivGroupClientIds] = useState<string[]>(['', ''])
+  const [beActivGroupNames, setBeActivGroupNames] = useState<string[]>(['', ''])
+  const [beActivSelectedGroupId, setBeActivSelectedGroupId] = useState('')
+  const [beActivCollectifQty, setBeActivCollectifQty] = useState('1')
+  const [beActivSap, setBeActivSap] = useState(false)
+  const [beActivSapHours, setBeActivSapHours] = useState('')
 
   // ── Historique export ──
   interface ExportCandidate {
@@ -195,6 +205,8 @@ export const OperationsPage: React.FC<Props> = ({
     setModal(null); setScopePicker(null); setDeleteConfirm(null); setNewCatName(''); setNewCatIcon('')
     setRevenuType('variable'); setRecurrenceMode('indefinite'); setRecurrenceCount(3); setOpTvaRate('none')
     setBeActivOffer(null); setBeActivClientId('')
+    setBeActivSaleType('individual'); setBeActivGroupClientIds(['', '']); setBeActivGroupNames(['', ''])
+    setBeActivSelectedGroupId(''); setBeActivCollectifQty('1'); setBeActivSap(false); setBeActivSapHours('')
   }
 
   const changeFormScope = (newScope: ScopeTab) => {
@@ -301,24 +313,42 @@ export const OperationsPage: React.FC<Props> = ({
         const selectedCat = store.opCategories.find(c => c.id === form.categoryId)
         const isBeActiv = selectedCat?.name.toLowerCase().includes('be activ') || selectedCat?.name.toLowerCase().includes('beactiv')
         if (isBeActiv) {
-          supabase.auth.getUser().then(({ data }) => {
-            supabase.from('ba_sales').insert({
-              client_name:        form.label,
-              client_id:          beActivClientId || null,
-              offer_name:         beActivOffer?.name || null,
-              offer_id:           beActivOffer?.id || null,
-              category:           'coaching',
-              amount:             form.actual || form.forecast || 0,
-              date:               form.date || todayISO(),
-              status:             'recu',
-              is_installment:     false,
-              installment_number: 1,
-              installment_total:  1,
-              payment_mode:       form.sourceType === 'cash' ? 'especes' : 'virement',
-              financesjm_tx_id:   opId,
-              user_id:            data.user?.id || null,
+          const amt = form.actual || form.forecast || 0
+          const participantCount = beActivSaleType === 'groupe' ? beActivGroupClientIds.filter(Boolean).length || 2 : beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || 1) : 1
+          const baseSale = {
+            offer_name:         beActivOffer?.name || null,
+            offer_id:           beActivOffer?.id || null,
+            category:           'coaching',
+            amount:             amt,
+            date:               form.date || todayISO(),
+            status:             'recu',
+            is_installment:     false,
+            installment_number: 1,
+            installment_total:  1,
+            payment_mode:       form.sourceType === 'cash' ? 'especes' : 'virement',
+            sale_type:          beActivSaleType,
+            participant_count:  participantCount,
+            is_sap:             beActivSap,
+            sap_hours:          beActivSap && beActivSapHours ? Number(beActivSapHours) : null,
+          }
+          if (beActivSaleType === 'collectif') {
+            const qty = Math.max(1, Number(beActivCollectifQty) || 1)
+            for (let i = 0; i < qty; i++) {
+              const id = i === 0 ? opId : `op_${Date.now()}_${i}`
+              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label, client_id: null, financesjm_tx_id: id })
+                .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+            }
+          } else if (beActivSaleType === 'groupe') {
+            beActivGroupClientIds.filter(Boolean).forEach((cid, i) => {
+              const clientName = beActivGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || form.label
+              const id = i === 0 ? opId : `op_${Date.now()}_${i}`
+              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clientName, client_id: cid, financesjm_tx_id: id })
+                .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
             })
-          })
+          } else {
+            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label, client_id: beActivClientId || null, financesjm_tx_id: opId })
+              .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+          }
         }
       }
     } else if (modal?.mode === 'edit') {
@@ -342,6 +372,18 @@ export const OperationsPage: React.FC<Props> = ({
   }
 
   const isRevenu = family === 'revenu'
+
+  const offersByTheme = useMemo(() => {
+    const map: Record<string, { dot: string; offers: typeof businessOffers }> = {}
+    businessOffers.forEach(o => {
+      const u = (o.theme || '').toUpperCase()
+      const key = u.includes('TRANSFORM') ? 'TRANSFORMATION' : u.includes('COLLECT') ? 'COLLECTIF' : 'ACTION'
+      const dot = key === 'TRANSFORMATION' ? '🔴' : key === 'COLLECTIF' ? '🟢' : '🔵'
+      if (!map[key]) map[key] = { dot, offers: [] }
+      map[key].offers.push(o)
+    })
+    return map
+  }, [businessOffers])
   const isPerso  = scope === 'perso'
 
   const beActivOpsExist = useMemo(() => {
@@ -644,62 +686,147 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Client BE ACTIV (quand catégorie JM | Be Activ) */}
+              {/* BE ACTIV — mode selector + client/groupe/collectif + offres groupées */}
               {isBeActivCat && form.family === 'revenu' && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Client</label>
-                  <select
-                    className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
-                    value={beActivClientId}
-                    onChange={e => {
-                      setBeActivClientId(e.target.value)
-                      const client = baClients.find(c => c.id === e.target.value)
-                      if (client) setForm(f => ({ ...f, label: client.displayName }))
-                    }}
-                  >
-                    <option value="">Choisir un client…</option>
-                    {baClients.map(c => (
-                      <option key={c.id} value={c.id}>{c.displayName}</option>
+                <div className="space-y-2">
+                  {/* Mode */}
+                  <div className="grid grid-cols-3 gap-1">
+                    {([
+                      { key: 'individual', icon: '👤', label: 'Client' },
+                      { key: 'groupe',     icon: '👥', label: 'Groupe' },
+                      { key: 'collectif',  icon: '🏃', label: 'Collectif' },
+                    ] as { key: BaSaleType; icon: string; label: string }[]).map(({ key, icon, label: lbl }) => (
+                      <button key={key} onClick={() => setBeActivSaleType(key)}
+                        className={`py-1.5 rounded-xl text-xs font-medium ${beActivSaleType === key ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
+                        {icon} {lbl}
+                      </button>
                     ))}
-                  </select>
+                  </div>
+
+                  {/* Individual */}
+                  {beActivSaleType === 'individual' && (
+                    <>
+                      <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                        value={beActivClientId}
+                        onChange={e => {
+                          setBeActivClientId(e.target.value)
+                          const client = baClients.find(c => c.id === e.target.value)
+                          if (client) setForm(f => ({ ...f, label: client.displayName }))
+                        }}>
+                        <option value="">Choisir un client…</option>
+                        {baClients.map(c => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+                      </select>
+                      {baClients.find(c => c.id === beActivClientId)?.sap_enabled && (
+                        <>
+                          <button onClick={() => setBeActivSap(!beActivSap)}
+                            className={`w-full py-1.5 rounded-xl text-xs font-medium ${beActivSap ? 'bg-green-500/20 text-green-300 border border-green-500/40' : 'bg-muted/30 text-muted-foreground'}`}>
+                            {beActivSap ? '✓ SAP activé' : 'Prestation SAP ?'}
+                          </button>
+                          {beActivSap && (
+                            <input type="number" inputMode="decimal" placeholder="Heures SAP (ex: 1.5)"
+                              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                              value={beActivSapHours} onFocus={e => e.target.select()}
+                              onChange={e => setBeActivSapHours(e.target.value)} />
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  {/* Groupe */}
+                  {beActivSaleType === 'groupe' && (
+                    <>
+                      {baGroups.length > 0 && (
+                        <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                          value={beActivSelectedGroupId}
+                          onChange={e => {
+                            setBeActivSelectedGroupId(e.target.value)
+                            const grp = baGroups.find(g => g.group_id === e.target.value)
+                            if (grp) {
+                              setBeActivGroupClientIds(grp.members.map(m => m.id))
+                              setBeActivGroupNames(grp.members.map(m => m.displayName))
+                              setForm(f => ({ ...f, label: grp.group_name || grp.members.map(m => m.displayName).join(' & ') }))
+                            }
+                          }}>
+                          <option value="">Groupe rapide…</option>
+                          {baGroups.map(g => (
+                            <option key={g.group_id} value={g.group_id}>
+                              {g.group_name || g.members.map(m => m.displayName).join(' & ')} ({g.members.length})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {beActivGroupClientIds.map((cid, i) => (
+                        <select key={i} className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                          value={cid}
+                          onChange={e => {
+                            const ids = [...beActivGroupClientIds]; const nms = [...beActivGroupNames]
+                            ids[i] = e.target.value
+                            nms[i] = baClients.find(c => c.id === e.target.value)?.displayName || ''
+                            setBeActivGroupClientIds(ids); setBeActivGroupNames(nms)
+                            setForm(f => ({ ...f, label: nms.filter(Boolean).join(' & ') }))
+                          }}>
+                          <option value="">Participant {i + 1}…</option>
+                          {baClients.map(c => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+                        </select>
+                      ))}
+                      <button onClick={() => { setBeActivGroupClientIds(ids => [...ids, '']); setBeActivGroupNames(nms => [...nms, '']) }}
+                        className="w-full py-1.5 rounded-xl text-xs text-muted-foreground bg-muted/30 border border-dashed border-border/40">
+                        + Ajouter un participant
+                      </button>
+                    </>
+                  )}
+
+                  {/* Collectif */}
+                  {beActivSaleType === 'collectif' && (
+                    <input type="number" inputMode="numeric" min="1" placeholder="Nombre de participants"
+                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                      value={beActivCollectifQty} onFocus={e => e.target.select()}
+                      onChange={e => setBeActivCollectifQty(e.target.value)} />
+                  )}
+
+                  {/* Offres groupées par thème */}
+                  <label className="text-xs text-muted-foreground">Offre BE ACTIV</label>
+                  {Object.entries(offersByTheme).map(([themeName, { dot, offers: themeOffers }]) => (
+                    <div key={themeName}>
+                      <p className="text-[10px] text-muted-foreground/70 mb-1">{dot} {themeName}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {themeOffers.map(offer => {
+                          const dimmed = beActivSaleType === 'collectif' && themeName !== 'COLLECTIF'
+                          return (
+                            <button key={offer.id}
+                              onClick={() => {
+                                setBeActivOffer(beActivOffer?.id === offer.id ? null : offer)
+                                if (offer.catalogPrice > 0 && beActivOffer?.id !== offer.id)
+                                  setForm(f => ({ ...f, forecast: offer.catalogPrice, actual: offer.catalogPrice }))
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${
+                                beActivOffer?.id === offer.id ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40'
+                                : dimmed ? 'bg-muted/20 text-muted-foreground/30' : 'bg-muted/30 text-muted-foreground'
+                              }`}>
+                              {offer.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {/* Offres BE ACTIV live (remplace sous-catégories locales) */}
-              {isBeActivCat && form.family === 'revenu' ? (
+              {/* Sous-catégories locales pour les autres catégories */}
+              {(!isBeActivCat || form.family !== 'revenu') && form.categoryId && store.opSubcategories.filter(s => s.categoryId === form.categoryId).length > 0 && (
                 <div>
-                  <label className="text-xs text-muted-foreground">Offre BE ACTIV</label>
+                  <label className="text-xs text-muted-foreground">Offre / Sous-catégorie</label>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {businessOffers.map(offer => (
-                      <button
-                        key={offer.id}
-                        onClick={() => {
-                          setBeActivOffer(beActivOffer?.id === offer.id ? null : offer)
-                          if (offer.catalogPrice > 0 && beActivOffer?.id !== offer.id)
-                            setForm(f => ({ ...f, forecast: offer.catalogPrice, actual: offer.catalogPrice }))
-                        }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${beActivOffer?.id === offer.id ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40' : 'bg-muted/30 text-muted-foreground'}`}
-                      >
-                        {offer.name}
+                    {store.opSubcategories.filter(s => s.categoryId === form.categoryId).map(sub => (
+                      <button key={sub.id} onClick={() => setForm(f => ({ ...f, subcategoryId: sub.id }))}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.subcategoryId === sub.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                        {sub.icon} {sub.name}
                       </button>
                     ))}
                   </div>
                 </div>
-              ) : (
-                /* Sous-catégories locales pour les autres catégories */
-                form.categoryId && store.opSubcategories.filter(s => s.categoryId === form.categoryId).length > 0 && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">Offre / Sous-catégorie</label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {store.opSubcategories.filter(s => s.categoryId === form.categoryId).map(sub => (
-                        <button key={sub.id} onClick={() => setForm(f => ({ ...f, subcategoryId: sub.id }))}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.subcategoryId === sub.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                          {sub.icon} {sub.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
               )}
 
               {/* Somme */}
