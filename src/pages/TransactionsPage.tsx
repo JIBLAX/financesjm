@@ -1,16 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { ArrowLeft, Plus, Trash2, ArrowUpRight, ArrowDownRight, Info, ChevronLeft, ChevronRight, ArrowLeftRight, ChevronDown, RefreshCw, Download } from 'lucide-react'
+import { ArrowLeft, Trash2, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { FinanceCard } from '@/components/FinanceCard'
-import { formatCurrency, getCurrentMonthKey, getMonthLabel, REVENUE_SOURCE_LABELS, REVENUE_TYPE_LABELS, BE_ACTIV_CHANNEL_LABELS, BE_ACTIV_PAYMENT_LABELS, BE_ACTIV_STATUS_LABELS, ASSET_TYPE_ICONS } from '@/lib/constants'
-import { NON_REAL_REVENUE_TYPES } from '@/types/finance'
-import { resolveLegacyOffer } from '@/lib/beActiv'
-import { useBusinessOffers } from '@/hooks/useBusinessOffers'
-import { useBASync } from '@/hooks/useBASync'
-import { useBAClients } from '@/hooks/useBAClients'
-import { useBAGroups } from '@/hooks/useBAGroups'
-import { beActivClient } from '@/integrations/supabase/beActivClient'
-import type { FinanceStore, Transaction, Asset, RevenueSource, RevenueType, RevenueRecurrence, BeActivChannel, BeActivPaymentMode, BeActivStatus, BaSaleType } from '@/types/finance'
+import { formatCurrency, getCurrentMonthKey, getMonthLabel, ASSET_TYPE_ICONS } from '@/lib/constants'
+import type { FinanceStore, Transaction, Asset } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
@@ -20,30 +13,19 @@ interface Props {
 }
 
 const todayISO = () => new Date().toISOString().split('T')[0]
-
-const formatTxDate = (iso: string) => {
-  const d = new Date(iso)
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-}
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 
 export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUpdateAsset }) => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { offers: businessOffers, legacyMap } = useBusinessOffers()
-  const { pendingSales, loading: syncLoading, synced, fetchPending, importSale, importAll } = useBASync()
-  const { clients: baClients } = useBAClients()
-  const { groups: baGroups } = useBAGroups()
 
-  const [showForm, setShowForm] = useState(false)
   const [filterMonth, setFilterMonth] = useState(getCurrentMonthKey())
   const [filterAccount, setFilterAccount] = useState('')
+  const [showTransfer, setShowTransfer] = useState(false)
 
-  // Auto-open form when navigating to /transactions/new
   useEffect(() => {
-    if (location.pathname === '/transactions/new') {
-      openForm()
-    }
-  }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (location.pathname === '/transactions/new') setShowTransfer(true)
+  }, [location.pathname])
 
   const navigateMonth = (dir: number) => {
     const [y, m] = filterMonth.split('-').map(Number)
@@ -51,90 +33,28 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
     setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  // Form state
-  const [label, setLabel] = useState('')
-  const [amount, setAmount] = useState('')
-  const [txDate, setTxDate] = useState(todayISO())
-  const [direction, setDirection] = useState<'income' | 'expense'>('expense')
-  const [sourceType, setSourceType] = useState<'bank' | 'cash'>('bank')
-  const [accountId, setAccountId] = useState('')
-  const [categoryId, setCategoryId] = useState(store.categories[0]?.id || '')
-  const [note, setNote] = useState('')
-
-  // Revenue fields
-  const [revenueSource, setRevenueSource] = useState<RevenueSource>('autre')
-  const [revenueType, setRevenueType] = useState<RevenueType>('autre_revenu')
-  const [revenueRecurrence, setRevenueRecurrence] = useState<RevenueRecurrence>('unique')
-  const [paymentMode, setPaymentMode] = useState<'unique' | 'recurrent' | 'installment'>('unique')
-  const [installmentTotal, setInstallmentTotal] = useState('')
-  const [installmentCount, setInstallmentCount] = useState('')
-
-  // Be Activ fields — Business catalog
-  const [baClientId, setBaClientId] = useState('')
-  const [baBusinessOfferId, setBaBusinessOfferId] = useState('')
-  const [baCatalogPriceSnapshot, setBaCatalogPriceSnapshot] = useState('')
-  const [baChannel, setBaChannel] = useState<BeActivChannel | ''>('')
-  const [baPayment, setBaPayment] = useState<BeActivPaymentMode | ''>('')
-  const [baStatus, setBaStatus] = useState<BeActivStatus>('recu')
-  const [baIsInstallment, setBaIsInstallment] = useState(false)
-  const [baTotalAmount, setBaTotalAmount] = useState('')
-  const [baInstallmentNum, setBaInstallmentNum] = useState('1')
-  const [baInstallmentOf, setBaInstallmentOf] = useState('2')
-  const [baSaleType, setBaSaleType] = useState<BaSaleType>('individual')
-  const [baGroupClientIds, setBaGroupClientIds] = useState<string[]>(['', ''])
-  const [baGroupNames, setBaGroupNames] = useState<string[]>(['', ''])
-  const [baSelectedGroupId, setBaSelectedGroupId] = useState('')
-  const [baCollectifQty, setBaCollectifQty] = useState('1')
-  const [baSap, setBaSap] = useState(false)
-  const [baSapHours, setBaSapHours] = useState('')
-
-  const isRealRevenue = !NON_REAL_REVENUE_TYPES.includes(revenueType)
-
-  const offersByTheme = useMemo(() => {
-    const themeKey = (t?: string) => {
-      const u = (t || '').toUpperCase()
-      if (u.includes('TRANSFORM')) return { key: 'TRANSFORMATION', dot: '🔴' }
-      if (u.includes('COLLECT'))   return { key: 'COLLECTIF',      dot: '🟢' }
-      return                              { key: 'ACTION',          dot: '🔵' }
-    }
-    const map: Record<string, { dot: string; offers: typeof businessOffers }> = {}
-    businessOffers.forEach(o => {
-      const { key, dot } = themeKey(o.theme)
-      if (!map[key]) map[key] = { dot, offers: [] }
-      map[key].offers.push(o)
-    })
-    return map
-  }, [businessOffers])
-
-  // Transfer interne state
-  const [showTransfer, setShowTransfer] = useState(false)
-  // 'acc:{id}' | 'asset:{id}' | '__crypto__'
-  const [transferFrom, setTransferFrom] = useState('')
-  const [transferTo, setTransferTo] = useState('')
-  // Sub-sélection crypto (quand __crypto__ choisi)
+  // ── Transfer state ─────────────────────────────────────────────────────────
+  const [transferFrom,       setTransferFrom]       = useState('')
+  const [transferTo,         setTransferTo]         = useState('')
   const [transferFromCrypto, setTransferFromCrypto] = useState('')
-  const [transferToCrypto, setTransferToCrypto] = useState('')
-  const [transferAmount, setTransferAmount] = useState('')
-  const [transferFees, setTransferFees] = useState('')
-  const [transferDate, setTransferDate] = useState(todayISO())
-  const [transferLabel, setTransferLabel] = useState('')
+  const [transferToCrypto,   setTransferToCrypto]   = useState('')
+  const [transferAmount,     setTransferAmount]     = useState('')
+  const [transferFees,       setTransferFees]       = useState('')
+  const [transferDate,       setTransferDate]       = useState(todayISO())
+  const [transferLabel,      setTransferLabel]      = useState('')
 
-  const cryptoAssets = useMemo(() => store.assets.filter(a => a.type === 'crypto'), [store.assets])
+  const cryptoAssets    = useMemo(() => store.assets.filter(a => a.type === 'crypto'), [store.assets])
   const nonCryptoAssets = useMemo(() => store.assets.filter(a => a.type !== 'crypto' && a.type !== 'dette'), [store.assets])
 
-  // Résout le vrai identifiant cible (ex: __crypto__ + sub → asset:id)
-  const resolveTarget = (target: string, cryptoSub: string): string => {
-    if (target === '__crypto__') return cryptoSub ? `asset:${cryptoSub}` : ''
-    return target
-  }
+  const resolveTarget = (target: string, sub: string) =>
+    target === '__crypto__' ? (sub ? `asset:${sub}` : '') : target
 
-  // Nom affiché pour un identifiant cible
-  const targetLabel = (target: string, cryptoSub: string): string => {
-    const resolved = resolveTarget(target, cryptoSub)
-    if (!resolved) return ''
-    if (resolved.startsWith('acc:')) return store.accounts.find(a => a.id === resolved.slice(4))?.name || ''
-    if (resolved.startsWith('asset:')) {
-      const a = store.assets.find(x => x.id === resolved.slice(6))
+  const targetLabel = (target: string, sub: string) => {
+    const r = resolveTarget(target, sub)
+    if (!r) return ''
+    if (r.startsWith('acc:'))   return store.accounts.find(a => a.id === r.slice(4))?.name || ''
+    if (r.startsWith('asset:')) {
+      const a = store.assets.find(x => x.id === r.slice(6))
       return a ? `${ASSET_TYPE_ICONS[a.type] || '📦'} ${a.name}` : ''
     }
     return ''
@@ -149,50 +69,42 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   }
 
   const handleTransfer = () => {
-    const resolvedFrom = resolveTarget(transferFrom, transferFromCrypto)
-    const resolvedTo   = resolveTarget(transferTo,   transferToCrypto)
-    if (!resolvedFrom || !resolvedTo || resolvedFrom === resolvedTo || !transferAmount) return
+    const from = resolveTarget(transferFrom, transferFromCrypto)
+    const to   = resolveTarget(transferTo,   transferToCrypto)
+    if (!from || !to || from === to || !transferAmount) return
     const amt  = Number(transferAmount)
     const fees = Number(transferFees) || 0
     if (!amt) return
 
-    const fromAccId   = resolvedFrom.startsWith('acc:')   ? resolvedFrom.slice(4)  : null
-    const fromAssetId = resolvedFrom.startsWith('asset:') ? resolvedFrom.slice(6)  : null
-    const toAccId     = resolvedTo.startsWith('acc:')     ? resolvedTo.slice(4)    : null
-    const toAssetId   = resolvedTo.startsWith('asset:')   ? resolvedTo.slice(6)    : null
+    const fromAccId   = from.startsWith('acc:')   ? from.slice(4) : null
+    const fromAssetId = from.startsWith('asset:') ? from.slice(6) : null
+    const toAccId     = to.startsWith('acc:')     ? to.slice(4)   : null
+    const toAssetId   = to.startsWith('asset:')   ? to.slice(6)   : null
 
-    const fromName = targetLabel(transferFrom, transferFromCrypto)
-    const toName   = targetLabel(transferTo,   transferToCrypto)
-    const lbl      = transferLabel || `Transfert ${fromName} → ${toName}`
+    const lbl          = transferLabel || `Transfert ${targetLabel(transferFrom, transferFromCrypto)} → ${targetLabel(transferTo, transferToCrypto)}`
     const dateMonthKey = transferDate.substring(0, 7)
-    const isoDate  = new Date(transferDate + 'T12:00:00').toISOString()
-    const fraisCat = store.categories.find(c =>
-      c.name.toLowerCase().includes('frais') || c.name.toLowerCase().includes('banque')
-    ) || store.categories[0]
-    const baseTx: Omit<Transaction, 'id' | 'direction' | 'accountId' | 'label'> = {
+    const isoDate      = new Date(transferDate + 'T12:00:00').toISOString()
+    const fraisCat     = store.categories.find(c => c.name.toLowerCase().includes('frais') || c.name.toLowerCase().includes('banque')) || store.categories[0]
+
+    const base: Omit<Transaction, 'id' | 'direction' | 'accountId' | 'label'> = {
       date: isoDate, amount: amt, sourceType: 'bank',
       categoryId: store.categories[0]?.id || '',
       monthKey: dateMonthKey, note: 'Transfert interne',
       isRecurring: false, revenueType: 'transfert_interne', isRealRevenue: false,
     }
 
-    // Côté source
-    if (fromAccId) {
-      onAdd({ ...baseTx, id: crypto.randomUUID(), direction: 'expense', accountId: fromAccId, label: `${lbl} (sortie)` })
-    } else if (fromAssetId) {
-      const asset = store.assets.find(a => a.id === fromAssetId)
-      if (asset) onUpdateAsset(fromAssetId, { value: Math.max(0, asset.value - amt), updatedAt: new Date().toISOString() })
+    if (fromAccId)   onAdd({ ...base, id: crypto.randomUUID(), direction: 'expense', accountId: fromAccId, label: `${lbl} (sortie)` })
+    else if (fromAssetId) {
+      const a = store.assets.find(x => x.id === fromAssetId)
+      if (a) onUpdateAsset(fromAssetId, { value: Math.max(0, a.value - amt), updatedAt: new Date().toISOString() })
     }
 
-    // Côté destination
-    if (toAccId) {
-      onAdd({ ...baseTx, id: crypto.randomUUID(), direction: 'income', accountId: toAccId, label: `${lbl} (entrée)`, revenueSource: 'virement_interne' })
-    } else if (toAssetId) {
-      const asset = store.assets.find(a => a.id === toAssetId)
-      if (asset) onUpdateAsset(toAssetId, { value: asset.value + amt, updatedAt: new Date().toISOString() })
+    if (toAccId)   onAdd({ ...base, id: crypto.randomUUID(), direction: 'income', accountId: toAccId, label: `${lbl} (entrée)`, revenueSource: 'virement_interne' })
+    else if (toAssetId) {
+      const a = store.assets.find(x => x.id === toAssetId)
+      if (a) onUpdateAsset(toAssetId, { value: a.value + amt, updatedAt: new Date().toISOString() })
     }
 
-    // Frais bancaires (déduits du compte source uniquement)
     if (fees > 0 && fromAccId) {
       onAdd({
         id: crypto.randomUUID(), date: isoDate, label: `Frais — ${lbl}`,
@@ -204,145 +116,21 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
     resetTransfer()
   }
 
-  // Validation transfert
-  const transferFromResolved = resolveTarget(transferFrom, transferFromCrypto)
-  const transferToResolved   = resolveTarget(transferTo, transferToCrypto)
-  const transferValid = !!transferFromResolved && !!transferToResolved &&
-    transferFromResolved !== transferToResolved && !!transferAmount
+  const fromResolved  = resolveTarget(transferFrom, transferFromCrypto)
+  const toResolved    = resolveTarget(transferTo,   transferToCrypto)
+  const transferValid = !!fromResolved && !!toResolved && fromResolved !== toResolved && !!transferAmount
 
-  const openForm = () => {
-    setAccountId(store.accounts[0]?.id || '')
-    setShowForm(true)
-  }
-
-  const resetForm = () => {
-    setLabel(''); setAmount(''); setNote(''); setShowForm(false)
-    setTxDate(todayISO())
-    setRevenueSource('autre'); setRevenueType('autre_revenu'); setRevenueRecurrence('unique')
-    setPaymentMode('unique'); setInstallmentTotal(''); setInstallmentCount('')
-    setBaClientId(''); setBaBusinessOfferId(''); setBaCatalogPriceSnapshot('')
-    setBaChannel(''); setBaPayment(''); setBaStatus('recu')
-    setBaIsInstallment(false); setBaTotalAmount(''); setBaInstallmentNum('1'); setBaInstallmentOf('2')
-    setBaSaleType('individual'); setBaGroupClientIds(['', '']); setBaGroupNames(['', ''])
-    setBaSelectedGroupId(''); setBaCollectifQty('1'); setBaSap(false); setBaSapHours('')
-  }
-
-  const handleSubmit = () => {
-    if (!label || !amount) return
-    const txId = `FJMTX-${Date.now()}`
-    const dateMonthKey = txDate.substring(0, 7)
-    const installLabel = baIsInstallment ? `Versement ${baInstallmentNum}/${baInstallmentOf}` : undefined
-    const tx: Transaction = {
-      id: txId,
-      date: new Date(txDate + 'T12:00:00').toISOString(),
-      label,
-      amount: Number(amount),
-      direction,
-      sourceType,
-      accountId,
-      categoryId,
-      monthKey: dateMonthKey,
-      note: paymentMode === 'installment' && installmentCount
-        ? `${note ? note + ' · ' : ''}${installmentCount} versements · total ${formatCurrency(Number(installmentTotal))}`
-        : note,
-      isRecurring: paymentMode === 'recurrent' || paymentMode === 'installment',
-    }
-
-    if (direction === 'income') {
-      tx.revenueSource = revenueSource
-      tx.revenueType = revenueType
-      tx.revenueRecurrence = paymentMode === 'unique' ? 'unique' : revenueRecurrence
-      tx.isRealRevenue = isRealRevenue
-
-      if (revenueSource === 'be_activ') {
-        const selectedOffer = businessOffers.find(o => o.id === baBusinessOfferId)
-        const participantCount = baSaleType === 'groupe' ? baGroupClientIds.filter(Boolean).length || 2 : baSaleType === 'collectif' ? (Number(baCollectifQty) || 1) : 1
-        tx.beActivDetails = {
-          client: label,
-          business_offer_id: baBusinessOfferId || undefined,
-          business_offer_name: selectedOffer?.name,
-          catalog_price_snapshot: baCatalogPriceSnapshot ? Number(baCatalogPriceSnapshot) : undefined,
-          actual_amount: Number(amount) || undefined,
-          needs_review: !baBusinessOfferId,
-          channel: baChannel,
-          paymentMode: baPayment,
-          status: baStatus,
-          isInstallment: baIsInstallment,
-          totalAmount: baIsInstallment ? Number(baTotalAmount) || undefined : undefined,
-          installmentLabel: installLabel,
-          sale_type: baSaleType,
-          participant_count: participantCount,
-          is_sap: baSap,
-          sap_hours: baSap && baSapHours ? Number(baSapHours) : undefined,
-        }
-
-        const baseSale = {
-          offer_id:           baBusinessOfferId || null,
-          offer_name:         selectedOffer?.name || null,
-          category:           'coaching',
-          amount:             Number(amount),
-          catalog_price:      baCatalogPriceSnapshot ? Number(baCatalogPriceSnapshot) : null,
-          total_amount:       baIsInstallment ? Number(baTotalAmount) || null : null,
-          is_installment:     baIsInstallment,
-          installment_number: baIsInstallment ? Number(baInstallmentNum) || 1 : 1,
-          installment_total:  baIsInstallment ? Number(baInstallmentOf) || 1 : 1,
-          installment_label:  installLabel || null,
-          payment_mode:       baPayment || null,
-          channel:            baChannel || null,
-          status:             baStatus,
-          date:               txDate,
-          sale_type:          baSaleType,
-          participant_count:  participantCount,
-          is_sap:             baSap,
-          sap_hours:          baSap && baSapHours ? Number(baSapHours) : null,
-        }
-
-        if (baSaleType === 'collectif') {
-          // N identical transactions for collective sessions
-          const qty = Math.max(1, Number(baCollectifQty) || 1)
-          for (let i = 1; i < qty; i++) {
-            const extraId = `FJMTX-${Date.now()}-${i}`
-            onAdd({ ...tx, id: extraId })
-            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: label, client_id: null, financesjm_tx_id: extraId })
-              .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
-          }
-          beActivClient.from('ba_sales').insert({ ...baseSale, client_name: label, client_id: null, financesjm_tx_id: txId })
-            .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
-        } else if (baSaleType === 'groupe') {
-          // One tx per named participant
-          const participants = baGroupClientIds.filter(Boolean)
-          participants.forEach((cid, i) => {
-            const clientName = baGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || label
-            const pid = i === 0 ? txId : `FJMTX-${Date.now()}-${i}`
-            if (i > 0) onAdd({ ...tx, id: pid, label: clientName })
-            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clientName, client_id: cid || null, financesjm_tx_id: pid })
-              .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
-          })
-        } else {
-          beActivClient.from('ba_sales').insert({ ...baseSale, client_name: label, client_id: baClientId || null, financesjm_tx_id: txId })
-            .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
-        }
-      }
-    }
-
-    onAdd(tx)
-    resetForm()
-  }
-
-  const formAccounts = store.accounts
-
-  const filtered = useMemo(() => {
-    return store.transactions
+  // ── List ───────────────────────────────────────────────────────────────────
+  const filtered = useMemo(() =>
+    store.transactions
       .filter(t => t.monthKey === filterMonth)
       .filter(t => !filterAccount || t.accountId === filterAccount)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [store.transactions, filterMonth, filterAccount])
+      .filter(t => t.revenueType === 'transfert_interne' || t.note === 'Transfert interne')
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [store.transactions, filterMonth, filterAccount]
+  )
 
   const getAccountName = (id: string) => store.accounts.find(a => a.id === id)?.name || ''
-  const getCategoryName = (id: string) => {
-    const cat = store.categories.find(c => c.id === id)
-    return cat ? `${cat.icon} ${cat.name}` : ''
-  }
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-4">
@@ -351,82 +139,17 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50 shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-2xl font-extrabold text-white shrink-0">Transactions</h1>
-
+        <h1 className="text-2xl font-extrabold text-white shrink-0">Transferts</h1>
         <button
-          onClick={() => { resetForm(); setShowTransfer(v => !v) }}
-          className={`flex items-center gap-1.5 px-2.5 h-9 rounded-xl shrink-0 transition-colors text-xs font-semibold border ${showTransfer ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-muted/40 text-muted-foreground border-border/30'}`}
+          onClick={() => setShowTransfer(v => !v)}
+          className={`flex items-center gap-1.5 px-3 h-9 rounded-xl shrink-0 transition-colors text-xs font-semibold border ${showTransfer ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-muted/40 text-muted-foreground border-border/30'}`}
         >
           <ArrowLeftRight className="w-3.5 h-3.5" />
-          <span>Transfert</span>
-        </button>
-        <button
-          onClick={() => { resetTransfer(); showForm ? resetForm() : openForm() }}
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-primary-foreground shrink-0 transition-colors bg-primary"
-        >
-          <Plus className="w-5 h-5" />
+          <span>Nouveau</span>
         </button>
       </div>
 
-      {/* ── Sync BE ACTIV Business ── */}
-      {!showForm && !showTransfer && (
-        <div>
-          {!synced ? (
-            <button
-              onClick={fetchPending}
-              disabled={syncLoading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 active:bg-blue-500/20 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncLoading ? 'animate-spin' : ''}`} />
-              {syncLoading ? 'Vérification…' : 'Vérifier ventes BE ACTIV à importer'}
-            </button>
-          ) : pendingSales.length > 0 ? (
-            <FinanceCard className="space-y-3 border border-blue-500/20 bg-blue-500/5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Download className="w-4 h-4 text-blue-400" />
-                  <div>
-                    <p className="text-sm font-semibold text-blue-400">{pendingSales.length} vente{pendingSales.length > 1 ? 's' : ''} à importer</p>
-                    <p className="text-[10px] text-muted-foreground">Depuis BE ACTIV Business — non encore dans Finances JM</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => importAll(store, onAdd)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-500 text-white active:bg-blue-600"
-                >
-                  Tout importer
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                {pendingSales.map(sale => (
-                  <div key={sale.id} className="flex items-center gap-3 bg-muted/30 rounded-xl px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-foreground truncate">{sale.client_name}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {sale.date} · {sale.offres?.name || 'Offre non liée'}
-                      </p>
-                    </div>
-                    <p className="text-xs font-bold text-emerald-400 shrink-0">+{formatCurrency(sale.amount)}</p>
-                    <button
-                      onClick={() => importSale(sale, store, onAdd)}
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 active:bg-emerald-500/30 shrink-0"
-                    >
-                      Importer
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </FinanceCard>
-          ) : (
-            <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/15 rounded-xl px-3 py-2">
-              <p className="text-[11px] text-emerald-400">Tout est à jour — aucune vente en attente</p>
-              <button onClick={fetchPending} className="text-[10px] text-muted-foreground underline">Actualiser</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Transfert interne */}
+      {/* Transfer form */}
       {showTransfer && (
         <FinanceCard className="space-y-3 border border-amber-500/20 bg-amber-500/5">
           <div className="flex items-center gap-2 pb-1 border-b border-amber-500/20">
@@ -437,42 +160,31 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
             </div>
           </div>
 
-          {/* ─── Sélecteur SOURCE ─── */}
+          {/* Source */}
           <div>
             <p className="text-[10px] text-muted-foreground mb-1">De (source)</p>
-            <select
-              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-              value={transferFrom}
-              onChange={e => { setTransferFrom(e.target.value); setTransferFromCrypto('') }}
-            >
+            <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+              value={transferFrom} onChange={e => { setTransferFrom(e.target.value); setTransferFromCrypto('') }}>
               <option value="">Choisir</option>
               <optgroup label="Comptes">
-                {store.accounts.map(a => (
-                  <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>
-                ))}
+                {store.accounts.map(a => <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>)}
               </optgroup>
               {cryptoAssets.length > 0 && (
                 <optgroup label="Cryptos">
-                  <option value="__crypto__">🪙 Cryptos (choisir la monnaie ci-dessous)</option>
+                  <option value="__crypto__">🪙 Cryptos (choisir ci-dessous)</option>
                 </optgroup>
               )}
               {nonCryptoAssets.length > 0 && (
                 <optgroup label="Autres actifs">
-                  {nonCryptoAssets.map(a => (
-                    <option key={a.id} value={`asset:${a.id}`}>{ASSET_TYPE_ICONS[a.type] || '📦'} {a.name}</option>
-                  ))}
+                  {nonCryptoAssets.map(a => <option key={a.id} value={`asset:${a.id}`}>{ASSET_TYPE_ICONS[a.type] || '📦'} {a.name}</option>)}
                 </optgroup>
               )}
             </select>
-            {/* Sub-sélection crypto source */}
             {transferFrom === '__crypto__' && (
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {cryptoAssets.map(a => (
-                  <button
-                    key={a.id}
-                    onClick={() => setTransferFromCrypto(a.id)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${transferFromCrypto === a.id ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground border border-border/30'}`}
-                  >
+                  <button key={a.id} onClick={() => setTransferFromCrypto(a.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium ${transferFromCrypto === a.id ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground border border-border/30'}`}>
                     🪙 {a.symbol || a.name} {a.quantity ? `(${a.quantity})` : ''}
                   </button>
                 ))}
@@ -480,42 +192,31 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
             )}
           </div>
 
-          {/* ─── Sélecteur DESTINATION ─── */}
+          {/* Destination */}
           <div>
             <p className="text-[10px] text-muted-foreground mb-1">Vers (destination)</p>
-            <select
-              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-              value={transferTo}
-              onChange={e => { setTransferTo(e.target.value); setTransferToCrypto('') }}
-            >
+            <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+              value={transferTo} onChange={e => { setTransferTo(e.target.value); setTransferToCrypto('') }}>
               <option value="">Choisir</option>
               <optgroup label="Comptes">
-                {store.accounts.map(a => (
-                  <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>
-                ))}
+                {store.accounts.map(a => <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>)}
               </optgroup>
               {cryptoAssets.length > 0 && (
                 <optgroup label="Cryptos">
-                  <option value="__crypto__">🪙 Cryptos (choisir la monnaie ci-dessous)</option>
+                  <option value="__crypto__">🪙 Cryptos (choisir ci-dessous)</option>
                 </optgroup>
               )}
               {nonCryptoAssets.length > 0 && (
                 <optgroup label="Autres actifs">
-                  {nonCryptoAssets.map(a => (
-                    <option key={a.id} value={`asset:${a.id}`}>{ASSET_TYPE_ICONS[a.type] || '📦'} {a.name}</option>
-                  ))}
+                  {nonCryptoAssets.map(a => <option key={a.id} value={`asset:${a.id}`}>{ASSET_TYPE_ICONS[a.type] || '📦'} {a.name}</option>)}
                 </optgroup>
               )}
             </select>
-            {/* Sub-sélection crypto destination */}
             {transferTo === '__crypto__' && (
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {cryptoAssets.map(a => (
-                  <button
-                    key={a.id}
-                    onClick={() => setTransferToCrypto(a.id)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${transferToCrypto === a.id ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground border border-border/30'}`}
-                  >
+                  <button key={a.id} onClick={() => setTransferToCrypto(a.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium ${transferToCrypto === a.id ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground border border-border/30'}`}>
                     🪙 {a.symbol || a.name} {a.quantity ? `(${a.quantity})` : ''}
                   </button>
                 ))}
@@ -523,8 +224,8 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
             )}
           </div>
 
-          {/* Résumé du transfert */}
-          {transferFromResolved && transferToResolved && transferFromResolved !== transferToResolved && (
+          {/* Summary */}
+          {fromResolved && toResolved && fromResolved !== toResolved && (
             <div className="flex items-center gap-2 bg-amber-500/10 rounded-xl px-3 py-2">
               <span className="text-xs text-amber-300 font-medium truncate">{targetLabel(transferFrom, transferFromCrypto)}</span>
               <ArrowLeftRight className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
@@ -532,458 +233,38 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
             </div>
           )}
 
-          {/* Montant + Frais */}
+          {/* Amount + fees */}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <p className="text-[10px] text-muted-foreground mb-1">Montant</p>
-              <input
-                type="number" inputMode="decimal"
+              <input type="number" inputMode="decimal" placeholder="0 €"
                 className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                placeholder="0 €"
-                value={transferAmount}
-                onFocus={e => e.target.select()}
-                onChange={e => setTransferAmount(e.target.value)}
-              />
+                value={transferAmount} onFocus={e => e.target.select()} onChange={e => setTransferAmount(e.target.value)} />
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground mb-1">Frais (optionnel)</p>
-              <input
-                type="number" inputMode="decimal"
+              <input type="number" inputMode="decimal" placeholder="0 €"
                 className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                placeholder="0 €"
-                value={transferFees}
-                onFocus={e => e.target.select()}
-                onChange={e => setTransferFees(e.target.value)}
-              />
+                value={transferFees} onFocus={e => e.target.select()} onChange={e => setTransferFees(e.target.value)} />
             </div>
           </div>
           {Number(transferFees) > 0 && (
-            <p className="text-[10px] text-amber-300 -mt-1">Les frais seront comptabilisés automatiquement en dépense (frais bancaires)</p>
+            <p className="text-[10px] text-amber-300 -mt-1">Les frais seront comptabilisés en dépense (frais bancaires)</p>
           )}
 
-          <input
-            type="date"
-            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-            value={transferDate}
-            max={todayISO()}
-            onChange={e => setTransferDate(e.target.value)}
-          />
+          <input type="date" className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+            value={transferDate} max={todayISO()} onChange={e => setTransferDate(e.target.value)} />
 
-          <input
-            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+          <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
             placeholder="Libellé (ex: Achat XRP via Binance)"
-            value={transferLabel}
-            onChange={e => setTransferLabel(e.target.value)}
-          />
+            value={transferLabel} onChange={e => setTransferLabel(e.target.value)} />
 
           <div className="flex gap-2">
             <button onClick={resetTransfer} className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30">Annuler</button>
-            <button
-              onClick={handleTransfer}
-              disabled={!transferValid}
-              className="flex-2 basis-0 grow-[2] bg-amber-500 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40"
-            >
-              Enregistrer le transfert
+            <button onClick={handleTransfer} disabled={!transferValid}
+              className="flex-2 basis-0 grow-[2] bg-amber-500 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40">
+              Enregistrer
             </button>
-          </div>
-        </FinanceCard>
-      )}
-
-      {/* Add form */}
-      {showForm && (
-        <FinanceCard className="space-y-3">
-          <input
-            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-            placeholder={direction === 'income' ? 'Nom Prénom / Libellé' : 'Libellé'}
-            value={label}
-            onChange={e => setLabel(e.target.value.replace(/\b\w/g, c => c.toUpperCase()))}
-          />
-          <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Montant €" type="number" inputMode="decimal" value={amount} onFocus={e => e.target.select()} onChange={e => setAmount(e.target.value)} />
-
-          {/* Date */}
-          <div>
-            <p className="text-[10px] text-muted-foreground mb-1">Date</p>
-            <input
-              type="date"
-              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-              value={txDate}
-              max={todayISO()}
-              onChange={e => setTxDate(e.target.value)}
-            />
-          </div>
-
-          <div className="flex gap-2">
-            {(['income', 'expense'] as const).map(d => (
-              <button key={d} onClick={() => setDirection(d)} className={`flex-1 py-2 rounded-xl text-sm font-medium ${direction === d ? (d === 'income' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-destructive/20 text-destructive') : 'bg-muted/30 text-muted-foreground'}`}>
-                {d === 'income' ? 'Revenu' : 'Dépense'}
-              </button>
-            ))}
-          </div>
-
-          {/* Revenue-specific fields */}
-          {direction === 'income' && (
-            <>
-              <div className="border-t border-border/30 pt-3">
-                <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-2">Détails du revenu</p>
-              </div>
-
-              <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={revenueSource} onChange={e => setRevenueSource(e.target.value as RevenueSource)}>
-                {Object.entries(REVENUE_SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-
-              <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={revenueType} onChange={e => setRevenueType(e.target.value as RevenueType)}>
-                {Object.entries(REVENUE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-
-              {/* Mode de paiement — 3 modes */}
-              <div className="relative flex bg-muted/40 rounded-xl p-1">
-                <div
-                  className="absolute top-1 bottom-1 rounded-lg bg-primary/20 transition-all duration-200"
-                  style={{
-                    left: `calc(4px + ${['unique','recurrent','installment'].indexOf(paymentMode)} * (100% - 8px) / 3)`,
-                    width: 'calc((100% - 8px) / 3)',
-                  }}
-                />
-                {([
-                  { key: 'unique', label: 'Unique' },
-                  { key: 'recurrent', label: '🔄 Récurrent' },
-                  { key: 'installment', label: '📊 En x fois' },
-                ] as const).map(m => (
-                  <button
-                    key={m.key}
-                    onClick={() => {
-                      setPaymentMode(m.key)
-                      if (m.key === 'unique') setRevenueRecurrence('unique')
-                      if (m.key === 'recurrent') setRevenueRecurrence('mensuelle')
-                      if (m.key === 'installment') setRevenueRecurrence('mensuelle')
-                    }}
-                    className={`relative flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors z-10 ${paymentMode === m.key ? 'text-primary' : 'text-muted-foreground'}`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-
-              {paymentMode === 'recurrent' && (
-                <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={revenueRecurrence} onChange={e => setRevenueRecurrence(e.target.value as RevenueRecurrence)}>
-                  <option value="mensuelle">Mensuelle</option>
-                  <option value="hebdomadaire">Hebdomadaire</option>
-                </select>
-              )}
-
-              {paymentMode === 'installment' && (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <p className="text-[10px] text-muted-foreground mb-1">Total €</p>
-                      <input
-                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                        placeholder="ex: 900"
-                        type="number" inputMode="decimal"
-                        value={installmentTotal}
-                        onFocus={e => e.target.select()}
-                        onChange={e => {
-                          setInstallmentTotal(e.target.value)
-                          const n = Number(installmentCount) || 0
-                          if (n > 0 && Number(e.target.value) > 0)
-                            setAmount(String(Math.round((Number(e.target.value) / n) * 100) / 100))
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground mb-1">Nb de versements</p>
-                      <input
-                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                        placeholder="ex: 3"
-                        type="number" inputMode="numeric"
-                        value={installmentCount}
-                        onFocus={e => e.target.select()}
-                        onChange={e => {
-                          setInstallmentCount(e.target.value)
-                          const total = Number(installmentTotal) || 0
-                          const n = Number(e.target.value) || 0
-                          if (n > 0 && total > 0)
-                            setAmount(String(Math.round((total / n) * 100) / 100))
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {Number(installmentTotal) > 0 && Number(installmentCount) > 0 && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5 flex justify-between items-center">
-                      <span className="text-xs text-muted-foreground">Ce versement</span>
-                      <div className="text-right">
-                        <span className="text-sm font-bold text-emerald-400">
-                          {formatCurrency(Math.round((Number(installmentTotal) / Number(installmentCount)) * 100) / 100)}
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-1.5">× {installmentCount} = {formatCurrency(Number(installmentTotal))}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${isRealRevenue ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                <Info className="w-3.5 h-3.5" />
-                {isRealRevenue ? 'Compté dans les revenus' : 'Entrée d\'argent non comptée comme revenu réel'}
-              </div>
-
-              {/* Be Activ specific fields */}
-              {revenueSource === 'be_activ' && (
-                <div className="space-y-2 border-t border-border/30 pt-3">
-                  <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Détails Be Activ</p>
-
-                  {/* Sale type selector */}
-                  <div className="grid grid-cols-3 gap-1">
-                    {([
-                      { key: 'individual', icon: '👤', label: 'Client' },
-                      { key: 'groupe',     icon: '👥', label: 'Groupe' },
-                      { key: 'collectif',  icon: '🏃', label: 'Collectif' },
-                    ] as { key: BaSaleType; icon: string; label: string }[]).map(({ key, icon, label: lbl }) => (
-                      <button key={key} onClick={() => setBaSaleType(key)}
-                        className={`py-2 rounded-xl text-xs font-medium ${baSaleType === key ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
-                        {icon} {lbl}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Individual */}
-                  {baSaleType === 'individual' && (
-                    <>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground mb-1">Client</p>
-                        <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-                          value={baClientId}
-                          onChange={e => {
-                            setBaClientId(e.target.value)
-                            const client = baClients.find(c => c.id === e.target.value)
-                            if (client) setLabel(client.displayName)
-                          }}>
-                          <option value="">Choisir un client…</option>
-                          {baClients.map(c => <option key={c.id} value={c.id}>{c.displayName}</option>)}
-                        </select>
-                      </div>
-                      {baClients.find(c => c.id === baClientId)?.sap_enabled && (
-                        <>
-                          <button onClick={() => setBaSap(!baSap)}
-                            className={`w-full py-2 rounded-xl text-xs font-medium ${baSap ? 'bg-green-500/20 text-green-300 border border-green-500/40' : 'bg-muted/30 text-muted-foreground'}`}>
-                            {baSap ? '✓ SAP activé' : 'Prestation SAP ?'}
-                          </button>
-                          {baSap && (
-                            <div>
-                              <p className="text-[10px] text-muted-foreground mb-1">Heures SAP</p>
-                              <input type="number" inputMode="decimal"
-                                className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                                placeholder="ex: 1.5" value={baSapHours}
-                                onFocus={e => e.target.select()}
-                                onChange={e => setBaSapHours(e.target.value)} />
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </>
-                  )}
-
-                  {/* Groupe nommé */}
-                  {baSaleType === 'groupe' && (
-                    <>
-                      {baGroups.length > 0 && (
-                        <div>
-                          <p className="text-[10px] text-muted-foreground mb-1">Groupe rapide</p>
-                          <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-                            value={baSelectedGroupId}
-                            onChange={e => {
-                              setBaSelectedGroupId(e.target.value)
-                              const grp = baGroups.find(g => g.group_id === e.target.value)
-                              if (grp) {
-                                setBaGroupClientIds(grp.members.map(m => m.id))
-                                setBaGroupNames(grp.members.map(m => m.displayName))
-                                setLabel(grp.group_name || grp.members.map(m => m.displayName).join(' & '))
-                              }
-                            }}>
-                            <option value="">Choisir un groupe…</option>
-                            {baGroups.map(g => (
-                              <option key={g.group_id} value={g.group_id}>
-                                {g.group_name || g.members.map(m => m.displayName).join(' & ')} ({g.members.length} pers.)
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      {baGroupClientIds.map((cid, i) => (
-                        <div key={i}>
-                          <p className="text-[10px] text-muted-foreground mb-1">Participant {i + 1}</p>
-                          <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-                            value={cid}
-                            onChange={e => {
-                              const ids = [...baGroupClientIds]; const nms = [...baGroupNames]
-                              ids[i] = e.target.value
-                              nms[i] = baClients.find(c => c.id === e.target.value)?.displayName || ''
-                              setBaGroupClientIds(ids); setBaGroupNames(nms)
-                              setLabel(nms.filter(Boolean).join(' & '))
-                            }}>
-                            <option value="">Choisir un client…</option>
-                            {baClients.map(c => <option key={c.id} value={c.id}>{c.displayName}</option>)}
-                          </select>
-                        </div>
-                      ))}
-                      <button
-                        onClick={() => { setBaGroupClientIds(ids => [...ids, '']); setBaGroupNames(nms => [...nms, '']) }}
-                        className="w-full py-2 rounded-xl text-xs text-muted-foreground bg-muted/30 border border-dashed border-border/40">
-                        + Ajouter un participant
-                      </button>
-                    </>
-                  )}
-
-                  {/* Collectif */}
-                  {baSaleType === 'collectif' && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground mb-1">Nombre de participants (×N transactions)</p>
-                      <input type="number" inputMode="numeric" min="1"
-                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                        placeholder="ex: 8" value={baCollectifQty}
-                        onFocus={e => e.target.select()}
-                        onChange={e => setBaCollectifQty(e.target.value)} />
-                    </div>
-                  )}
-
-                  {/* Offer picker grouped by theme */}
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-1.5">Offre Business</p>
-                    {Object.entries(offersByTheme).map(([themeName, { dot, offers: themeOffers }]) => (
-                      <div key={themeName} className="mb-2">
-                        <p className="text-[10px] text-muted-foreground/70 mb-1">{dot} {themeName}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {themeOffers.map(offer => {
-                            const dimmed = baSaleType === 'collectif' && themeName !== 'COLLECTIF'
-                            return (
-                              <button key={offer.id}
-                                onClick={() => {
-                                  setBaBusinessOfferId(baBusinessOfferId === offer.id ? '' : offer.id)
-                                  if (offer.catalogPrice > 0) setBaCatalogPriceSnapshot(String(offer.catalogPrice))
-                                }}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                                  baBusinessOfferId === offer.id
-                                    ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40'
-                                    : dimmed
-                                      ? 'bg-muted/20 text-muted-foreground/30 border border-border/10'
-                                      : 'bg-muted/40 text-muted-foreground border border-border/30'
-                                }`}>
-                                {offer.name}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Catalog price */}
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-1">Prix standard catalogue €</p>
-                    <input
-                      type="number" inputMode="decimal"
-                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                      placeholder="0"
-                      value={baCatalogPriceSnapshot}
-                      onFocus={e => e.target.select()}
-                      onChange={e => setBaCatalogPriceSnapshot(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Variance display */}
-                  {baCatalogPriceSnapshot && Number(baCatalogPriceSnapshot) > 0 && Number(amount) > 0 && (() => {
-                    const diff = Number(amount) - Number(baCatalogPriceSnapshot)
-                    const pct = Math.round((diff / Number(baCatalogPriceSnapshot)) * 100)
-                    return (
-                      <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs ${diff < 0 ? 'bg-amber-500/10 text-amber-400' : diff > 0 ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                        <span>Écart catalogue</span>
-                        <span className="font-bold">{diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({pct >= 0 ? '+' : ''}{pct}%)</span>
-                      </div>
-                    )
-                  })()}
-
-                  <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={baChannel} onChange={e => setBaChannel(e.target.value as BeActivChannel)}>
-                    <option value="">Canal d'encaissement</option>
-                    {Object.entries(BE_ACTIV_CHANNEL_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                  <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={baPayment} onChange={e => setBaPayment(e.target.value as BeActivPaymentMode)}>
-                    <option value="">Mode de paiement</option>
-                    {Object.entries(BE_ACTIV_PAYMENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                  <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={baStatus} onChange={e => setBaStatus(e.target.value as BeActivStatus)}>
-                    {Object.entries(BE_ACTIV_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                  <button onClick={() => setBaIsInstallment(!baIsInstallment)} className={`w-full py-2 rounded-xl text-xs font-medium ${baIsInstallment ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                    {baIsInstallment ? '✓ Paiement en plusieurs fois' : 'Paiement en plusieurs fois ?'}
-                  </button>
-                  {baIsInstallment && (
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground mb-1">Total base €</p>
-                        <input
-                          className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                          placeholder="ex: 900"
-                          type="number" inputMode="decimal"
-                          value={baTotalAmount}
-                          onFocus={e => e.target.select()}
-                          onChange={e => setBaTotalAmount(e.target.value)}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground mb-1">Versement n°</p>
-                          <input
-                            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                            placeholder="ex: 1"
-                            type="number" inputMode="numeric"
-                            value={baInstallmentNum}
-                            onFocus={e => e.target.select()}
-                            onChange={e => setBaInstallmentNum(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground mb-1">Sur X total</p>
-                          <input
-                            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                            placeholder="ex: 3"
-                            type="number" inputMode="numeric"
-                            value={baInstallmentOf}
-                            onFocus={e => e.target.select()}
-                            onChange={e => setBaInstallmentOf(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      {baInstallmentNum && baInstallmentOf && (
-                        <p className="text-[10px] text-blue-400 bg-blue-500/10 rounded-lg px-2.5 py-1.5">
-                          Versement {baInstallmentNum}/{baInstallmentOf}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="flex gap-2">
-            {(['bank', 'cash'] as const).map(s => (
-              <button key={s} onClick={() => setSourceType(s)} className={`flex-1 py-2 rounded-xl text-sm font-medium ${sourceType === s ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                {s === 'bank' ? 'Bancaire' : 'Liquide'}
-              </button>
-            ))}
-          </div>
-
-          <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={accountId} onChange={e => setAccountId(e.target.value)}>
-            {formAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
-            {store.categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </select>
-          <input className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" placeholder="Note (optionnel)" value={note} onChange={e => setNote(e.target.value)} />
-
-          <div className="flex gap-2">
-            <button onClick={resetForm} className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30">Annuler</button>
-            <button onClick={handleSubmit} className="flex-2 basis-0 grow-[2] text-primary-foreground rounded-xl py-2.5 text-sm font-semibold bg-primary">Enregistrer</button>
           </div>
         </FinanceCard>
       )}
@@ -994,88 +275,42 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
           <ChevronLeft className="w-5 h-5" />
         </button>
         <span className="text-sm font-semibold text-foreground capitalize">{getMonthLabel(filterMonth)}</span>
-        <button onClick={() => navigateMonth(1)} disabled={filterMonth >= getCurrentMonthKey()} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50 disabled:opacity-30">
+        <button onClick={() => navigateMonth(1)} disabled={filterMonth >= getCurrentMonthKey()}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground active:bg-muted/50 disabled:opacity-30">
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Account sub-filter */}
-      <select className="w-full bg-card border border-border/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none" value={filterAccount} onChange={e => setFilterAccount(e.target.value)}>
+      {/* Account filter */}
+      <select className="w-full bg-card border border-border/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+        value={filterAccount} onChange={e => setFilterAccount(e.target.value)}>
         <option value="">Tous les comptes</option>
         {store.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
       </select>
 
-      {/* Transaction list */}
+      {/* Transfer list */}
       <div className="space-y-2">
-        {filtered.map(t => {
-          const isTransfer = t.revenueType === 'transfert_interne' || t.note === 'Transfert interne'
-          return (
-            <FinanceCard key={t.id} className={isTransfer ? 'border border-amber-500/10' : ''}>
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTransfer ? 'bg-amber-500/10' : t.direction === 'income' ? 'bg-emerald-500/10' : 'bg-destructive/10'}`}>
-                  {isTransfer ? <ArrowLeftRight className="w-4 h-4 text-amber-400" /> : t.direction === 'income' ? <ArrowUpRight className="w-4 h-4 text-emerald-500" /> : <ArrowDownRight className="w-4 h-4 text-destructive" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{t.label}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatTxDate(t.date)} · {getAccountName(t.accountId)} · {getCategoryName(t.categoryId)}
-                  </p>
-                  {isTransfer && (
-                    <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">Transfert interne</span>
-                  )}
-                  {!isTransfer && t.direction === 'income' && t.isRealRevenue === false && (
-                    <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">Non comptée comme revenu</span>
-                  )}
-                  {t.beActivDetails && (() => {
-                    const ba = t.beActivDetails!
-                    const offerName = ba.business_offer_name
-                      || (ba.business_offer_id ? businessOffers.find(o => o.id === ba.business_offer_id)?.name : null)
-                      || (ba.offer ? resolveLegacyOffer(ba.offer, businessOffers, legacyMap)?.name : null)
-                      || ba.offer || ''
-                    const needsLink = !ba.business_offer_id
-                    const variance = (ba.catalog_price_snapshot && ba.actual_amount)
-                      ? ba.actual_amount - ba.catalog_price_snapshot
-                      : null
-                    return (
-                      <div className="mt-0.5 space-y-0.5">
-                        <p className="text-[10px] text-blue-400">
-                          {ba.client}{offerName ? ` · ${offerName}` : ''}
-                          {ba.status ? ` · ${BE_ACTIV_STATUS_LABELS[ba.status] || ba.status}` : ''}
-                        </p>
-                        {ba.catalog_price_snapshot && ba.actual_amount && (
-                          <p className="text-[10px] text-muted-foreground/70">
-                            Catalogue {formatCurrency(ba.catalog_price_snapshot)} · Encaissé {formatCurrency(ba.actual_amount)}
-                            {variance !== null && variance !== 0 && (
-                              <span className={variance < 0 ? ' text-amber-400' : ' text-emerald-400'}>
-                                {' '}{variance >= 0 ? '+' : ''}{formatCurrency(variance)}
-                              </span>
-                            )}
-                          </p>
-                        )}
-                        {needsLink && (
-                          <span className="inline-block text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">⚠ À lier au catalogue Business</span>
-                        )}
-                      </div>
-                    )
-                  })()}
-                  {t.note && !isTransfer && <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{t.note}</p>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className={`text-sm font-bold ${isTransfer ? 'text-amber-400' : t.direction === 'income' ? 'text-emerald-500' : 'text-destructive'}`}>
-                    {isTransfer ? '' : t.direction === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                  </p>
-                  <button onClick={() => onDelete(t.id)} className="text-muted-foreground active:text-destructive">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+        {filtered.map(t => (
+          <FinanceCard key={t.id} className="border border-amber-500/10">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-amber-500/10">
+                <ArrowLeftRight className="w-4 h-4 text-amber-400" />
               </div>
-            </FinanceCard>
-          )
-        })}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{t.label}</p>
+                <p className="text-xs text-muted-foreground">{fmtDate(t.date)} · {getAccountName(t.accountId)}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <p className="text-sm font-bold text-amber-400">{formatCurrency(t.amount)}</p>
+                <button onClick={() => onDelete(t.id)} className="text-muted-foreground active:text-destructive">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </FinanceCard>
+        ))}
         {filtered.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            Aucune transaction ce mois
-          </p>
+          <p className="text-sm text-muted-foreground text-center py-8">Aucun transfert ce mois</p>
         )}
       </div>
     </div>
