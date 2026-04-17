@@ -21,7 +21,7 @@ export interface BASale {
   installment_number: number | null
   installment_total: number | null
   financesjm_tx_id: string | null
-  sale_type: 'individual' | 'duo' | 'trio' | 'collectif' | null
+  sale_type: 'individual' | 'groupe' | 'collectif' | null
   participant_count: number | null
   is_sap: boolean
   sap_hours: number | null

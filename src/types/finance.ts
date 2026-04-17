@@ -27,7 +27,7 @@ export type BeActivOffer = 'jm_pass_coaching' | 'coaching_a_la_carte' | 'activ_p
 export type BeActivChannel = 'banque' | 'especes' | 'qonto' | 'autre'
 export type BeActivPaymentMode = 'virement' | 'carte' | 'especes' | 'plateforme' | 'autre'
 export type BeActivStatus = 'prevu' | 'en_attente' | 'recu'
-export type BaSaleType = 'individual' | 'duo' | 'trio' | 'collectif'
+export type BaSaleType = 'individual' | 'groupe' | 'collectif'
 
 export interface BeActivDetails {
   client: string

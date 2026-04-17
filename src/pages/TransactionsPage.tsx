@@ -256,7 +256,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
 
       if (revenueSource === 'be_activ') {
         const selectedOffer = businessOffers.find(o => o.id === baBusinessOfferId)
-        const participantCount = baSaleType === 'duo' ? 2 : baSaleType === 'trio' ? 3 : baSaleType === 'collectif' ? (Number(baCollectifQty) || 1) : 1
+        const participantCount = baSaleType === 'groupe' ? baGroupClientIds.filter(Boolean).length || 2 : baSaleType === 'collectif' ? (Number(baCollectifQty) || 1) : 1
         tx.beActivDetails = {
           client: label,
           business_offer_id: baBusinessOfferId || undefined,
@@ -308,9 +308,9 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
           }
           beActivClient.from('ba_sales').insert({ ...baseSale, client_name: label, client_id: null, financesjm_tx_id: txId })
             .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
-        } else if (baSaleType === 'duo' || baSaleType === 'trio') {
-          // One tx per participant
-          const participants = baGroupClientIds.slice(0, participantCount)
+        } else if (baSaleType === 'groupe') {
+          // One tx per named participant
+          const participants = baGroupClientIds.filter(Boolean)
           participants.forEach((cid, i) => {
             const clientName = baGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || label
             const pid = i === 0 ? txId : `FJMTX-${Date.now()}-${i}`
@@ -733,11 +733,10 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                   <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Détails Be Activ</p>
 
                   {/* Sale type selector */}
-                  <div className="grid grid-cols-4 gap-1">
+                  <div className="grid grid-cols-3 gap-1">
                     {([
                       { key: 'individual', icon: '👤', label: 'Client' },
-                      { key: 'duo',        icon: '👫', label: 'Duo' },
-                      { key: 'trio',       icon: '👥', label: 'Trio' },
+                      { key: 'groupe',     icon: '👥', label: 'Groupe' },
                       { key: 'collectif',  icon: '🏃', label: 'Collectif' },
                     ] as { key: BaSaleType; icon: string; label: string }[]).map(({ key, icon, label: lbl }) => (
                       <button key={key} onClick={() => setBaSaleType(key)}
@@ -784,10 +783,10 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                     </>
                   )}
 
-                  {/* Duo / Trio */}
-                  {(baSaleType === 'duo' || baSaleType === 'trio') && (
+                  {/* Groupe nommé */}
+                  {baSaleType === 'groupe' && (
                     <>
-                      {baGroups.filter(g => baSaleType === 'duo' ? g.members.length >= 2 : g.members.length >= 3).length > 0 && (
+                      {baGroups.length > 0 && (
                         <div>
                           <p className="text-[10px] text-muted-foreground mb-1">Groupe rapide</p>
                           <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
@@ -796,28 +795,25 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                               setBaSelectedGroupId(e.target.value)
                               const grp = baGroups.find(g => g.group_id === e.target.value)
                               if (grp) {
-                                const n = baSaleType === 'duo' ? 2 : 3
-                                const ids  = grp.members.slice(0, n).map(m => m.id)
-                                const nms  = grp.members.slice(0, n).map(m => m.displayName)
-                                setBaGroupClientIds([...ids,  ...Array(3).fill('')].slice(0, n))
-                                setBaGroupNames([...nms, ...Array(3).fill('')].slice(0, n))
-                                setLabel(grp.group_name || nms.join(' & '))
+                                setBaGroupClientIds(grp.members.map(m => m.id))
+                                setBaGroupNames(grp.members.map(m => m.displayName))
+                                setLabel(grp.group_name || grp.members.map(m => m.displayName).join(' & '))
                               }
                             }}>
                             <option value="">Choisir un groupe…</option>
                             {baGroups.map(g => (
                               <option key={g.group_id} value={g.group_id}>
-                                {g.group_name || g.members.map(m => m.displayName).join(' & ')}
+                                {g.group_name || g.members.map(m => m.displayName).join(' & ')} ({g.members.length} pers.)
                               </option>
                             ))}
                           </select>
                         </div>
                       )}
-                      {Array.from({ length: baSaleType === 'duo' ? 2 : 3 }, (_, i) => (
+                      {baGroupClientIds.map((cid, i) => (
                         <div key={i}>
                           <p className="text-[10px] text-muted-foreground mb-1">Participant {i + 1}</p>
                           <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-                            value={baGroupClientIds[i] || ''}
+                            value={cid}
                             onChange={e => {
                               const ids = [...baGroupClientIds]; const nms = [...baGroupNames]
                               ids[i] = e.target.value
@@ -830,6 +826,11 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                           </select>
                         </div>
                       ))}
+                      <button
+                        onClick={() => { setBaGroupClientIds(ids => [...ids, '']); setBaGroupNames(nms => [...nms, '']) }}
+                        className="w-full py-2 rounded-xl text-xs text-muted-foreground bg-muted/30 border border-dashed border-border/40">
+                        + Ajouter un participant
+                      </button>
                     </>
                   )}
 
