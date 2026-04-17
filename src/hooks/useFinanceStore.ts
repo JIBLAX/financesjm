@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { FinanceStore, Account, Transaction, Asset, Debt, AppSettings, MonthlySnapshot, Quest, ProfileRegulation, Operation, OpCategory, OpSubcategory, MonthlyCheckIn, Project } from '@/types/finance'
 import { loadStore, saveStore } from '@/lib/storage'
 import { getPreviousMonthKey } from '@/lib/constants'
@@ -133,6 +133,15 @@ export function useFinanceStore() {
       },
     }))
   }, [update])
+
+  // ─── Backfill historique pro ops ─────────────────────────────────────────────
+  const backfillDone = useRef(false)
+  useEffect(() => {
+    if (backfillDone.current) return
+    backfillDone.current = true
+    const proOps = store.operations.filter(op => op.scope === 'pro')
+    proOps.forEach(op => syncProOpUpsert(op, store.opCategories, store.opSubcategories))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Operations ──────────────────────────────────────────────────────────────
 
