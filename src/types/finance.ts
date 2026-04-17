@@ -27,6 +27,7 @@ export type BeActivOffer = 'jm_pass_coaching' | 'coaching_a_la_carte' | 'activ_p
 export type BeActivChannel = 'banque' | 'especes' | 'qonto' | 'autre'
 export type BeActivPaymentMode = 'virement' | 'carte' | 'especes' | 'plateforme' | 'autre'
 export type BeActivStatus = 'prevu' | 'en_attente' | 'recu'
+export type BaSaleType = 'individual' | 'duo' | 'trio' | 'collectif'
 
 export interface BeActivDetails {
   client: string
@@ -46,6 +47,10 @@ export interface BeActivDetails {
   isInstallment: boolean
   totalAmount?: number
   installmentLabel?: string // e.g. "1/2", "2/3"
+  sale_type?: BaSaleType
+  participant_count?: number
+  is_sap?: boolean
+  sap_hours?: number
 }
 
 export interface Transaction {

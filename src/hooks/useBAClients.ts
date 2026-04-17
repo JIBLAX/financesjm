@@ -11,6 +11,9 @@ export interface BAClient {
   profil_code: string | null
   date_rdv:    string | null
   is_client:   boolean
+  sap_enabled: boolean
+  group_id:    string | null
+  group_name:  string | null
 }
 
 export function useBAClients() {
@@ -45,6 +48,9 @@ export function useBAClients() {
               profil_code: c.profil_code ?? c.Profil_code ?? null,
               date_rdv:    c.date_rdv    ?? c.Date_rdv    ?? null,
               is_client:   c.is_client   ?? false,
+              sap_enabled: c.sap_enabled ?? false,
+              group_id:    c.group_id    ?? null,
+              group_name:  c.group_name  ?? null,
             }
           }).filter(c => c.displayName && c.id)
         )

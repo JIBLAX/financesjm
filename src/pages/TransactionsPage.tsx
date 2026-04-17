@@ -8,8 +8,9 @@ import { resolveLegacyOffer } from '@/lib/beActiv'
 import { useBusinessOffers } from '@/hooks/useBusinessOffers'
 import { useBASync } from '@/hooks/useBASync'
 import { useBAClients } from '@/hooks/useBAClients'
-import { supabase } from '@/integrations/supabase/client'
-import type { FinanceStore, Transaction, Asset, RevenueSource, RevenueType, RevenueRecurrence, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
+import { useBAGroups } from '@/hooks/useBAGroups'
+import { beActivClient } from '@/integrations/supabase/beActivClient'
+import type { FinanceStore, Transaction, Asset, RevenueSource, RevenueType, RevenueRecurrence, BeActivChannel, BeActivPaymentMode, BeActivStatus, BaSaleType } from '@/types/finance'
 
 interface Props {
   store: FinanceStore
@@ -31,6 +32,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const { offers: businessOffers, legacyMap } = useBusinessOffers()
   const { pendingSales, loading: syncLoading, synced, fetchPending, importSale, importAll } = useBASync()
   const { clients: baClients } = useBAClients()
+  const { groups: baGroups } = useBAGroups()
 
   const [showForm, setShowForm] = useState(false)
   const [filterMonth, setFilterMonth] = useState(getCurrentMonthKey())
@@ -78,8 +80,31 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
   const [baTotalAmount, setBaTotalAmount] = useState('')
   const [baInstallmentNum, setBaInstallmentNum] = useState('1')
   const [baInstallmentOf, setBaInstallmentOf] = useState('2')
+  const [baSaleType, setBaSaleType] = useState<BaSaleType>('individual')
+  const [baGroupClientIds, setBaGroupClientIds] = useState<string[]>(['', ''])
+  const [baGroupNames, setBaGroupNames] = useState<string[]>(['', ''])
+  const [baSelectedGroupId, setBaSelectedGroupId] = useState('')
+  const [baCollectifQty, setBaCollectifQty] = useState('1')
+  const [baSap, setBaSap] = useState(false)
+  const [baSapHours, setBaSapHours] = useState('')
 
   const isRealRevenue = !NON_REAL_REVENUE_TYPES.includes(revenueType)
+
+  const offersByTheme = useMemo(() => {
+    const themeKey = (t?: string) => {
+      const u = (t || '').toUpperCase()
+      if (u.includes('TRANSFORM')) return { key: 'TRANSFORMATION', dot: '🔴' }
+      if (u.includes('COLLECT'))   return { key: 'COLLECTIF',      dot: '🟢' }
+      return                              { key: 'ACTION',          dot: '🔵' }
+    }
+    const map: Record<string, { dot: string; offers: typeof businessOffers }> = {}
+    businessOffers.forEach(o => {
+      const { key, dot } = themeKey(o.theme)
+      if (!map[key]) map[key] = { dot, offers: [] }
+      map[key].offers.push(o)
+    })
+    return map
+  }, [businessOffers])
 
   // Transfer interne state
   const [showTransfer, setShowTransfer] = useState(false)
@@ -198,6 +223,8 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
     setBaClientId(''); setBaBusinessOfferId(''); setBaCatalogPriceSnapshot('')
     setBaChannel(''); setBaPayment(''); setBaStatus('recu')
     setBaIsInstallment(false); setBaTotalAmount(''); setBaInstallmentNum('1'); setBaInstallmentOf('2')
+    setBaSaleType('individual'); setBaGroupClientIds(['', '']); setBaGroupNames(['', ''])
+    setBaSelectedGroupId(''); setBaCollectifQty('1'); setBaSap(false); setBaSapHours('')
   }
 
   const handleSubmit = () => {
@@ -229,6 +256,7 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
 
       if (revenueSource === 'be_activ') {
         const selectedOffer = businessOffers.find(o => o.id === baBusinessOfferId)
+        const participantCount = baSaleType === 'duo' ? 2 : baSaleType === 'trio' ? 3 : baSaleType === 'collectif' ? (Number(baCollectifQty) || 1) : 1
         tx.beActivDetails = {
           client: label,
           business_offer_id: baBusinessOfferId || undefined,
@@ -242,31 +270,58 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
           isInstallment: baIsInstallment,
           totalAmount: baIsInstallment ? Number(baTotalAmount) || undefined : undefined,
           installmentLabel: installLabel,
+          sale_type: baSaleType,
+          participant_count: participantCount,
+          is_sap: baSap,
+          sap_hours: baSap && baSapHours ? Number(baSapHours) : undefined,
         }
 
-        // Write to shared ba_sales table (fire-and-forget)
-        supabase.auth.getUser().then(({ data }) => {
-          supabase.from('ba_sales').insert({
-            client_name:        label,
-            client_id:          baClientId || null,
-            offer_id:           baBusinessOfferId || null,
-            offer_name:         selectedOffer?.name || null,
-            category:           'coaching',
-            amount:             Number(amount),
-            catalog_price:      baCatalogPriceSnapshot ? Number(baCatalogPriceSnapshot) : null,
-            total_amount:       baIsInstallment ? Number(baTotalAmount) || null : null,
-            is_installment:     baIsInstallment,
-            installment_number: baIsInstallment ? Number(baInstallmentNum) || 1 : 1,
-            installment_total:  baIsInstallment ? Number(baInstallmentOf) || 1 : 1,
-            installment_label:  installLabel || null,
-            payment_mode:       baPayment || null,
-            channel:            baChannel || null,
-            status:             baStatus,
-            date:               txDate,
-            financesjm_tx_id:   txId,
-            user_id:            data.user?.id || null,
+        const baseSale = {
+          offer_id:           baBusinessOfferId || null,
+          offer_name:         selectedOffer?.name || null,
+          category:           'coaching',
+          amount:             Number(amount),
+          catalog_price:      baCatalogPriceSnapshot ? Number(baCatalogPriceSnapshot) : null,
+          total_amount:       baIsInstallment ? Number(baTotalAmount) || null : null,
+          is_installment:     baIsInstallment,
+          installment_number: baIsInstallment ? Number(baInstallmentNum) || 1 : 1,
+          installment_total:  baIsInstallment ? Number(baInstallmentOf) || 1 : 1,
+          installment_label:  installLabel || null,
+          payment_mode:       baPayment || null,
+          channel:            baChannel || null,
+          status:             baStatus,
+          date:               txDate,
+          sale_type:          baSaleType,
+          participant_count:  participantCount,
+          is_sap:             baSap,
+          sap_hours:          baSap && baSapHours ? Number(baSapHours) : null,
+        }
+
+        if (baSaleType === 'collectif') {
+          // N identical transactions for collective sessions
+          const qty = Math.max(1, Number(baCollectifQty) || 1)
+          for (let i = 1; i < qty; i++) {
+            const extraId = `FJMTX-${Date.now()}-${i}`
+            onAdd({ ...tx, id: extraId })
+            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: label, client_id: null, financesjm_tx_id: extraId })
+              .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+          }
+          beActivClient.from('ba_sales').insert({ ...baseSale, client_name: label, client_id: null, financesjm_tx_id: txId })
+            .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+        } else if (baSaleType === 'duo' || baSaleType === 'trio') {
+          // One tx per participant
+          const participants = baGroupClientIds.slice(0, participantCount)
+          participants.forEach((cid, i) => {
+            const clientName = baGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || label
+            const pid = i === 0 ? txId : `FJMTX-${Date.now()}-${i}`
+            if (i > 0) onAdd({ ...tx, id: pid, label: clientName })
+            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clientName, client_id: cid || null, financesjm_tx_id: pid })
+              .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
           })
-        })
+        } else {
+          beActivClient.from('ba_sales').insert({ ...baseSale, client_name: label, client_id: baClientId || null, financesjm_tx_id: txId })
+            .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+        }
       }
     }
 
@@ -677,42 +732,148 @@ export const TransactionsPage: React.FC<Props> = ({ store, onAdd, onDelete, onUp
                 <div className="space-y-2 border-t border-border/30 pt-3">
                   <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Détails Be Activ</p>
 
-                  {/* Client selector */}
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-1">Client</p>
-                    <select
-                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
-                      value={baClientId}
-                      onChange={e => {
-                        setBaClientId(e.target.value)
-                        const client = baClients.find(c => c.id === e.target.value)
-                        if (client) setLabel(client.displayName)
-                      }}
-                    >
-                      <option value="">Choisir un client…</option>
-                      {baClients.map(c => (
-                        <option key={c.id} value={c.id}>{c.displayName}</option>
-                      ))}
-                    </select>
+                  {/* Sale type selector */}
+                  <div className="grid grid-cols-4 gap-1">
+                    {([
+                      { key: 'individual', icon: '👤', label: 'Client' },
+                      { key: 'duo',        icon: '👫', label: 'Duo' },
+                      { key: 'trio',       icon: '👥', label: 'Trio' },
+                      { key: 'collectif',  icon: '🏃', label: 'Collectif' },
+                    ] as { key: BaSaleType; icon: string; label: string }[]).map(({ key, icon, label: lbl }) => (
+                      <button key={key} onClick={() => setBaSaleType(key)}
+                        className={`py-2 rounded-xl text-xs font-medium ${baSaleType === key ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
+                        {icon} {lbl}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* Business offer chip picker */}
+                  {/* Individual */}
+                  {baSaleType === 'individual' && (
+                    <>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">Client</p>
+                        <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                          value={baClientId}
+                          onChange={e => {
+                            setBaClientId(e.target.value)
+                            const client = baClients.find(c => c.id === e.target.value)
+                            if (client) setLabel(client.displayName)
+                          }}>
+                          <option value="">Choisir un client…</option>
+                          {baClients.map(c => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+                        </select>
+                      </div>
+                      {baClients.find(c => c.id === baClientId)?.sap_enabled && (
+                        <>
+                          <button onClick={() => setBaSap(!baSap)}
+                            className={`w-full py-2 rounded-xl text-xs font-medium ${baSap ? 'bg-green-500/20 text-green-300 border border-green-500/40' : 'bg-muted/30 text-muted-foreground'}`}>
+                            {baSap ? '✓ SAP activé' : 'Prestation SAP ?'}
+                          </button>
+                          {baSap && (
+                            <div>
+                              <p className="text-[10px] text-muted-foreground mb-1">Heures SAP</p>
+                              <input type="number" inputMode="decimal"
+                                className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                                placeholder="ex: 1.5" value={baSapHours}
+                                onFocus={e => e.target.select()}
+                                onChange={e => setBaSapHours(e.target.value)} />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  {/* Duo / Trio */}
+                  {(baSaleType === 'duo' || baSaleType === 'trio') && (
+                    <>
+                      {baGroups.filter(g => baSaleType === 'duo' ? g.members.length >= 2 : g.members.length >= 3).length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-1">Groupe rapide</p>
+                          <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                            value={baSelectedGroupId}
+                            onChange={e => {
+                              setBaSelectedGroupId(e.target.value)
+                              const grp = baGroups.find(g => g.group_id === e.target.value)
+                              if (grp) {
+                                const n = baSaleType === 'duo' ? 2 : 3
+                                const ids  = grp.members.slice(0, n).map(m => m.id)
+                                const nms  = grp.members.slice(0, n).map(m => m.displayName)
+                                setBaGroupClientIds([...ids,  ...Array(3).fill('')].slice(0, n))
+                                setBaGroupNames([...nms, ...Array(3).fill('')].slice(0, n))
+                                setLabel(grp.group_name || nms.join(' & '))
+                              }
+                            }}>
+                            <option value="">Choisir un groupe…</option>
+                            {baGroups.map(g => (
+                              <option key={g.group_id} value={g.group_id}>
+                                {g.group_name || g.members.map(m => m.displayName).join(' & ')}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {Array.from({ length: baSaleType === 'duo' ? 2 : 3 }, (_, i) => (
+                        <div key={i}>
+                          <p className="text-[10px] text-muted-foreground mb-1">Participant {i + 1}</p>
+                          <select className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none"
+                            value={baGroupClientIds[i] || ''}
+                            onChange={e => {
+                              const ids = [...baGroupClientIds]; const nms = [...baGroupNames]
+                              ids[i] = e.target.value
+                              nms[i] = baClients.find(c => c.id === e.target.value)?.displayName || ''
+                              setBaGroupClientIds(ids); setBaGroupNames(nms)
+                              setLabel(nms.filter(Boolean).join(' & '))
+                            }}>
+                            <option value="">Choisir un client…</option>
+                            {baClients.map(c => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Collectif */}
+                  {baSaleType === 'collectif' && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Nombre de participants (×N transactions)</p>
+                      <input type="number" inputMode="numeric" min="1"
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                        placeholder="ex: 8" value={baCollectifQty}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setBaCollectifQty(e.target.value)} />
+                    </div>
+                  )}
+
+                  {/* Offer picker grouped by theme */}
                   <div>
                     <p className="text-[10px] text-muted-foreground mb-1.5">Offre Business</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {businessOffers.map(offer => (
-                        <button
-                          key={offer.id}
-                          onClick={() => {
-                            setBaBusinessOfferId(baBusinessOfferId === offer.id ? '' : offer.id)
-                            if (offer.catalogPrice > 0) setBaCatalogPriceSnapshot(String(offer.catalogPrice))
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${baBusinessOfferId === offer.id ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40' : 'bg-muted/40 text-muted-foreground border border-border/30'}`}
-                        >
-                          {offer.name}
-                        </button>
-                      ))}
-                    </div>
+                    {Object.entries(offersByTheme).map(([themeName, { dot, offers: themeOffers }]) => (
+                      <div key={themeName} className="mb-2">
+                        <p className="text-[10px] text-muted-foreground/70 mb-1">{dot} {themeName}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {themeOffers.map(offer => {
+                            const dimmed = baSaleType === 'collectif' && themeName !== 'COLLECTIF'
+                            return (
+                              <button key={offer.id}
+                                onClick={() => {
+                                  setBaBusinessOfferId(baBusinessOfferId === offer.id ? '' : offer.id)
+                                  if (offer.catalogPrice > 0) setBaCatalogPriceSnapshot(String(offer.catalogPrice))
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                  baBusinessOfferId === offer.id
+                                    ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40'
+                                    : dimmed
+                                      ? 'bg-muted/20 text-muted-foreground/30 border border-border/10'
+                                      : 'bg-muted/40 text-muted-foreground border border-border/30'
+                                }`}>
+                                {offer.name}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
                   {/* Catalog price */}

@@ -21,6 +21,10 @@ export interface BASale {
   installment_number: number | null
   installment_total: number | null
   financesjm_tx_id: string | null
+  sale_type: 'individual' | 'duo' | 'trio' | 'collectif' | null
+  participant_count: number | null
+  is_sap: boolean
+  sap_hours: number | null
   offres?: { name: string; price: number } | null
 }
 
@@ -91,6 +95,10 @@ export function useBASync(): UseBASync {
         isInstallment: sale.is_installment ?? false,
         totalAmount: sale.total_amount ?? undefined,
         installmentLabel: sale.installment_label ?? undefined,
+        sale_type: sale.sale_type ?? 'individual',
+        participant_count: sale.participant_count ?? undefined,
+        is_sap: sale.is_sap ?? false,
+        sap_hours: sale.sap_hours ?? undefined,
       },
     }
 
