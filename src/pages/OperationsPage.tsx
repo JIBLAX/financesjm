@@ -791,8 +791,7 @@ export const OperationsPage: React.FC<Props> = ({
                           const total = beActivOffer.catalogPrice * Number(e.target.value)
                           setForm(f => ({ ...f, forecast: total, actual: total }))
                         }
-                        const label = beActivOffer ? `${beActivOffer.name} × ${e.target.value}` : `Collectif × ${e.target.value}`
-                        setForm(f => ({ ...f, label }))
+                        if (beActivOffer) setForm(f => ({ ...f, label: beActivOffer.name }))
                       }} />
                   )}
 
@@ -814,7 +813,7 @@ export const OperationsPage: React.FC<Props> = ({
                                   const total = offer.catalogPrice * qty
                                   setForm(f => ({ ...f, forecast: total, actual: total }))
                                   if (beActivSaleType === 'collectif')
-                                    setForm(f => ({ ...f, label: `${offer.name} × ${beActivCollectifQty}` }))
+                                    setForm(f => ({ ...f, label: offer.name }))
                                 }
                               }}
                               className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${
