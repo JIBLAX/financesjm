@@ -289,7 +289,8 @@ export const OperationsPage: React.FC<Props> = ({
   }
 
   const handleSave = () => {
-    if (!form.label.trim() || !form.categoryId) return
+    const isBeActivRevenu = isBeActivCat && form.family === 'revenu'
+    if ((!form.label.trim() && !isBeActivRevenu) || !form.categoryId) return
     // isTemplate: charges → driven by toggle, revenus → driven by revenuType
     const isTemplate = form.family !== 'revenu'
       ? form.isTemplate
@@ -641,7 +642,8 @@ export const OperationsPage: React.FC<Props> = ({
             </div>
 
             <div className="px-5 py-4 space-y-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))]">
-              {/* Label */}
+              {/* Label — masqué pour les revenus Be Activ (auto-généré) */}
+              {!(isBeActivCat && form.family === 'revenu') && (
               <div>
                 <label className="text-xs text-muted-foreground">Libellé *</label>
                 <input
@@ -651,6 +653,7 @@ export const OperationsPage: React.FC<Props> = ({
                   onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
                 />
               </div>
+              )}
 
               {/* Date */}
               <div>
@@ -782,7 +785,15 @@ export const OperationsPage: React.FC<Props> = ({
                     <input type="number" inputMode="numeric" min="1" placeholder="Nombre de participants"
                       className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
                       value={beActivCollectifQty} onFocus={e => e.target.select()}
-                      onChange={e => setBeActivCollectifQty(e.target.value)} />
+                      onChange={e => {
+                        setBeActivCollectifQty(e.target.value)
+                        if (beActivOffer?.catalogPrice && Number(e.target.value) > 0) {
+                          const total = beActivOffer.catalogPrice * Number(e.target.value)
+                          setForm(f => ({ ...f, forecast: total, actual: total }))
+                        }
+                        const label = beActivOffer ? `${beActivOffer.name} × ${e.target.value}` : `Collectif × ${e.target.value}`
+                        setForm(f => ({ ...f, label }))
+                      }} />
                   )}
 
                   {/* Offres groupées par thème */}
@@ -796,9 +807,15 @@ export const OperationsPage: React.FC<Props> = ({
                           return (
                             <button key={offer.id}
                               onClick={() => {
-                                setBeActivOffer(beActivOffer?.id === offer.id ? null : offer)
-                                if (offer.catalogPrice > 0 && beActivOffer?.id !== offer.id)
-                                  setForm(f => ({ ...f, forecast: offer.catalogPrice, actual: offer.catalogPrice }))
+                                const isDeselect = beActivOffer?.id === offer.id
+                                setBeActivOffer(isDeselect ? null : offer)
+                                if (!isDeselect && offer.catalogPrice > 0) {
+                                  const qty = beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || 1) : 1
+                                  const total = offer.catalogPrice * qty
+                                  setForm(f => ({ ...f, forecast: total, actual: total }))
+                                  if (beActivSaleType === 'collectif')
+                                    setForm(f => ({ ...f, label: `${offer.name} × ${beActivCollectifQty}` }))
+                                }
                               }}
                               className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${
                                 beActivOffer?.id === offer.id ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40'
@@ -984,7 +1001,7 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              <button onClick={handleSave} disabled={!form.label.trim() || !form.categoryId}
+              <button onClick={handleSave} disabled={(!form.label.trim() && !(isBeActivCat && form.family === 'revenu')) || !form.categoryId}
                 className={`w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-40 ${form.scope === 'perso' ? 'bg-cyan-500' : 'bg-violet-500'}`}>
                 {modal?.mode === 'add' ? 'Ajouter' : 'Enregistrer'}
               </button>
