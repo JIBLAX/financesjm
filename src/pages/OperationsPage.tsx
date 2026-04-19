@@ -305,9 +305,10 @@ export const OperationsPage: React.FC<Props> = ({
     const isBeActivRevenu = isBeActivCat && form.family === 'revenu'
     if (!form.categoryId) return
     if (!isBeActivRevenu && !form.label.trim()) return
-    if (isBeActivRevenu && !beActivOffer) return // offre obligatoire pour les ventes Be Activ
+    // Offre obligatoire uniquement en mode ajout (pas en modification d'une opération existante)
+    if (isBeActivRevenu && modal?.mode === 'add' && !beActivOffer) return
     // Label fallback : utilise le nom de l'offre si vide (collectif sans client sélectionné)
-    if (isBeActivRevenu && !form.label.trim()) setForm(f => ({ ...f, label: beActivOffer!.name }))
+    if (isBeActivRevenu && modal?.mode === 'add' && !form.label.trim() && beActivOffer) setForm(f => ({ ...f, label: beActivOffer.name }))
     // isTemplate: charges → driven by toggle, revenus → driven by revenuType
     const isTemplate = form.family !== 'revenu'
       ? form.isTemplate
@@ -1140,7 +1141,7 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              <button onClick={handleSave} disabled={!form.categoryId || (!form.label.trim() && !(isBeActivCat && form.family === 'revenu')) || (isBeActivCat && form.family === 'revenu' && !beActivOffer)}
+              <button onClick={handleSave} disabled={!form.categoryId || (!form.label.trim() && !(isBeActivCat && form.family === 'revenu')) || (isBeActivCat && form.family === 'revenu' && modal?.mode === 'add' && !beActivOffer)}
                 className={`w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-40 ${form.scope === 'perso' ? 'bg-cyan-500' : 'bg-violet-500'}`}>
                 {modal?.mode === 'add' ? 'Ajouter' : 'Enregistrer'}
               </button>
