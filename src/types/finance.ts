@@ -308,6 +308,8 @@ export interface Operation {
   tvaRate?: number         // TVA rate on pro revenue: 0.20 | 0.10 | 0.055 — undefined = pas de TVA
   clientName?: string      // kept for backwards compat — label is now the primary name
   date?: string            // ISO date string (optional, for individual op tracking)
+  beActivClientId?: string  // ID du client BE ACTIV sélectionné (restauré à l'édition)
+  beActivOfferId?: string   // ID de l'offre BE ACTIV sélectionnée (restauré à l'édition)
 }
 
 export interface OpCategory {

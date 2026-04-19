@@ -204,6 +204,12 @@ export const OperationsPage: React.FC<Props> = ({
       if (op.recurrenceMonths) { setRecurrenceMode('x_months'); setRecurrenceCount(op.recurrenceMonths) }
       else { setRecurrenceMode('indefinite') }
       setOpTvaRate(op.tvaRate === 0.20 ? '20' : op.tvaRate === 0.10 ? '10' : op.tvaRate === 0.055 ? '5.5' : 'none')
+      // Restaurer les états Be Activ si présents
+      if (op.beActivClientId) setBeActivClientId(op.beActivClientId)
+      if (op.beActivOfferId) {
+        const restoredOffer = businessOffers.find(o => o.id === op.beActivOfferId) ?? null
+        setBeActivOffer(restoredOffer)
+      }
     } else {
       setRevenuType('variable')
       setOpTvaRate('none')
@@ -322,7 +328,15 @@ export const OperationsPage: React.FC<Props> = ({
       ? (opTvaRate === '20' ? 0.20 : opTvaRate === '10' ? 0.10 : 0.055)
       : undefined
     const sourceType = form.family === 'revenu' ? (form.sourceType || 'bank') : undefined
-    const clean = { ...form, isTemplate, recurrenceMonths, tvaRate, sourceType, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined, accountId: form.accountId || undefined }
+    const clean = {
+      ...form,
+      isTemplate, recurrenceMonths, tvaRate, sourceType,
+      subcategoryId: form.subcategoryId || undefined,
+      note: form.note || undefined,
+      accountId: form.accountId || undefined,
+      beActivClientId: isBeActivRevenu ? (beActivClientId || undefined) : undefined,
+      beActivOfferId:  isBeActivRevenu ? (beActivOffer?.id || undefined) : undefined,
+    }
     if (modal?.mode === 'add') {
       const opId = `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
       const nbVersements = beActivOffer?.type === 'program' && Number(beActivNbVersements) > 1 ? Number(beActivNbVersements) : 1
