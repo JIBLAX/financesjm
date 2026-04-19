@@ -115,6 +115,7 @@ export const OperationsPage: React.FC<Props> = ({
   }
   const [showExportReview, setShowExportReview] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
+  const [baSyncError, setBaSyncError] = useState<string | null>(null)
   const [exportDone, setExportDone] = useState(false)
   const [candidates, setCandidates] = useState<ExportCandidate[]>([])
 
@@ -236,7 +237,7 @@ export const OperationsPage: React.FC<Props> = ({
     const beActivOps = store.operations.filter(op =>
       op.family === 'revenu' && beActivCatIds.includes(op.categoryId) && (op.actual || op.forecast)
     )
-    const { data: existing } = await supabase
+    const { data: existing } = await beActivClient
       .from('ba_sales').select('financesjm_tx_id')
       .in('financesjm_tx_id', beActivOps.map(op => op.id))
     const syncedIds = new Set((existing ?? []).map((r: any) => r.financesjm_tx_id))
@@ -271,16 +272,16 @@ export const OperationsPage: React.FC<Props> = ({
   const handleExport = async () => {
     setExportLoading(true)
     const toExport = candidates.filter(c => !c.skip && !c.alreadySynced)
-    const { data: userData } = await supabase.auth.getUser()
-    const uid = userData.user?.id || null
+    let exportFailed = false
     for (const c of toExport) {
       const offer = businessOffers.find(o => o.id === c.selectedOfferId)
       const client = baClients.find(cl => cl.id === c.selectedClientId)
-      await supabase.from('ba_sales').insert({
+      const { error } = await beActivClient.from('ba_sales').insert({
         client_name:        client?.displayName || c.op.label,
         client_id:          c.selectedClientId || null,
         offer_name:         offer?.name || c.subName || null,
         offer_id:           c.selectedOfferId || null,
+        catalog_price:      offer?.catalogPrice ?? null,
         category:           'coaching',
         amount:             c.op.actual || c.op.forecast || 0,
         date:               c.op.date || new Date().toISOString().split('T')[0],
@@ -290,9 +291,11 @@ export const OperationsPage: React.FC<Props> = ({
         installment_total:  1,
         status:             'recu',
         financesjm_tx_id:   c.op.id,
-        user_id:            uid,
       })
+      if (error) { console.error('[export ba_sales]', error.message); exportFailed = true }
     }
+    if (exportFailed) setBaSyncError('Certaines ventes n\'ont pas pu être synchronisées — réessaie.')
+    else setBaSyncError(null)
     setCandidates(prev => prev.map(c => ({ ...c, alreadySynced: true, skip: true })))
     setExportLoading(false)
     setExportDone(true)
@@ -300,7 +303,11 @@ export const OperationsPage: React.FC<Props> = ({
 
   const handleSave = () => {
     const isBeActivRevenu = isBeActivCat && form.family === 'revenu'
-    if ((!form.label.trim() && !isBeActivRevenu) || !form.categoryId) return
+    if (!form.categoryId) return
+    if (!isBeActivRevenu && !form.label.trim()) return
+    if (isBeActivRevenu && !beActivOffer) return // offre obligatoire pour les ventes Be Activ
+    // Label fallback : utilise le nom de l'offre si vide (collectif sans client sélectionné)
+    if (isBeActivRevenu && !form.label.trim()) setForm(f => ({ ...f, label: beActivOffer!.name }))
     // isTemplate: charges → driven by toggle, revenus → driven by revenuType
     const isTemplate = form.family !== 'revenu'
       ? form.isTemplate
@@ -355,7 +362,7 @@ export const OperationsPage: React.FC<Props> = ({
             date:               form.date || todayISO(),
             status:             'recu',
             is_installment:     nbVersements > 1,
-            total_amount:       nbVersements > 1 ? beActivOffer!.catalogPrice : null,
+            total_amount:       nbVersements > 1 ? (beActivOffer?.catalogPrice ?? null) : null,
             installment_number: 1,
             installment_total:  nbVersements,
             installment_label:  nbVersements > 1 ? `1/${nbVersements}` : null,
@@ -378,11 +385,11 @@ export const OperationsPage: React.FC<Props> = ({
               const clientName = beActivGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || form.label
               const id = i === 0 ? opId : `op_${Date.now()}_${i}`
               beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clientName, client_id: cid, financesjm_tx_id: id })
-                .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+                .then(({ error }) => { if (error) { console.error('[ba_sales]', error.message); setBaSyncError('Sync BA Business échouée — vérifie ta connexion.') } })
             })
           } else {
-            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label, client_id: beActivClientId || null, financesjm_tx_id: opId })
-              .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label || beActivOffer?.name || 'Be Activ', client_id: beActivClientId || null, financesjm_tx_id: opId })
+              .then(({ error }) => { if (error) { console.error('[ba_sales]', error.message); setBaSyncError('Sync BA Business échouée — vérifie ta connexion.') } })
           }
         }
       }
@@ -460,6 +467,13 @@ export const OperationsPage: React.FC<Props> = ({
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-4">
+      {/* Sync error banner */}
+      {baSyncError && (
+        <div className="mx-5 px-4 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-between gap-3">
+          <p className="text-xs text-rose-400">{baSyncError}</p>
+          <button onClick={() => setBaSyncError(null)} className="text-rose-400/60 text-xs shrink-0">✕</button>
+        </div>
+      )}
       {/* Header — title + action buttons */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Opérations</h1>
@@ -900,12 +914,12 @@ export const OperationsPage: React.FC<Props> = ({
                     <div className="space-y-1.5">
                       <label className="text-xs text-muted-foreground">Paiement</label>
                       <div className="flex gap-2">
-                        <button onClick={() => { setBeActivNbVersements(''); setBeActivDiscountType('none'); setBeActivDiscountValue(''); setForm(f => ({ ...f, forecast: beActivOffer!.catalogPrice, actual: beActivOffer!.catalogPrice })) }}
+                        <button onClick={() => { setBeActivNbVersements(''); setBeActivDiscountType('none'); setBeActivDiscountValue(''); setForm(f => ({ ...f, forecast: beActivOffer?.catalogPrice ?? 0, actual: beActivOffer?.catalogPrice ?? 0 })) }}
                           className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${!beActivNbVersements ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
                           1 fois · {beActivOffer.catalogPrice}€
                         </button>
                         {beActivOffer.maxInstallments && beActivOffer.maxInstallments > 1 && (
-                          <button onClick={() => { const nbV = beActivOffer!.maxInstallments!; setBeActivNbVersements(String(nbV)); setBeActivDiscountType('none'); setBeActivDiscountValue(''); setForm(f => ({ ...f, forecast: +(beActivOffer!.catalogPrice / nbV).toFixed(2), actual: +(beActivOffer!.catalogPrice / nbV).toFixed(2) })) }}
+                          <button onClick={() => { const nbV = beActivOffer?.maxInstallments ?? 1; setBeActivNbVersements(String(nbV)); setBeActivDiscountType('none'); setBeActivDiscountValue(''); const price = beActivOffer?.catalogPrice ?? 0; setForm(f => ({ ...f, forecast: +(price / nbV).toFixed(2), actual: +(price / nbV).toFixed(2) })) }}
                             className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${beActivNbVersements ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
                             {beActivOffer.maxInstallments}× · {(beActivOffer.catalogPrice / beActivOffer.maxInstallments).toFixed(0)}€/mois
                           </button>
@@ -1126,7 +1140,7 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
               )}
 
-              <button onClick={handleSave} disabled={(!form.label.trim() && !(isBeActivCat && form.family === 'revenu')) || !form.categoryId}
+              <button onClick={handleSave} disabled={!form.categoryId || (!form.label.trim() && !(isBeActivCat && form.family === 'revenu')) || (isBeActivCat && form.family === 'revenu' && !beActivOffer)}
                 className={`w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-40 ${form.scope === 'perso' ? 'bg-cyan-500' : 'bg-violet-500'}`}>
                 {modal?.mode === 'add' ? 'Ajouter' : 'Enregistrer'}
               </button>

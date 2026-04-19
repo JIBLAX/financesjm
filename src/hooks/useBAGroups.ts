@@ -11,6 +11,7 @@ export interface BAGroup {
 export function useBAGroups() {
   const [groups, setGroups] = useState<BAGroup[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -19,8 +20,10 @@ export function useBAGroups() {
       .not('group_id', 'is', null)
       .eq('is_client', true)
       .order('name', { ascending: true })
-      .then(({ data, error }) => {
-        if (error || !data) { setLoading(false); return }
+      .then(({ data, error: err }) => {
+        if (err) { console.error('[useBAGroups]', err.message); setError('Impossible de charger les groupes'); setLoading(false); return }
+        setError(null)
+        if (!data) { setLoading(false); return }
         const byGroup = new Map<string, BAGroup>()
         ;(data as any[]).forEach(c => {
           const gid = String(c.group_id ?? '')
@@ -48,5 +51,5 @@ export function useBAGroups() {
       })
   }, [])
 
-  return { groups, loading }
+  return { groups, loading, error }
 }

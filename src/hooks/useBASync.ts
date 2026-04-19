@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '@/integrations/supabase/client'
-import type { FinanceStore, Transaction } from '@/types/finance'
+import type { FinanceStore, Transaction, BeActivChannel, BeActivPaymentMode, BeActivStatus } from '@/types/finance'
 
 export interface BASale {
   id: string
@@ -89,9 +89,9 @@ export function useBASync(): UseBASync {
         catalog_price_snapshot: sale.catalog_price ?? undefined,
         actual_amount: sale.amount,
         needs_review: !sale.offer_id,
-        channel: (sale.channel as any) || '',
-        paymentMode: (sale.payment_mode as any) || '',
-        status: (sale.status as any) || 'recu',
+        channel: (sale.channel as BeActivChannel) || '',
+        paymentMode: (sale.payment_mode as BeActivPaymentMode) || '',
+        status: (sale.status as BeActivStatus) || 'recu',
         isInstallment: sale.is_installment ?? false,
         totalAmount: sale.total_amount ?? undefined,
         installmentLabel: sale.installment_label ?? undefined,

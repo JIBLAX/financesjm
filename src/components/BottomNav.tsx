@@ -16,7 +16,7 @@ export const BottomNav: React.FC = () => {
   const navigate = useNavigate()
 
   // Secondary pages that belong to the "Plus" tab
-  const PLUS_ROUTES = ['/comptes', '/transactions', '/depenses', '/export', '/parametres', '/profil', '/questionnaire', '/liberte2', '/trajectoire', '/objectifs', '/historique', '/plan', '/analyse']
+  const PLUS_ROUTES = ['/comptes', '/transactions', '/export', '/parametres', '/profil', '/questionnaire', '/liberte2', '/trajectoire', '/objectifs', '/historique', '/plan', '/analyse']
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/'

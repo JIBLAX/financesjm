@@ -46,7 +46,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   allocationRules: DEFAULT_ALLOCATION_RULES,
   investorProfile: null,
   investorQuestionnaire: DEFAULT_INVESTOR_QUESTIONNAIRE,
-  activeScenario: null,
   level: 1, xp: 0,
   profileRegulation: DEFAULT_PROFILE_REGULATION,
   beActivConnection: 'not_connected',

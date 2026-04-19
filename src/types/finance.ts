@@ -31,8 +31,6 @@ export type BaSaleType = 'individual' | 'groupe' | 'collectif'
 
 export interface BeActivDetails {
   client: string
-  /** @deprecated Use business_offer_id instead — kept for backward compat */
-  offer?: BeActivOffer | ''
   // ── Business catalog linkage ───────────────────────────────────────────────
   business_offer_id?: string       // Offer ID from BE ACTIV Business catalog
   business_offer_name?: string     // Name snapshot at time of sale
@@ -266,7 +264,6 @@ export interface AppSettings {
   allocationRules: AllocationRules
   investorProfile: InvestorProfile
   investorQuestionnaire: InvestorQuestionnaire
-  activeScenario: null // simplified, no more 1M scenarios
   level: number
   xp: number
   profileRegulation: ProfileRegulation

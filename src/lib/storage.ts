@@ -49,7 +49,6 @@ export function loadStore(): FinanceStore {
         investorQuestionnaire: { ...defaults.settings.investorQuestionnaire, ...(parsed.settings?.investorQuestionnaire || {}) },
         profileRegulation: { ...DEFAULT_PROFILE_REGULATION, ...(parsed.settings?.profileRegulation || {}) },
         beActivConnection: parsed.settings?.beActivConnection || 'not_connected',
-        activeScenario: null,
       },
       quests: parsed.quests?.length
         ? parsed.quests.filter((q: any) => q.category !== 'liberte3')

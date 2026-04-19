@@ -19,6 +19,7 @@ export interface BAClient {
 export function useBAClients() {
   const [clients, setClients] = useState<BAClient[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -26,12 +27,14 @@ export function useBAClients() {
       .select('*')
       .eq('is_client', true)
       .order('name', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('[useBAClients]', error.message, error.code)
+      .then(({ data, error: err }) => {
+        if (err) {
+          console.error('[useBAClients]', err.message, err.code)
+          setError('Impossible de charger les clients BE ACTIV')
           setLoading(false)
           return
         }
+        setError(null)
         setClients(
           ((data ?? []) as any[]).map(c => {
             const prenom      = c.prenom ?? c.Prenom ?? c['Prénom'] ?? ''
@@ -58,5 +61,5 @@ export function useBAClients() {
       })
   }, [])
 
-  return { clients, loading }
+  return { clients, loading, error }
 }

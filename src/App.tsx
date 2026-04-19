@@ -18,7 +18,6 @@ import { AccountsPage } from '@/pages/AccountsPage'
 import { PatrimoinePage } from '@/pages/PatrimoinePage'
 import { MorePage } from '@/pages/MorePage'
 import { TransactionsPage } from '@/pages/TransactionsPage'
-import { ExpensesPage } from '@/pages/ExpensesPage'
 import { ExportPage } from '@/pages/ExportPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { AnalysisPage } from '@/pages/AnalysisPage'
@@ -162,7 +161,6 @@ const App: React.FC = () => {
               <Route path="/plus" element={<MorePage />} />
               <Route path="/transactions" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} onUpdateAsset={finance.updateAsset} />} />
               <Route path="/transactions/new" element={<TransactionsPage store={store} onAdd={finance.addTransaction} onDelete={finance.deleteTransaction} onUpdateAsset={finance.updateAsset} />} />
-              <Route path="/depenses" element={<ExpensesPage store={store} />} />
               <Route path="/export" element={<ExportPage onImport={handleImport} onReset={handleReset} />} />
               <Route path="/parametres" element={<SettingsPage store={store} onUpdate={finance.updateSettings} onUpdateRegulation={finance.updateProfileRegulation} onLock={handleLock} onSignOut={handleSignOut} />} />
               <Route path="/profil" element={<ProfilePage store={store} onUpdateRegulation={finance.updateProfileRegulation} onUpdateSettings={finance.updateSettings} />} />
