@@ -97,6 +97,8 @@ export const OperationsPage: React.FC<Props> = ({
   const [beActivCollectifQty, setBeActivCollectifQty] = useState('1')
   const [beActivNbSeances, setBeActivNbSeances] = useState('1')
   const [beActivNbVersements, setBeActivNbVersements] = useState('')
+  const [beActivDiscountType, setBeActivDiscountType] = useState<'none' | 'euro' | 'percent'>('none')
+  const [beActivDiscountValue, setBeActivDiscountValue] = useState('')
   const [beActivSap, setBeActivSap] = useState(false)
   const [beActivSapHours, setBeActivSapHours] = useState('')
 
@@ -213,7 +215,8 @@ export const OperationsPage: React.FC<Props> = ({
     setRevenuType('variable'); setRecurrenceMode('indefinite'); setRecurrenceCount(3); setOpTvaRate('none')
     setBeActivOffer(null); setBeActivClientId('')
     setBeActivSaleType('individual'); setBeActivGroupClientIds(['', '']); setBeActivGroupNames(['', ''])
-    setBeActivSelectedGroupId(''); setBeActivCollectifQty('1'); setBeActivNbSeances('1'); setBeActivNbVersements(''); setBeActivSap(false); setBeActivSapHours('')
+    setBeActivSelectedGroupId(''); setBeActivCollectifQty('1'); setBeActivNbSeances('1'); setBeActivNbVersements('')
+    setBeActivDiscountType('none'); setBeActivDiscountValue(''); setBeActivSap(false); setBeActivSapHours('')
   }
 
   const changeFormScope = (newScope: ScopeTab) => {
@@ -334,11 +337,21 @@ export const OperationsPage: React.FC<Props> = ({
         if (isBeActiv) {
           const amt = clean.actual || clean.forecast || 0
           const participantCount = beActivSaleType === 'groupe' ? beActivGroupClientIds.filter(Boolean).length || 2 : beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || null) : 1
+          const catalogSnapshot = beActivOffer?.catalogPrice ?? null
+          const discountAmt = beActivDiscountType !== 'none' && beActivDiscountValue
+            ? +(beActivDiscountType === 'euro'
+                ? Number(beActivDiscountValue)
+                : calcBaseAmount() * Number(beActivDiscountValue) / 100
+              ).toFixed(2)
+            : null
           const baseSale = {
             offer_name:         beActivOffer?.name || null,
             offer_id:           beActivOffer?.id || null,
             category:           'coaching',
             amount:             amt,
+            catalog_price:      catalogSnapshot,
+            discount_amount:    discountAmt,
+            discount_percent:   beActivDiscountType === 'percent' && beActivDiscountValue ? Number(beActivDiscountValue) : null,
             date:               form.date || todayISO(),
             status:             'recu',
             is_installment:     nbVersements > 1,
@@ -380,6 +393,18 @@ export const OperationsPage: React.FC<Props> = ({
   }
 
   const hasFiscalTva = FISCAL_CONFIGS[store.settings.fiscalStatus ?? 'micro_bnc'].tva
+
+  const calcBaseAmount = () => {
+    if (!beActivOffer) return 0
+    if (beActivOffer.type === 'sessions') return beActivOffer.catalogPrice * (Number(beActivNbSeances) || 1)
+    const nbV = Number(beActivNbVersements) || 1
+    return nbV > 1 ? +(beActivOffer.catalogPrice / nbV).toFixed(2) : beActivOffer.catalogPrice
+  }
+
+  const applyDiscount = (base: number, type: 'euro' | 'percent', val: string) => {
+    const v = Number(val) || 0
+    return type === 'euro' ? Math.max(0, +(base - v).toFixed(2)) : Math.max(0, +(base * (1 - v / 100)).toFixed(2))
+  }
 
   const handleDelete = (id: string) => {
     if (deleteConfirm === id) { onRemove(id); setDeleteConfirm(null) }
@@ -822,6 +847,7 @@ export const OperationsPage: React.FC<Props> = ({
                               onClick={() => {
                                 const isDeselect = beActivOffer?.id === offer.id
                                 setBeActivOffer(isDeselect ? null : offer)
+                                setBeActivDiscountType('none'); setBeActivDiscountValue('')
                                 if (!isDeselect) {
                                   const labelPatch = beActivSaleType === 'collectif' ? { label: offer.name } : {}
                                   if (offer.type === 'sessions' && offer.catalogPrice > 0) {
@@ -856,6 +882,7 @@ export const OperationsPage: React.FC<Props> = ({
                         value={beActivNbSeances} onFocus={e => e.target.select()}
                         onChange={e => {
                           setBeActivNbSeances(e.target.value)
+                          setBeActivDiscountType('none'); setBeActivDiscountValue('')
                           const nb = Math.max(1, Number(e.target.value) || 1)
                           if (beActivOffer.catalogPrice > 0)
                             setForm(f => ({ ...f, forecast: beActivOffer.catalogPrice * nb, actual: beActivOffer.catalogPrice * nb }))
@@ -873,12 +900,12 @@ export const OperationsPage: React.FC<Props> = ({
                     <div className="space-y-1.5">
                       <label className="text-xs text-muted-foreground">Paiement</label>
                       <div className="flex gap-2">
-                        <button onClick={() => { setBeActivNbVersements(''); setForm(f => ({ ...f, forecast: beActivOffer!.catalogPrice, actual: beActivOffer!.catalogPrice })) }}
+                        <button onClick={() => { setBeActivNbVersements(''); setBeActivDiscountType('none'); setBeActivDiscountValue(''); setForm(f => ({ ...f, forecast: beActivOffer!.catalogPrice, actual: beActivOffer!.catalogPrice })) }}
                           className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${!beActivNbVersements ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
                           1 fois · {beActivOffer.catalogPrice}€
                         </button>
                         {beActivOffer.maxInstallments && beActivOffer.maxInstallments > 1 && (
-                          <button onClick={() => { const nbV = beActivOffer!.maxInstallments!; setBeActivNbVersements(String(nbV)); setForm(f => ({ ...f, forecast: +(beActivOffer!.catalogPrice / nbV).toFixed(2), actual: +(beActivOffer!.catalogPrice / nbV).toFixed(2) })) }}
+                          <button onClick={() => { const nbV = beActivOffer!.maxInstallments!; setBeActivNbVersements(String(nbV)); setBeActivDiscountType('none'); setBeActivDiscountValue(''); setForm(f => ({ ...f, forecast: +(beActivOffer!.catalogPrice / nbV).toFixed(2), actual: +(beActivOffer!.catalogPrice / nbV).toFixed(2) })) }}
                             className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${beActivNbVersements ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
                             {beActivOffer.maxInstallments}× · {(beActivOffer.catalogPrice / beActivOffer.maxInstallments).toFixed(0)}€/mois
                           </button>
@@ -888,6 +915,41 @@ export const OperationsPage: React.FC<Props> = ({
                         <p className="text-xs text-muted-foreground/60">
                           {(beActivOffer.catalogPrice / Number(beActivNbVersements)).toFixed(0)}€/mois × {beActivNbVersements} mois = {beActivOffer.catalogPrice}€ total — reporté sur {beActivNbVersements} mois
                         </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Réduction */}
+                  {beActivOffer && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">Réduction (optionnel)</label>
+                      <div className="flex gap-1.5">
+                        {(['none', 'euro', 'percent'] as const).map(t => (
+                          <button key={t} onClick={() => {
+                            setBeActivDiscountType(t); setBeActivDiscountValue('')
+                            if (t === 'none') { const b = calcBaseAmount(); setForm(f => ({ ...f, actual: b, forecast: b })) }
+                          }} className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${beActivDiscountType === t ? 'bg-rose-500/30 text-rose-300 border border-rose-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
+                            {t === 'none' ? 'Aucune' : t === 'euro' ? '− €' : '− %'}
+                          </button>
+                        ))}
+                      </div>
+                      {beActivDiscountType !== 'none' && (
+                        <>
+                          <input type="number" inputMode="decimal" min="0"
+                            placeholder={beActivDiscountType === 'euro' ? 'Montant de la réduction €' : 'Pourcentage de réduction %'}
+                            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                            value={beActivDiscountValue} onFocus={e => e.target.select()}
+                            onChange={e => {
+                              setBeActivDiscountValue(e.target.value)
+                              const discounted = applyDiscount(calcBaseAmount(), beActivDiscountType, e.target.value)
+                              setForm(f => ({ ...f, actual: discounted, forecast: discounted }))
+                            }} />
+                          {beActivDiscountValue && (
+                            <p className="text-xs text-muted-foreground/60">
+                              {calcBaseAmount().toFixed(0)}€ {beActivDiscountType === 'euro' ? `− ${beActivDiscountValue}€` : `− ${beActivDiscountValue}%`} → <span className="text-rose-400 font-semibold">{applyDiscount(calcBaseAmount(), beActivDiscountType, beActivDiscountValue).toFixed(0)}€</span>
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
