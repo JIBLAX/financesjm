@@ -38,6 +38,11 @@ const FAMILY_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
 type ModalState = { mode: 'add' } | { mode: 'edit'; op: Operation } | { mode: 'cat_manage' } | null
 
 const todayISO = () => new Date().toISOString().split('T')[0]
+function shiftMonthKey(mk: string, months: number): string {
+  const [y, m] = mk.split('-').map(Number)
+  const d = new Date(y, m - 1 + months, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 
 function emptyForm(family: OperationFamily, scope: ScopeTab, monthKey: string): Omit<Operation, 'id'> {
@@ -90,6 +95,8 @@ export const OperationsPage: React.FC<Props> = ({
   const [beActivGroupNames, setBeActivGroupNames] = useState<string[]>(['', ''])
   const [beActivSelectedGroupId, setBeActivSelectedGroupId] = useState('')
   const [beActivCollectifQty, setBeActivCollectifQty] = useState('1')
+  const [beActivNbSeances, setBeActivNbSeances] = useState('1')
+  const [beActivNbVersements, setBeActivNbVersements] = useState('')
   const [beActivSap, setBeActivSap] = useState(false)
   const [beActivSapHours, setBeActivSapHours] = useState('')
 
@@ -206,7 +213,7 @@ export const OperationsPage: React.FC<Props> = ({
     setRevenuType('variable'); setRecurrenceMode('indefinite'); setRecurrenceCount(3); setOpTvaRate('none')
     setBeActivOffer(null); setBeActivClientId('')
     setBeActivSaleType('individual'); setBeActivGroupClientIds(['', '']); setBeActivGroupNames(['', ''])
-    setBeActivSelectedGroupId(''); setBeActivCollectifQty('1'); setBeActivSap(false); setBeActivSapHours('')
+    setBeActivSelectedGroupId(''); setBeActivCollectifQty('1'); setBeActivNbSeances('1'); setBeActivNbVersements(''); setBeActivSap(false); setBeActivSapHours('')
   }
 
   const changeFormScope = (newScope: ScopeTab) => {
@@ -307,15 +314,26 @@ export const OperationsPage: React.FC<Props> = ({
     const clean = { ...form, isTemplate, recurrenceMonths, tvaRate, sourceType, subcategoryId: form.subcategoryId || undefined, note: form.note || undefined, accountId: form.accountId || undefined }
     if (modal?.mode === 'add') {
       const opId = `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-      onAdd({ ...clean, id: opId })
+      const nbVersements = beActivOffer?.type === 'program' && Number(beActivNbVersements) > 1 ? Number(beActivNbVersements) : 1
+
+      // For program installments: create N operations spread across months
+      if (nbVersements > 1) {
+        for (let i = 0; i < nbVersements; i++) {
+          const mKey = shiftMonthKey(clean.monthKey, i)
+          const installId = i === 0 ? opId : `op_${Date.now()}_v${i}_${Math.random().toString(36).slice(2, 5)}`
+          onAdd({ ...clean, id: installId, monthKey: mKey })
+        }
+      } else {
+        onAdd({ ...clean, id: opId })
+      }
 
       // Write to shared ba_sales if this is a Be Activ revenue (fire-and-forget)
       if (form.family === 'revenu') {
         const selectedCat = store.opCategories.find(c => c.id === form.categoryId)
         const isBeActiv = selectedCat?.name.toLowerCase().includes('be activ') || selectedCat?.name.toLowerCase().includes('beactiv')
         if (isBeActiv) {
-          const amt = form.actual || form.forecast || 0
-          const participantCount = beActivSaleType === 'groupe' ? beActivGroupClientIds.filter(Boolean).length || 2 : beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || 1) : 1
+          const amt = clean.actual || clean.forecast || 0
+          const participantCount = beActivSaleType === 'groupe' ? beActivGroupClientIds.filter(Boolean).length || 2 : beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || null) : 1
           const baseSale = {
             offer_name:         beActivOffer?.name || null,
             offer_id:           beActivOffer?.id || null,
@@ -323,9 +341,11 @@ export const OperationsPage: React.FC<Props> = ({
             amount:             amt,
             date:               form.date || todayISO(),
             status:             'recu',
-            is_installment:     false,
+            is_installment:     nbVersements > 1,
+            total_amount:       nbVersements > 1 ? beActivOffer!.catalogPrice : null,
             installment_number: 1,
-            installment_total:  1,
+            installment_total:  nbVersements,
+            installment_label:  nbVersements > 1 ? `1/${nbVersements}` : null,
             payment_mode:       form.sourceType === 'cash' ? 'especes' : 'virement',
             sale_type:          beActivSaleType,
             participant_count:  participantCount,
@@ -333,10 +353,11 @@ export const OperationsPage: React.FC<Props> = ({
             sap_hours:          beActivSap && beActivSapHours ? Number(beActivSapHours) : null,
           }
           if (beActivSaleType === 'collectif') {
-            const qty = Math.max(1, Number(beActivCollectifQty) || 1)
-            for (let i = 0; i < qty; i++) {
-              const id = i === 0 ? opId : `op_${Date.now()}_${i}`
-              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label, client_id: null, financesjm_tx_id: id })
+            // 1 ba_sale per session
+            const nbS = Math.max(1, Number(beActivNbSeances) || 1)
+            for (let i = 0; i < nbS; i++) {
+              const id = i === 0 ? opId : `op_${Date.now()}_s${i}`
+              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label, client_id: null, financesjm_tx_id: id, amount: beActivOffer?.catalogPrice ?? amt })
                 .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
             }
           } else if (beActivSaleType === 'groupe') {
@@ -785,14 +806,7 @@ export const OperationsPage: React.FC<Props> = ({
                     <input type="number" inputMode="numeric" min="1" placeholder="Nombre de participants"
                       className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
                       value={beActivCollectifQty} onFocus={e => e.target.select()}
-                      onChange={e => {
-                        setBeActivCollectifQty(e.target.value)
-                        if (beActivOffer?.catalogPrice && Number(e.target.value) > 0) {
-                          const total = beActivOffer.catalogPrice * Number(e.target.value)
-                          setForm(f => ({ ...f, forecast: total, actual: total }))
-                        }
-                        if (beActivOffer) setForm(f => ({ ...f, label: beActivOffer.name }))
-                      }} />
+                      onChange={e => setBeActivCollectifQty(e.target.value)} />
                   )}
 
                   {/* Offres groupées par thème */}
@@ -808,12 +822,17 @@ export const OperationsPage: React.FC<Props> = ({
                               onClick={() => {
                                 const isDeselect = beActivOffer?.id === offer.id
                                 setBeActivOffer(isDeselect ? null : offer)
-                                if (!isDeselect && offer.catalogPrice > 0) {
-                                  const qty = beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || 1) : 1
-                                  const total = offer.catalogPrice * qty
-                                  setForm(f => ({ ...f, forecast: total, actual: total }))
-                                  if (beActivSaleType === 'collectif')
-                                    setForm(f => ({ ...f, label: offer.name }))
+                                if (!isDeselect) {
+                                  const labelPatch = beActivSaleType === 'collectif' ? { label: offer.name } : {}
+                                  if (offer.type === 'sessions' && offer.catalogPrice > 0) {
+                                    const nb = Number(beActivNbSeances) || 1
+                                    setForm(f => ({ ...f, forecast: offer.catalogPrice * nb, actual: offer.catalogPrice * nb, ...labelPatch }))
+                                  } else if (offer.type === 'program') {
+                                    const nbV = offer.maxInstallments && offer.maxInstallments > 1 ? offer.maxInstallments : 1
+                                    setBeActivNbVersements(nbV > 1 ? String(nbV) : '')
+                                    const perMonth = nbV > 1 ? offer.catalogPrice / nbV : offer.catalogPrice
+                                    setForm(f => ({ ...f, forecast: perMonth, actual: perMonth, ...labelPatch }))
+                                  }
                                 }
                               }}
                               className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${
@@ -827,6 +846,51 @@ export const OperationsPage: React.FC<Props> = ({
                       </div>
                     </div>
                   ))}
+
+                  {/* Sessions — nb séances */}
+                  {beActivOffer?.type === 'sessions' && (
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Nombre de séances</label>
+                      <input type="number" inputMode="numeric" min="1" placeholder="Ex: 4"
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                        value={beActivNbSeances} onFocus={e => e.target.select()}
+                        onChange={e => {
+                          setBeActivNbSeances(e.target.value)
+                          const nb = Math.max(1, Number(e.target.value) || 1)
+                          if (beActivOffer.catalogPrice > 0)
+                            setForm(f => ({ ...f, forecast: beActivOffer.catalogPrice * nb, actual: beActivOffer.catalogPrice * nb }))
+                        }} />
+                      {beActivOffer.catalogPrice > 0 && (
+                        <p className="text-xs text-muted-foreground/60">
+                          {beActivOffer.catalogPrice}€ × {beActivNbSeances || 1} séance(s) = {(beActivOffer.catalogPrice * (Number(beActivNbSeances) || 1)).toFixed(0)}€
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Programme — versements */}
+                  {beActivOffer?.type === 'program' && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">Paiement</label>
+                      <div className="flex gap-2">
+                        <button onClick={() => { setBeActivNbVersements(''); setForm(f => ({ ...f, forecast: beActivOffer!.catalogPrice, actual: beActivOffer!.catalogPrice })) }}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${!beActivNbVersements ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
+                          1 fois · {beActivOffer.catalogPrice}€
+                        </button>
+                        {beActivOffer.maxInstallments && beActivOffer.maxInstallments > 1 && (
+                          <button onClick={() => { const nbV = beActivOffer!.maxInstallments!; setBeActivNbVersements(String(nbV)); setForm(f => ({ ...f, forecast: +(beActivOffer!.catalogPrice / nbV).toFixed(2), actual: +(beActivOffer!.catalogPrice / nbV).toFixed(2) })) }}
+                            className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${beActivNbVersements ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
+                            {beActivOffer.maxInstallments}× · {(beActivOffer.catalogPrice / beActivOffer.maxInstallments).toFixed(0)}€/mois
+                          </button>
+                        )}
+                      </div>
+                      {beActivNbVersements && (
+                        <p className="text-xs text-muted-foreground/60">
+                          {(beActivOffer.catalogPrice / Number(beActivNbVersements)).toFixed(0)}€/mois × {beActivNbVersements} mois = {beActivOffer.catalogPrice}€ total — reporté sur {beActivNbVersements} mois
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
