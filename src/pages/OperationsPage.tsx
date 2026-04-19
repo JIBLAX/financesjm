@@ -855,13 +855,7 @@ export const OperationsPage: React.FC<Props> = ({
                     </>
                   )}
 
-                  {/* Collectif */}
-                  {beActivSaleType === 'collectif' && (
-                    <input type="number" inputMode="numeric" min="1" placeholder="Nombre de participants"
-                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                      value={beActivCollectifQty} onFocus={e => e.target.select()}
-                      onChange={e => setBeActivCollectifQty(e.target.value)} />
-                  )}
+                  {/* Collectif — pas de sélecteur de participants */}
 
                   {/* Offres groupées par thème */}
                   <label className="text-xs text-muted-foreground">Offre BE ACTIV</label>
@@ -905,7 +899,7 @@ export const OperationsPage: React.FC<Props> = ({
                   {/* Sessions — nb séances */}
                   {beActivOffer?.type === 'sessions' && (
                     <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Nombre de séances</label>
+                      <label className="text-xs text-muted-foreground">Séances réservées</label>
                       <input type="number" inputMode="numeric" min="1" placeholder="Ex: 4"
                         className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
                         value={beActivNbSeances} onFocus={e => e.target.select()}
