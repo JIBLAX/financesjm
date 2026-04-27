@@ -193,7 +193,8 @@ export const OperationsPage: React.FC<Props> = ({
     setScope(s)
     const base = emptyForm(family, s, monthKey)
     const accountId = getDefaultAccountId(s)
-    setForm(pending?.categoryId ? { ...base, categoryId: pending.categoryId, accountId } : { ...base, accountId })
+    const categoryId = pending?.categoryId || (s === 'pro' && family === 'revenu' ? 'opc_r_be_activ' : '')
+    setForm({ ...base, categoryId, accountId })
     setModal({ mode: 'add' })
   }
 
@@ -227,7 +228,8 @@ export const OperationsPage: React.FC<Props> = ({
   }
 
   const changeFormScope = (newScope: ScopeTab) => {
-    setForm(f => ({ ...f, scope: newScope, categoryId: '', subcategoryId: '' }))
+    const autocat = (newScope === 'pro' && form.family === 'revenu') ? 'opc_r_be_activ' : ''
+    setForm(f => ({ ...f, scope: newScope, categoryId: autocat, subcategoryId: '' }))
   }
 
   const normalizeStr = (s: string) =>
@@ -355,7 +357,7 @@ export const OperationsPage: React.FC<Props> = ({
       // Write to shared ba_sales if this is a Be Activ revenue (fire-and-forget)
       if (form.family === 'revenu') {
         const selectedCat = store.opCategories.find(c => c.id === form.categoryId)
-        const isBeActiv = selectedCat?.name.toLowerCase().includes('be activ') || selectedCat?.name.toLowerCase().includes('beactiv')
+        const isBeActiv = selectedCat?.id === 'opc_r_be_activ'
         if (isBeActiv) {
           const amt = clean.actual || clean.forecast || 0
           const participantCount = beActivSaleType === 'groupe' ? beActivGroupClientIds.filter(Boolean).length || 2 : beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || null) : 1
@@ -455,18 +457,11 @@ export const OperationsPage: React.FC<Props> = ({
   }, [businessOffers])
   const isPerso  = scope === 'perso'
 
-  const beActivOpsExist = useMemo(() => {
-    const ids = store.opCategories
-      .filter(c => { const n = c.name.toLowerCase(); return n.includes('be activ') || n.includes('beactiv') })
-      .map(c => c.id)
-    return store.operations.some(op => op.family === 'revenu' && ids.includes(op.categoryId))
-  }, [store.opCategories, store.operations])
+  const beActivOpsExist = useMemo(() =>
+    store.operations.some(op => op.family === 'revenu' && op.categoryId === 'opc_r_be_activ'),
+  [store.operations])
 
-  const isBeActivCat = useMemo(() => {
-    const cat = store.opCategories.find(c => c.id === form.categoryId)
-    const name = cat?.name.toLowerCase() || ''
-    return name.includes('be activ') || name.includes('beactiv')
-  }, [store.opCategories, form.categoryId])
+  const isBeActivCat = useMemo(() => form.categoryId === 'opc_r_be_activ', [form.categoryId])
 
   const formCategories = useMemo(
     () => store.opCategories
@@ -552,7 +547,7 @@ export const OperationsPage: React.FC<Props> = ({
           className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 active:bg-blue-500/20"
         >
           <Upload className="w-3.5 h-3.5 shrink-0" />
-          <span>Synchroniser l'historique JM | Be Activ → BA Business</span>
+          <span>Synchroniser l'historique coaching → BA Business</span>
         </button>
       )}
 
@@ -591,7 +586,7 @@ export const OperationsPage: React.FC<Props> = ({
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <div className="flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isRevenu ? '#10b981' : '#ef4444' }} />
-                                <span className="text-[10px] text-muted-foreground">{cat.icon} {cat.name}</span>
+                                <span className="text-[10px] text-muted-foreground">{cat.icon} {cat.id === 'opc_r_be_activ' ? 'Coaching' : cat.name}</span>
                               </div>
                               {sub && <span className="text-[10px] text-muted-foreground/70">{sub.icon} {sub.name}</span>}
                               {op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
@@ -752,22 +747,122 @@ export const OperationsPage: React.FC<Props> = ({
               </div>
 
               {/* Category */}
-              <div>
-                <label className="text-xs text-muted-foreground">Catégorie *</label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {formCategories.map(cat => (
-                    <button key={cat.id} onClick={() => setForm(f => ({ ...f, categoryId: cat.id, subcategoryId: '' }))}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.categoryId === cat.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                      {cat.icon} {cat.name}
-                    </button>
-                  ))}
+              {(isBeActivCat && form.family === 'revenu') ? (
+                formCategories.filter(c => c.id !== 'opc_r_be_activ').length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap shrink-0">Autre nature :</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {formCategories.filter(c => c.id !== 'opc_r_be_activ').map(cat => (
+                        <button key={cat.id} onClick={() => { setForm(f => ({ ...f, categoryId: cat.id, subcategoryId: '' })); setBeActivOffer(null) }}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-muted/30 text-muted-foreground">
+                          {cat.icon} {cat.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div>
+                  <label className="text-xs text-muted-foreground">Catégorie *</label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {formCategories.map(cat => (
+                      <button key={cat.id} onClick={() => setForm(f => ({ ...f, categoryId: cat.id, subcategoryId: '' }))}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.categoryId === cat.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                        {cat.icon} {cat.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* BE ACTIV — mode selector + client/groupe/collectif + offres groupées */}
+              {/* Revenus coaching */}
               {isBeActivCat && form.family === 'revenu' && (
                 <div className="space-y-2">
-                  {/* Mode */}
+                  {/* Offres — sélection directe */}
+                  {Object.entries(offersByTheme).map(([themeName, { dot, offers: themeOffers }]) => (
+                    <div key={themeName}>
+                      <p className="text-[10px] text-muted-foreground/70 mb-1">{dot} {themeName}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {themeOffers.map(offer => {
+                          const dimmed = beActivSaleType === 'collectif' && themeName !== 'COLLECTIF'
+                          return (
+                            <button key={offer.id}
+                              onClick={() => {
+                                const isDeselect = beActivOffer?.id === offer.id
+                                setBeActivOffer(isDeselect ? null : offer)
+                                setBeActivDiscountType('none'); setBeActivDiscountValue('')
+                                if (!isDeselect) {
+                                  const labelPatch = beActivSaleType === 'collectif' ? { label: offer.name } : {}
+                                  if (offer.type === 'sessions' && offer.catalogPrice > 0) {
+                                    const nb = Number(beActivNbSeances) || 1
+                                    setForm(f => ({ ...f, forecast: offer.catalogPrice * nb, actual: offer.catalogPrice * nb, ...labelPatch }))
+                                  } else if (offer.type === 'program') {
+                                    const nbV = offer.maxInstallments && offer.maxInstallments > 1 ? offer.maxInstallments : 1
+                                    setBeActivNbVersements(nbV > 1 ? String(nbV) : '')
+                                    const perMonth = nbV > 1 ? offer.catalogPrice / nbV : offer.catalogPrice
+                                    setForm(f => ({ ...f, forecast: perMonth, actual: perMonth, ...labelPatch }))
+                                  }
+                                }
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${
+                                beActivOffer?.id === offer.id ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40'
+                                : dimmed ? 'bg-muted/20 text-muted-foreground/30' : 'bg-muted/30 text-muted-foreground'
+                              }`}>
+                              {offer.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Sessions — nb séances */}
+                  {beActivOffer?.type === 'sessions' && (
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Séances réservées</label>
+                      <input type="number" inputMode="numeric" min="1" placeholder="Ex: 4"
+                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                        value={beActivNbSeances} onFocus={e => e.target.select()}
+                        onChange={e => {
+                          setBeActivNbSeances(e.target.value)
+                          setBeActivDiscountType('none'); setBeActivDiscountValue('')
+                          const nb = Math.max(1, Number(e.target.value) || 1)
+                          if (beActivOffer.catalogPrice > 0)
+                            setForm(f => ({ ...f, forecast: beActivOffer.catalogPrice * nb, actual: beActivOffer.catalogPrice * nb }))
+                        }} />
+                      {beActivOffer.catalogPrice > 0 && (
+                        <p className="text-xs text-muted-foreground/60">
+                          {beActivOffer.catalogPrice}€ × {beActivNbSeances || 1} séance(s) = {(beActivOffer.catalogPrice * (Number(beActivNbSeances) || 1)).toFixed(0)}€
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Programme — versements */}
+                  {beActivOffer?.type === 'program' && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">Paiement</label>
+                      <div className="flex gap-2">
+                        <button onClick={() => { setBeActivNbVersements(''); setBeActivDiscountType('none'); setBeActivDiscountValue(''); setForm(f => ({ ...f, forecast: beActivOffer?.catalogPrice ?? 0, actual: beActivOffer?.catalogPrice ?? 0 })) }}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${!beActivNbVersements ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
+                          1 fois · {beActivOffer.catalogPrice}€
+                        </button>
+                        {beActivOffer.maxInstallments && beActivOffer.maxInstallments > 1 && (
+                          <button onClick={() => { const nbV = beActivOffer?.maxInstallments ?? 1; setBeActivNbVersements(String(nbV)); setBeActivDiscountType('none'); setBeActivDiscountValue(''); const price = beActivOffer?.catalogPrice ?? 0; setForm(f => ({ ...f, forecast: +(price / nbV).toFixed(2), actual: +(price / nbV).toFixed(2) })) }}
+                            className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${beActivNbVersements ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
+                            {beActivOffer.maxInstallments}× · {(beActivOffer.catalogPrice / beActivOffer.maxInstallments).toFixed(0)}€/mois
+                          </button>
+                        )}
+                      </div>
+                      {beActivNbVersements && (
+                        <p className="text-xs text-muted-foreground/60">
+                          {(beActivOffer.catalogPrice / Number(beActivNbVersements)).toFixed(0)}€/mois × {beActivNbVersements} mois = {beActivOffer.catalogPrice}€ total — reporté sur {beActivNbVersements} mois
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mode vente */}
                   <div className="grid grid-cols-3 gap-1">
                     {([
                       { key: 'individual', icon: '👤', label: 'Client' },
@@ -853,93 +948,6 @@ export const OperationsPage: React.FC<Props> = ({
                         + Ajouter un participant
                       </button>
                     </>
-                  )}
-
-                  {/* Collectif — pas de sélecteur de participants */}
-
-                  {/* Offres groupées par thème */}
-                  <label className="text-xs text-muted-foreground">Offre BE ACTIV</label>
-                  {Object.entries(offersByTheme).map(([themeName, { dot, offers: themeOffers }]) => (
-                    <div key={themeName}>
-                      <p className="text-[10px] text-muted-foreground/70 mb-1">{dot} {themeName}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {themeOffers.map(offer => {
-                          const dimmed = beActivSaleType === 'collectif' && themeName !== 'COLLECTIF'
-                          return (
-                            <button key={offer.id}
-                              onClick={() => {
-                                const isDeselect = beActivOffer?.id === offer.id
-                                setBeActivOffer(isDeselect ? null : offer)
-                                setBeActivDiscountType('none'); setBeActivDiscountValue('')
-                                if (!isDeselect) {
-                                  const labelPatch = beActivSaleType === 'collectif' ? { label: offer.name } : {}
-                                  if (offer.type === 'sessions' && offer.catalogPrice > 0) {
-                                    const nb = Number(beActivNbSeances) || 1
-                                    setForm(f => ({ ...f, forecast: offer.catalogPrice * nb, actual: offer.catalogPrice * nb, ...labelPatch }))
-                                  } else if (offer.type === 'program') {
-                                    const nbV = offer.maxInstallments && offer.maxInstallments > 1 ? offer.maxInstallments : 1
-                                    setBeActivNbVersements(nbV > 1 ? String(nbV) : '')
-                                    const perMonth = nbV > 1 ? offer.catalogPrice / nbV : offer.catalogPrice
-                                    setForm(f => ({ ...f, forecast: perMonth, actual: perMonth, ...labelPatch }))
-                                  }
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${
-                                beActivOffer?.id === offer.id ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40'
-                                : dimmed ? 'bg-muted/20 text-muted-foreground/30' : 'bg-muted/30 text-muted-foreground'
-                              }`}>
-                              {offer.name}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Sessions — nb séances */}
-                  {beActivOffer?.type === 'sessions' && (
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Séances réservées</label>
-                      <input type="number" inputMode="numeric" min="1" placeholder="Ex: 4"
-                        className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
-                        value={beActivNbSeances} onFocus={e => e.target.select()}
-                        onChange={e => {
-                          setBeActivNbSeances(e.target.value)
-                          setBeActivDiscountType('none'); setBeActivDiscountValue('')
-                          const nb = Math.max(1, Number(e.target.value) || 1)
-                          if (beActivOffer.catalogPrice > 0)
-                            setForm(f => ({ ...f, forecast: beActivOffer.catalogPrice * nb, actual: beActivOffer.catalogPrice * nb }))
-                        }} />
-                      {beActivOffer.catalogPrice > 0 && (
-                        <p className="text-xs text-muted-foreground/60">
-                          {beActivOffer.catalogPrice}€ × {beActivNbSeances || 1} séance(s) = {(beActivOffer.catalogPrice * (Number(beActivNbSeances) || 1)).toFixed(0)}€
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Programme — versements */}
-                  {beActivOffer?.type === 'program' && (
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-muted-foreground">Paiement</label>
-                      <div className="flex gap-2">
-                        <button onClick={() => { setBeActivNbVersements(''); setBeActivDiscountType('none'); setBeActivDiscountValue(''); setForm(f => ({ ...f, forecast: beActivOffer?.catalogPrice ?? 0, actual: beActivOffer?.catalogPrice ?? 0 })) }}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${!beActivNbVersements ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
-                          1 fois · {beActivOffer.catalogPrice}€
-                        </button>
-                        {beActivOffer.maxInstallments && beActivOffer.maxInstallments > 1 && (
-                          <button onClick={() => { const nbV = beActivOffer?.maxInstallments ?? 1; setBeActivNbVersements(String(nbV)); setBeActivDiscountType('none'); setBeActivDiscountValue(''); const price = beActivOffer?.catalogPrice ?? 0; setForm(f => ({ ...f, forecast: +(price / nbV).toFixed(2), actual: +(price / nbV).toFixed(2) })) }}
-                            className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${beActivNbVersements ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
-                            {beActivOffer.maxInstallments}× · {(beActivOffer.catalogPrice / beActivOffer.maxInstallments).toFixed(0)}€/mois
-                          </button>
-                        )}
-                      </div>
-                      {beActivNbVersements && (
-                        <p className="text-xs text-muted-foreground/60">
-                          {(beActivOffer.catalogPrice / Number(beActivNbVersements)).toFixed(0)}€/mois × {beActivNbVersements} mois = {beActivOffer.catalogPrice}€ total — reporté sur {beActivNbVersements} mois
-                        </p>
-                      )}
-                    </div>
                   )}
 
                   {/* Réduction */}
@@ -1193,7 +1201,7 @@ export const OperationsPage: React.FC<Props> = ({
                   </div>
 
                   {candidates.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-8">Aucune opération JM | Be Activ trouvée</p>
+                    <p className="text-sm text-muted-foreground text-center py-8">Aucune opération coaching trouvée</p>
                   )}
 
                   {candidates.map((c, i) => {
