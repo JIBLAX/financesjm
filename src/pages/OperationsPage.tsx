@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, X, Check, Settings2, ArrowLeftRight, Upload } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, X, Check, Settings2, ArrowLeftRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
 import { FISCAL_CONFIGS } from '@/lib/fiscal'
 import { supabase } from '@/integrations/supabase/client'
-import { beActivClient } from '@/integrations/supabase/beActivClient'
+
 import { useBusinessOffers } from '@/hooks/useBusinessOffers'
 import { useBAClients } from '@/hooks/useBAClients'
 import { useBAGroups } from '@/hooks/useBAGroups'
@@ -102,23 +102,6 @@ export const OperationsPage: React.FC<Props> = ({
   const [beActivSap, setBeActivSap] = useState(false)
   const [beActivSapHours, setBeActivSapHours] = useState('')
 
-  // ── Historique export ──
-  interface ExportCandidate {
-    op: Operation
-    subName: string
-    selectedOfferId: string
-    selectedClientId: string
-    offerConfidence: 'exact' | 'partial' | 'none'
-    clientConfidence: 'exact' | 'partial' | 'none'
-    alreadySynced: boolean
-    skip: boolean
-  }
-  const [showExportReview, setShowExportReview] = useState(false)
-  const [exportLoading, setExportLoading] = useState(false)
-  const [baSyncError, setBaSyncError] = useState<string | null>(null)
-  const [exportDone, setExportDone] = useState(false)
-  const [exportedCount, setExportedCount] = useState(0)
-  const [candidates, setCandidates] = useState<ExportCandidate[]>([])
 
   useEffect(() => {
     onInitMonth(monthKey)
@@ -236,154 +219,6 @@ export const OperationsPage: React.FC<Props> = ({
   const normalizeStr = (s: string) =>
     s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[''`]/g, '').trim()
 
-  const openExportReview = async () => {
-    setExportDone(false)
-    setExportedCount(0)
-    setBaSyncError(null)
-    setShowExportReview(true)
-    setExportLoading(true)
-    const beActivCatIds = store.opCategories
-      .filter(c => { const n = c.name.toLowerCase(); return n.includes('be activ') || n.includes('beactiv') })
-      .map(c => c.id)
-    const beActivOps = store.operations.filter(op =>
-      op.family === 'revenu' && beActivCatIds.includes(op.categoryId) && (op.actual || op.forecast)
-    )
-
-    // Guard: Supabase .in() with empty array is undefined behaviour
-    const syncedIds = new Set<string>()
-    if (beActivOps.length > 0) {
-      const { data: existing } = await beActivClient
-        .from('ba_sales').select('financesjm_tx_id')
-        .in('financesjm_tx_id', beActivOps.map(op => op.id))
-      ;(existing ?? []).forEach((r: any) => { if (r.financesjm_tx_id) syncedIds.add(r.financesjm_tx_id) })
-    }
-
-    const cands: ExportCandidate[] = beActivOps.map(op => {
-      const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
-      const subName = sub?.name || ''
-
-      // ── Offer matching ──────────────────────────────────────────────────
-      let selectedOfferId = ''; let offerConfidence: ExportCandidate['offerConfidence'] = 'none'
-
-      // 1. Direct ID from op (ops created with current form) — always exact
-      if (op.beActivOfferId) {
-        if (businessOffers.find(o => o.id === op.beActivOfferId)) {
-          selectedOfferId = op.beActivOfferId; offerConfidence = 'exact'
-        }
-      }
-
-      // 2. Name normalization fallback (legacy ops without beActivOfferId)
-      if (!selectedOfferId && subName) {
-        const norm = normalizeStr(subName)
-        const exact = businessOffers.find(o => normalizeStr(o.name) === norm)
-        if (exact) { selectedOfferId = exact.id; offerConfidence = 'exact' }
-        else if (norm.length >= 5) {
-          // Min-length guard: avoid false positives from short fragments
-          const partial = businessOffers.find(o => {
-            const n = normalizeStr(o.name)
-            return n.length >= 5 && (n.includes(norm) || norm.includes(n))
-          })
-          if (partial) { selectedOfferId = partial.id; offerConfidence = 'partial' }
-        }
-      }
-
-      // ── Client matching ─────────────────────────────────────────────────
-      let selectedClientId = ''; let clientConfidence: ExportCandidate['clientConfidence'] = 'none'
-
-      // 1. Direct ID from op (ops created with current form) — always exact
-      if (op.beActivClientId) {
-        if (baClients.find(c => c.id === op.beActivClientId)) {
-          selectedClientId = op.beActivClientId; clientConfidence = 'exact'
-        }
-      }
-
-      // 2. Label normalization fallback
-      if (!selectedClientId) {
-        const labelNorm = normalizeStr(op.label)
-        const exactC = baClients.find(c => normalizeStr(c.displayName) === labelNorm)
-        if (exactC) { selectedClientId = exactC.id; clientConfidence = 'exact' }
-        else if (labelNorm.length >= 3) {
-          const partialC = baClients.find(c => {
-            const n = normalizeStr(c.displayName)
-            return n.length >= 3 && (n.includes(labelNorm) || labelNorm.includes(n))
-          })
-          if (partialC) { selectedClientId = partialC.id; clientConfidence = 'partial' }
-        }
-      }
-
-      return {
-        op, subName, selectedOfferId, selectedClientId,
-        offerConfidence, clientConfidence,
-        alreadySynced: syncedIds.has(op.id),
-        skip: syncedIds.has(op.id),
-      }
-    }).sort((a, b) => (b.op.date || '').localeCompare(a.op.date || ''))
-
-    setCandidates(cands)
-    setExportLoading(false)
-  }
-
-  const handleExport = async () => {
-    setExportLoading(true)
-    setBaSyncError(null)
-    const toExport = candidates.filter(c => !c.skip && !c.alreadySynced)
-
-    // Anti-doublon : re-vérifier en DB avant d'insérer (protection contre double-clic / retry)
-    const { data: alreadyInDb } = await beActivClient
-      .from('ba_sales').select('financesjm_tx_id')
-      .in('financesjm_tx_id', toExport.map(c => c.op.id))
-    const alreadyInDbIds = new Set<string>(
-      (alreadyInDb ?? []).map((r: any) => r.financesjm_tx_id as string).filter(Boolean)
-    )
-
-    const failedIds = new Set<string>()
-    const successIds = new Set<string>()
-
-    for (const c of toExport) {
-      // Skip si déjà présent en DB (doublon détecté)
-      if (alreadyInDbIds.has(c.op.id)) { successIds.add(c.op.id); continue }
-
-      const offer = businessOffers.find(o => o.id === c.selectedOfferId)
-      const client = baClients.find(cl => cl.id === c.selectedClientId)
-      const { error } = await beActivClient.from('ba_sales').insert({
-        client_name:        client?.displayName || c.op.label,
-        client_id:          c.selectedClientId || null,
-        offer_name:         offer?.name || c.subName || null,
-        offer_id:           c.selectedOfferId || null,
-        catalog_price:      offer?.catalogPrice ?? null,
-        category:           'coaching',
-        amount:             c.op.actual || c.op.forecast || 0,
-        date:               c.op.date || new Date().toISOString().split('T')[0],
-        payment_mode:       c.op.sourceType === 'cash' ? 'especes' : 'virement',
-        is_installment:     false,
-        installment_number: 1,
-        installment_total:  1,
-        status:             'recu',
-        financesjm_tx_id:   c.op.id,
-      })
-      if (error) {
-        console.error('[export ba_sales]', error.message, 'op:', c.op.id)
-        failedIds.add(c.op.id)
-      } else {
-        successIds.add(c.op.id)
-      }
-    }
-
-    // Marquer uniquement les exports réussis comme synchronisés
-    setCandidates(prev => prev.map(c => {
-      if (successIds.has(c.op.id)) return { ...c, alreadySynced: true, skip: true }
-      return c
-    }))
-
-    setExportLoading(false)
-    if (failedIds.size > 0) {
-      setBaSyncError(`${failedIds.size} opération${failedIds.size > 1 ? 's' : ''} non synchronisée${failedIds.size > 1 ? 's' : ''} — réessaie.`)
-      // Ne pas passer à l'écran succès : rester sur la review pour que l'utilisateur puisse retenter
-    } else {
-      setExportedCount(successIds.size)
-      setExportDone(true)
-    }
-  }
 
   const handleSave = () => {
     const isBeActivRevenu = isBeActivCat && form.family === 'revenu'
@@ -430,62 +265,6 @@ export const OperationsPage: React.FC<Props> = ({
         onAdd({ ...clean, id: opId })
       }
 
-      // Write to shared ba_sales if this is a Be Activ revenue (fire-and-forget)
-      if (form.family === 'revenu') {
-        const selectedCat = store.opCategories.find(c => c.id === form.categoryId)
-        const isBeActiv = selectedCat?.id === 'opc_r_be_activ'
-        if (isBeActiv) {
-          const amt = clean.actual || clean.forecast || 0
-          const participantCount = beActivSaleType === 'groupe' ? beActivGroupClientIds.filter(Boolean).length || 2 : beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || null) : 1
-          const catalogSnapshot = beActivOffer?.catalogPrice ?? null
-          const discountAmt = beActivDiscountType !== 'none' && beActivDiscountValue
-            ? +(beActivDiscountType === 'euro'
-                ? Number(beActivDiscountValue)
-                : calcBaseAmount() * Number(beActivDiscountValue) / 100
-              ).toFixed(2)
-            : null
-          const baseSale = {
-            offer_name:         beActivOffer?.name || null,
-            offer_id:           beActivOffer?.id || null,
-            category:           'coaching',
-            amount:             amt,
-            catalog_price:      catalogSnapshot,
-            discount_amount:    discountAmt,
-            discount_percent:   beActivDiscountType === 'percent' && beActivDiscountValue ? Number(beActivDiscountValue) : null,
-            date:               form.date || todayISO(),
-            status:             'recu',
-            is_installment:     nbVersements > 1,
-            total_amount:       nbVersements > 1 ? (beActivOffer?.catalogPrice ?? null) : null,
-            installment_number: 1,
-            installment_total:  nbVersements,
-            installment_label:  nbVersements > 1 ? `1/${nbVersements}` : null,
-            payment_mode:       form.sourceType === 'cash' ? 'especes' : 'virement',
-            sale_type:          beActivSaleType,
-            participant_count:  participantCount,
-            is_sap:             beActivSap,
-            sap_hours:          beActivSap && beActivSapHours ? Number(beActivSapHours) : null,
-          }
-          if (beActivSaleType === 'collectif') {
-            // 1 ba_sale per session
-            const nbS = Math.max(1, Number(beActivNbSeances) || 1)
-            for (let i = 0; i < nbS; i++) {
-              const id = i === 0 ? opId : `op_${Date.now()}_s${i}`
-              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label, client_id: null, financesjm_tx_id: id, amount: beActivOffer?.catalogPrice ?? amt })
-                .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
-            }
-          } else if (beActivSaleType === 'groupe') {
-            beActivGroupClientIds.filter(Boolean).forEach((cid, i) => {
-              const clientName = beActivGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || form.label
-              const id = i === 0 ? opId : `op_${Date.now()}_${i}`
-              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clientName, client_id: cid, financesjm_tx_id: id })
-                .then(({ error }) => { if (error) { console.error('[ba_sales]', error.message); setBaSyncError('Sync BA Business échouée — vérifie ta connexion.') } })
-            })
-          } else {
-            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label || beActivOffer?.name || 'Be Activ', client_id: beActivClientId || null, financesjm_tx_id: opId })
-              .then(({ error }) => { if (error) { console.error('[ba_sales]', error.message); setBaSyncError('Sync BA Business échouée — vérifie ta connexion.') } })
-          }
-        }
-      }
     } else if (modal?.mode === 'edit') {
       onUpdate(modal.op.id, clean)
     }
@@ -522,9 +301,7 @@ export const OperationsPage: React.FC<Props> = ({
 
   const isPerso  = scope === 'perso'
 
-  const beActivOpsExist = useMemo(() =>
-    store.operations.some(op => op.family === 'revenu' && op.categoryId === 'opc_r_be_activ'),
-  [store.operations])
+
 
   const isBeActivCat = useMemo(() => form.categoryId === 'opc_r_be_activ', [form.categoryId])
 
@@ -542,13 +319,6 @@ export const OperationsPage: React.FC<Props> = ({
 
   return (
     <div className="page-container pt-6 page-bottom-pad gap-4">
-      {/* Sync error banner */}
-      {baSyncError && (
-        <div className="mx-5 px-4 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-between gap-3">
-          <p className="text-xs text-rose-400">{baSyncError}</p>
-          <button onClick={() => setBaSyncError(null)} className="text-rose-400/60 text-xs shrink-0">✕</button>
-        </div>
-      )}
       {/* Header — title + action buttons */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Opérations</h1>
@@ -605,16 +375,6 @@ export const OperationsPage: React.FC<Props> = ({
       {/* Family tabs — scope-aware */}
       <SegmentedSwitch options={familyTabs} value={family} onChange={(v) => setFamily(v as FamilyTab)} />
 
-      {/* Sync historique banner */}
-      {scope === 'pro' && family === 'revenu' && beActivOpsExist && (
-        <button
-          onClick={openExportReview}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 active:bg-blue-500/20"
-        >
-          <Upload className="w-3.5 h-3.5 shrink-0" />
-          <span>Synchroniser l'historique coaching → BA Business</span>
-        </button>
-      )}
 
       {/* ── BUDGET VIEW (Fixes / Variables / Revenus) ── */}
       <>
@@ -1225,160 +985,6 @@ export const OperationsPage: React.FC<Props> = ({
         </div>
       )}
 
-      {/* ── Export historique review modal ── */}
-      {showExportReview && (
-        <div className="fixed inset-0 bg-black/70 z-[70] flex items-end" style={{ overscrollBehavior: 'none' }} onClick={() => !exportLoading && setShowExportReview(false)}>
-          <div className="w-full bg-background rounded-t-2xl max-h-[92vh] flex flex-col" style={{ touchAction: 'pan-y' }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
-              <div>
-                <h2 className="text-base font-bold text-foreground">Sync historique → BA Business</h2>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Vérifie les correspondances avant d'exporter</p>
-              </div>
-              <button
-                onClick={() => setShowExportReview(false)}
-                disabled={exportLoading}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground disabled:opacity-30"
-              ><X className="w-4 h-4" /></button>
-            </div>
-
-            {exportLoading ? (
-              <div className="flex-1 flex items-center justify-center py-12 gap-3">
-                <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                <p className="text-sm text-muted-foreground">
-                  {exportDone ? 'Export…' : 'Analyse en cours…'}
-                </p>
-              </div>
-            ) : exportDone ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3">
-                <div className="text-4xl">✅</div>
-                <p className="text-sm font-semibold text-emerald-400">
-                  {exportedCount} opération{exportedCount > 1 ? 's' : ''} synchronisée{exportedCount > 1 ? 's' : ''} !
-                </p>
-                <p className="text-xs text-muted-foreground">Les données sont maintenant dans BA Business</p>
-                <button onClick={() => setShowExportReview(false)} className="mt-4 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">Fermer</button>
-              </div>
-            ) : (
-              <>
-                <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-3 space-y-2">
-                  {/* Légende */}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground pb-1">
-                    <span>✅ Exact</span>
-                    <span>🔶 Partiel — à vérifier</span>
-                    <span>❓ Non trouvé — requis</span>
-                    <span className="text-emerald-400/70">✓ Déjà synchro</span>
-                  </div>
-
-                  {baSyncError && (
-                    <div className="px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/30">
-                      <p className="text-xs text-rose-400">⚠️ {baSyncError}</p>
-                    </div>
-                  )}
-
-                  {candidates.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-8">Aucune opération coaching trouvée</p>
-                  )}
-
-                  {candidates.map((c, i) => {
-                    const offerBadge = c.offerConfidence === 'exact' ? '✅' : c.offerConfidence === 'partial' ? '🔶' : '❓'
-                    const clientBadge = c.clientConfidence === 'exact' ? '✅' : c.clientConfidence === 'partial' ? '🔶' : '❓'
-                    const hasGap = !c.alreadySynced && !c.skip && (c.offerConfidence === 'none' || c.clientConfidence === 'none')
-                    return (
-                      <div key={c.op.id} className={`rounded-xl border px-3 py-2.5 space-y-2 ${
-                        c.alreadySynced
-                          ? 'opacity-30 border-border/15 bg-transparent'
-                          : c.skip
-                            ? 'opacity-40 border-border/20 bg-transparent'
-                            : hasGap
-                              ? 'border-amber-500/30 bg-amber-500/5'
-                              : 'border-border/40 bg-card/40'
-                      }`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground truncate">{c.op.label}</p>
-                            <p className="text-[10px] text-muted-foreground">{c.op.date} · {formatCurrency(c.op.actual || c.op.forecast || 0)}</p>
-                          </div>
-                          {c.alreadySynced
-                            ? <span className="text-[10px] text-emerald-400 shrink-0">✓ Synchro</span>
-                            : (
-                              <button
-                                onClick={() => setCandidates(prev => prev.map((x, j) => j === i ? { ...x, skip: !x.skip } : x))}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold shrink-0 ${c.skip ? 'bg-primary/15 text-primary' : 'bg-muted/40 text-muted-foreground'}`}
-                              >
-                                {c.skip ? '+ Inclure' : 'Ignorer'}
-                              </button>
-                            )
-                          }
-                        </div>
-                        {!c.alreadySynced && !c.skip && (
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <p className="text-[9px] text-muted-foreground mb-1">{offerBadge} Offre</p>
-                              <select
-                                className="w-full bg-muted/50 rounded-lg px-2 py-1.5 text-[11px] text-foreground outline-none"
-                                value={c.selectedOfferId}
-                                onChange={e => setCandidates(prev => prev.map((x, j) => j === i ? { ...x, selectedOfferId: e.target.value, offerConfidence: 'exact' } : x))}
-                              >
-                                <option value="">— Aucune —</option>
-                                {businessOffers.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                              </select>
-                            </div>
-                            <div>
-                              <p className="text-[9px] text-muted-foreground mb-1">{clientBadge} Client</p>
-                              <select
-                                className="w-full bg-muted/50 rounded-lg px-2 py-1.5 text-[11px] text-foreground outline-none"
-                                value={c.selectedClientId}
-                                onChange={e => setCandidates(prev => prev.map((x, j) => j === i ? { ...x, selectedClientId: e.target.value, clientConfidence: 'exact' } : x))}
-                              >
-                                <option value="">— Aucun —</option>
-                                {baClients.map(cl => <option key={cl.id} value={cl.id}>{cl.displayName}</option>)}
-                              </select>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Footer */}
-                <div className="px-5 py-4 border-t border-border/50 shrink-0 space-y-2 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
-                  {(() => {
-                    const toExport = candidates.filter(c => !c.skip && !c.alreadySynced)
-                    const uncertain = toExport.filter(c => c.offerConfidence === 'none' || c.clientConfidence === 'none')
-                    const skipped = candidates.filter(c => c.skip && !c.alreadySynced)
-                    return (
-                      <>
-                        {candidates.length > 0 && (
-                          <p className="text-[10px] text-muted-foreground text-center">
-                            {toExport.length > 0
-                              ? `${toExport.length} à exporter${skipped.length > 0 ? ` · ${skipped.length} ignorée${skipped.length > 1 ? 's' : ''}` : ''}${uncertain.length > 0 ? ` · ⚠️ ${uncertain.length} incomplète${uncertain.length > 1 ? 's' : ''}` : ''}`
-                              : candidates.every(c => c.alreadySynced) ? 'Tout est déjà synchronisé ✓' : 'Toutes les entrées sont ignorées'
-                            }
-                          </p>
-                        )}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setShowExportReview(false)}
-                            disabled={exportLoading}
-                            className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30 disabled:opacity-40"
-                          >Annuler</button>
-                          <button
-                            onClick={handleExport}
-                            disabled={toExport.length === 0 || exportLoading}
-                            className="flex-[2] py-2.5 rounded-xl text-sm font-semibold bg-blue-500 text-white disabled:opacity-40"
-                          >
-                            {exportLoading ? 'Export en cours…' : `Exporter ${toExport.length} opération${toExport.length > 1 ? 's' : ''}`}
-                          </button>
-                        </div>
-                      </>
-                    )
-                  })()}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── Category management modal ── */}
       {modal?.mode === 'cat_manage' && (
