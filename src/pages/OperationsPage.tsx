@@ -330,7 +330,7 @@ export const OperationsPage: React.FC<Props> = ({
             offer_name:         cat?.name || null,
             offer_id:           null,
             catalog_price:      null,
-            category:           form.family === 'revenu' ? (cat?.name || 'revenu_pro') : `charge:${cat?.name || form.family}`,
+            category:           form.family === 'revenu' ? 'coaching' : `charge:${cat?.name || form.family}`,
             amount:             amt,
             date:               form.date || todayISO(),
             payment_mode:       form.sourceType === 'cash' ? 'especes' : 'virement',
