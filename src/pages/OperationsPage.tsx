@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { SegmentedSwitch } from '@/components/SegmentedSwitch'
 import { formatCurrency, getCurrentMonthKey, getPreviousMonthKey, getNextMonthKey, getMonthLabel } from '@/lib/constants'
 import { FISCAL_CONFIGS } from '@/lib/fiscal'
-import { supabase } from '@/integrations/supabase/client'
+import { beActivClient } from '@/integrations/supabase/beActivClient'
 
 import { useBusinessOffers } from '@/hooks/useBusinessOffers'
 import { useBAClients } from '@/hooks/useBAClients'
@@ -264,6 +264,85 @@ export const OperationsPage: React.FC<Props> = ({
       } else {
         onAdd({ ...clean, id: opId })
       }
+
+      // ── Auto-sync BA Business (fire-and-forget) ──────────────────────────
+      // Toutes les opérations pro partent vers ba_sales dès la sauvegarde.
+      if (form.scope === 'pro') {
+        const cat = store.opCategories.find(c => c.id === form.categoryId)
+        const amt = clean.actual || clean.forecast || 0
+        const isBeActiv = cat?.id === 'opc_r_be_activ'
+
+        if (isBeActiv) {
+          // Be Activ : détail complet (offre, client, mode de vente)
+          const participantCount = beActivSaleType === 'groupe'
+            ? beActivGroupClientIds.filter(Boolean).length || 2
+            : beActivSaleType === 'collectif' ? (Number(beActivCollectifQty) || null) : 1
+          const discountAmt = beActivDiscountType !== 'none' && beActivDiscountValue
+            ? +(beActivDiscountType === 'euro'
+                ? Number(beActivDiscountValue)
+                : calcBaseAmount() * Number(beActivDiscountValue) / 100
+              ).toFixed(2)
+            : null
+          const baseSale = {
+            offer_name:         beActivOffer?.name || null,
+            offer_id:           beActivOffer?.id || null,
+            category:           'coaching',
+            amount:             amt,
+            catalog_price:      beActivOffer?.catalogPrice ?? null,
+            discount_amount:    discountAmt,
+            discount_percent:   beActivDiscountType === 'percent' && beActivDiscountValue ? Number(beActivDiscountValue) : null,
+            date:               form.date || todayISO(),
+            status:             'recu',
+            is_installment:     nbVersements > 1,
+            total_amount:       nbVersements > 1 ? (beActivOffer?.catalogPrice ?? null) : null,
+            installment_number: 1,
+            installment_total:  nbVersements,
+            installment_label:  nbVersements > 1 ? `1/${nbVersements}` : null,
+            payment_mode:       form.sourceType === 'cash' ? 'especes' : 'virement',
+            sale_type:          beActivSaleType,
+            participant_count:  participantCount,
+            is_sap:             beActivSap,
+            sap_hours:          beActivSap && beActivSapHours ? Number(beActivSapHours) : null,
+          }
+          if (beActivSaleType === 'collectif') {
+            const nbS = Math.max(1, Number(beActivNbSeances) || 1)
+            for (let i = 0; i < nbS; i++) {
+              const id = i === 0 ? opId : `op_${Date.now()}_s${i}`
+              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label, client_id: null, financesjm_tx_id: id, amount: beActivOffer?.catalogPrice ?? amt })
+                .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+            }
+          } else if (beActivSaleType === 'groupe') {
+            beActivGroupClientIds.filter(Boolean).forEach((cid, i) => {
+              const clientName = beActivGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || form.label
+              const id = i === 0 ? opId : `op_${Date.now()}_g${i}`
+              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clientName, client_id: cid, financesjm_tx_id: id })
+                .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+            })
+          } else {
+            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label || beActivOffer?.name || 'Be Activ', client_id: beActivClientId || null, financesjm_tx_id: opId })
+              .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+          }
+        } else {
+          // Autres ops pro (revenus hors coaching + charges) : sync simplifié
+          beActivClient.from('ba_sales').insert({
+            client_name:        form.label,
+            client_id:          null,
+            offer_name:         cat?.name || null,
+            offer_id:           null,
+            catalog_price:      null,
+            category:           form.family === 'revenu' ? (cat?.name || 'revenu_pro') : `charge:${cat?.name || form.family}`,
+            amount:             amt,
+            date:               form.date || todayISO(),
+            payment_mode:       form.sourceType === 'cash' ? 'especes' : 'virement',
+            is_installment:     false,
+            installment_number: 1,
+            installment_total:  1,
+            status:             clean.actual ? 'recu' : 'attente',
+            financesjm_tx_id:   opId,
+          }).then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
     } else if (modal?.mode === 'edit') {
       onUpdate(modal.op.id, clean)
