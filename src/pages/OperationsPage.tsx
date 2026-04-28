@@ -117,6 +117,7 @@ export const OperationsPage: React.FC<Props> = ({
   const [exportLoading, setExportLoading] = useState(false)
   const [baSyncError, setBaSyncError] = useState<string | null>(null)
   const [exportDone, setExportDone] = useState(false)
+  const [exportedCount, setExportedCount] = useState(0)
   const [candidates, setCandidates] = useState<ExportCandidate[]>([])
 
   useEffect(() => {
@@ -237,6 +238,8 @@ export const OperationsPage: React.FC<Props> = ({
 
   const openExportReview = async () => {
     setExportDone(false)
+    setExportedCount(0)
+    setBaSyncError(null)
     setShowExportReview(true)
     setExportLoading(true)
     const beActivCatIds = store.opCategories
@@ -245,43 +248,101 @@ export const OperationsPage: React.FC<Props> = ({
     const beActivOps = store.operations.filter(op =>
       op.family === 'revenu' && beActivCatIds.includes(op.categoryId) && (op.actual || op.forecast)
     )
-    const { data: existing } = await beActivClient
-      .from('ba_sales').select('financesjm_tx_id')
-      .in('financesjm_tx_id', beActivOps.map(op => op.id))
-    const syncedIds = new Set((existing ?? []).map((r: any) => r.financesjm_tx_id))
+
+    // Guard: Supabase .in() with empty array is undefined behaviour
+    const syncedIds = new Set<string>()
+    if (beActivOps.length > 0) {
+      const { data: existing } = await beActivClient
+        .from('ba_sales').select('financesjm_tx_id')
+        .in('financesjm_tx_id', beActivOps.map(op => op.id))
+      ;(existing ?? []).forEach((r: any) => { if (r.financesjm_tx_id) syncedIds.add(r.financesjm_tx_id) })
+    }
 
     const cands: ExportCandidate[] = beActivOps.map(op => {
       const sub = op.subcategoryId ? store.opSubcategories.find(s => s.id === op.subcategoryId) : null
       const subName = sub?.name || ''
+
+      // ── Offer matching ──────────────────────────────────────────────────
       let selectedOfferId = ''; let offerConfidence: ExportCandidate['offerConfidence'] = 'none'
-      if (subName) {
+
+      // 1. Direct ID from op (ops created with current form) — always exact
+      if (op.beActivOfferId) {
+        if (businessOffers.find(o => o.id === op.beActivOfferId)) {
+          selectedOfferId = op.beActivOfferId; offerConfidence = 'exact'
+        }
+      }
+
+      // 2. Name normalization fallback (legacy ops without beActivOfferId)
+      if (!selectedOfferId && subName) {
         const norm = normalizeStr(subName)
         const exact = businessOffers.find(o => normalizeStr(o.name) === norm)
         if (exact) { selectedOfferId = exact.id; offerConfidence = 'exact' }
-        else {
-          const partial = businessOffers.find(o => { const n = normalizeStr(o.name); return n.includes(norm) || norm.includes(n) })
+        else if (norm.length >= 5) {
+          // Min-length guard: avoid false positives from short fragments
+          const partial = businessOffers.find(o => {
+            const n = normalizeStr(o.name)
+            return n.length >= 5 && (n.includes(norm) || norm.includes(n))
+          })
           if (partial) { selectedOfferId = partial.id; offerConfidence = 'partial' }
         }
       }
+
+      // ── Client matching ─────────────────────────────────────────────────
       let selectedClientId = ''; let clientConfidence: ExportCandidate['clientConfidence'] = 'none'
-      const labelNorm = normalizeStr(op.label)
-      const exactC = baClients.find(c => normalizeStr(c.displayName) === labelNorm)
-      if (exactC) { selectedClientId = exactC.id; clientConfidence = 'exact' }
-      else {
-        const partialC = baClients.find(c => { const n = normalizeStr(c.displayName); return n.includes(labelNorm) || labelNorm.includes(n) })
-        if (partialC) { selectedClientId = partialC.id; clientConfidence = 'partial' }
+
+      // 1. Direct ID from op (ops created with current form) — always exact
+      if (op.beActivClientId) {
+        if (baClients.find(c => c.id === op.beActivClientId)) {
+          selectedClientId = op.beActivClientId; clientConfidence = 'exact'
+        }
       }
-      return { op, subName, selectedOfferId, selectedClientId, offerConfidence, clientConfidence, alreadySynced: syncedIds.has(op.id), skip: syncedIds.has(op.id) }
+
+      // 2. Label normalization fallback
+      if (!selectedClientId) {
+        const labelNorm = normalizeStr(op.label)
+        const exactC = baClients.find(c => normalizeStr(c.displayName) === labelNorm)
+        if (exactC) { selectedClientId = exactC.id; clientConfidence = 'exact' }
+        else if (labelNorm.length >= 3) {
+          const partialC = baClients.find(c => {
+            const n = normalizeStr(c.displayName)
+            return n.length >= 3 && (n.includes(labelNorm) || labelNorm.includes(n))
+          })
+          if (partialC) { selectedClientId = partialC.id; clientConfidence = 'partial' }
+        }
+      }
+
+      return {
+        op, subName, selectedOfferId, selectedClientId,
+        offerConfidence, clientConfidence,
+        alreadySynced: syncedIds.has(op.id),
+        skip: syncedIds.has(op.id),
+      }
     }).sort((a, b) => (b.op.date || '').localeCompare(a.op.date || ''))
+
     setCandidates(cands)
     setExportLoading(false)
   }
 
   const handleExport = async () => {
     setExportLoading(true)
+    setBaSyncError(null)
     const toExport = candidates.filter(c => !c.skip && !c.alreadySynced)
-    let exportFailed = false
+
+    // Anti-doublon : re-vérifier en DB avant d'insérer (protection contre double-clic / retry)
+    const { data: alreadyInDb } = await beActivClient
+      .from('ba_sales').select('financesjm_tx_id')
+      .in('financesjm_tx_id', toExport.map(c => c.op.id))
+    const alreadyInDbIds = new Set<string>(
+      (alreadyInDb ?? []).map((r: any) => r.financesjm_tx_id as string).filter(Boolean)
+    )
+
+    const failedIds = new Set<string>()
+    const successIds = new Set<string>()
+
     for (const c of toExport) {
+      // Skip si déjà présent en DB (doublon détecté)
+      if (alreadyInDbIds.has(c.op.id)) { successIds.add(c.op.id); continue }
+
       const offer = businessOffers.find(o => o.id === c.selectedOfferId)
       const client = baClients.find(cl => cl.id === c.selectedClientId)
       const { error } = await beActivClient.from('ba_sales').insert({
@@ -300,13 +361,28 @@ export const OperationsPage: React.FC<Props> = ({
         status:             'recu',
         financesjm_tx_id:   c.op.id,
       })
-      if (error) { console.error('[export ba_sales]', error.message); exportFailed = true }
+      if (error) {
+        console.error('[export ba_sales]', error.message, 'op:', c.op.id)
+        failedIds.add(c.op.id)
+      } else {
+        successIds.add(c.op.id)
+      }
     }
-    if (exportFailed) setBaSyncError('Certaines ventes n\'ont pas pu être synchronisées — réessaie.')
-    else setBaSyncError(null)
-    setCandidates(prev => prev.map(c => ({ ...c, alreadySynced: true, skip: true })))
+
+    // Marquer uniquement les exports réussis comme synchronisés
+    setCandidates(prev => prev.map(c => {
+      if (successIds.has(c.op.id)) return { ...c, alreadySynced: true, skip: true }
+      return c
+    }))
+
     setExportLoading(false)
-    setExportDone(true)
+    if (failedIds.size > 0) {
+      setBaSyncError(`${failedIds.size} opération${failedIds.size > 1 ? 's' : ''} non synchronisée${failedIds.size > 1 ? 's' : ''} — réessaie.`)
+      // Ne pas passer à l'écran succès : rester sur la review pour que l'utilisateur puisse retenter
+    } else {
+      setExportedCount(successIds.size)
+      setExportDone(true)
+    }
   }
 
   const handleSave = () => {
@@ -444,17 +520,6 @@ export const OperationsPage: React.FC<Props> = ({
 
   const isRevenu = family === 'revenu'
 
-  const offersByTheme = useMemo(() => {
-    const map: Record<string, { dot: string; offers: typeof businessOffers }> = {}
-    businessOffers.forEach(o => {
-      const u = (o.theme || '').toUpperCase()
-      const key = u.includes('TRANSFORM') ? 'TRANSFORMATION' : u.includes('COLLECT') ? 'COLLECTIF' : 'ACTION'
-      const dot = key === 'TRANSFORMATION' ? '🔴' : key === 'COLLECTIF' ? '🟢' : '🔵'
-      if (!map[key]) map[key] = { dot, offers: [] }
-      map[key].offers.push(o)
-    })
-    return map
-  }, [businessOffers])
   const isPerso  = scope === 'perso'
 
   const beActivOpsExist = useMemo(() =>
@@ -1169,17 +1234,26 @@ export const OperationsPage: React.FC<Props> = ({
                 <h2 className="text-base font-bold text-foreground">Sync historique → BA Business</h2>
                 <p className="text-[10px] text-muted-foreground mt-0.5">Vérifie les correspondances avant d'exporter</p>
               </div>
-              <button onClick={() => setShowExportReview(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"><X className="w-4 h-4" /></button>
+              <button
+                onClick={() => setShowExportReview(false)}
+                disabled={exportLoading}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground disabled:opacity-30"
+              ><X className="w-4 h-4" /></button>
             </div>
 
-            {exportLoading && !exportDone ? (
-              <div className="flex-1 flex items-center justify-center py-12">
-                <p className="text-sm text-muted-foreground">Analyse en cours…</p>
+            {exportLoading ? (
+              <div className="flex-1 flex items-center justify-center py-12 gap-3">
+                <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                <p className="text-sm text-muted-foreground">
+                  {exportDone ? 'Export…' : 'Analyse en cours…'}
+                </p>
               </div>
             ) : exportDone ? (
               <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3">
                 <div className="text-4xl">✅</div>
-                <p className="text-sm font-semibold text-emerald-400">Historique synchronisé !</p>
+                <p className="text-sm font-semibold text-emerald-400">
+                  {exportedCount} opération{exportedCount > 1 ? 's' : ''} synchronisée{exportedCount > 1 ? 's' : ''} !
+                </p>
                 <p className="text-xs text-muted-foreground">Les données sont maintenant dans BA Business</p>
                 <button onClick={() => setShowExportReview(false)} className="mt-4 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">Fermer</button>
               </div>
@@ -1187,38 +1261,55 @@ export const OperationsPage: React.FC<Props> = ({
               <>
                 <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-3 space-y-2">
                   {/* Légende */}
-                  <div className="flex gap-3 text-[10px] text-muted-foreground pb-1">
-                    <span>✅ Match exact</span>
-                    <span>🔶 Match partiel</span>
-                    <span>❓ Non trouvé</span>
-                    <span>☑️ Déjà synchro</span>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground pb-1">
+                    <span>✅ Exact</span>
+                    <span>🔶 Partiel — à vérifier</span>
+                    <span>❓ Non trouvé — requis</span>
+                    <span className="text-emerald-400/70">✓ Déjà synchro</span>
                   </div>
+
+                  {baSyncError && (
+                    <div className="px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/30">
+                      <p className="text-xs text-rose-400">⚠️ {baSyncError}</p>
+                    </div>
+                  )}
 
                   {candidates.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-8">Aucune opération coaching trouvée</p>
                   )}
 
                   {candidates.map((c, i) => {
-                    const offerBadge = c.alreadySynced ? '☑️' : c.offerConfidence === 'exact' ? '✅' : c.offerConfidence === 'partial' ? '🔶' : '❓'
-                    const clientBadge = c.alreadySynced ? '☑️' : c.clientConfidence === 'exact' ? '✅' : c.clientConfidence === 'partial' ? '🔶' : '❓'
+                    const offerBadge = c.offerConfidence === 'exact' ? '✅' : c.offerConfidence === 'partial' ? '🔶' : '❓'
+                    const clientBadge = c.clientConfidence === 'exact' ? '✅' : c.clientConfidence === 'partial' ? '🔶' : '❓'
+                    const hasGap = !c.alreadySynced && !c.skip && (c.offerConfidence === 'none' || c.clientConfidence === 'none')
                     return (
-                      <div key={c.op.id} className={`rounded-xl border px-3 py-2.5 space-y-2 ${c.alreadySynced ? 'opacity-40 border-border/20' : c.skip ? 'opacity-40 border-border/20' : 'border-border/40 bg-card/40'}`}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{c.op.label}</p>
+                      <div key={c.op.id} className={`rounded-xl border px-3 py-2.5 space-y-2 ${
+                        c.alreadySynced
+                          ? 'opacity-30 border-border/15 bg-transparent'
+                          : c.skip
+                            ? 'opacity-40 border-border/20 bg-transparent'
+                            : hasGap
+                              ? 'border-amber-500/30 bg-amber-500/5'
+                              : 'border-border/40 bg-card/40'
+                      }`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate">{c.op.label}</p>
                             <p className="text-[10px] text-muted-foreground">{c.op.date} · {formatCurrency(c.op.actual || c.op.forecast || 0)}</p>
                           </div>
-                          {!c.alreadySynced && (
-                            <button
-                              onClick={() => setCandidates(prev => prev.map((x, j) => j === i ? { ...x, skip: !x.skip } : x))}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold ${c.skip ? 'bg-muted/30 text-muted-foreground' : 'bg-rose-500/10 text-rose-400'}`}
-                            >
-                              {c.skip ? 'Inclure' : 'Ignorer'}
-                            </button>
-                          )}
-                          {c.alreadySynced && <span className="text-[10px] text-emerald-400">Déjà synchro</span>}
+                          {c.alreadySynced
+                            ? <span className="text-[10px] text-emerald-400 shrink-0">✓ Synchro</span>
+                            : (
+                              <button
+                                onClick={() => setCandidates(prev => prev.map((x, j) => j === i ? { ...x, skip: !x.skip } : x))}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold shrink-0 ${c.skip ? 'bg-primary/15 text-primary' : 'bg-muted/40 text-muted-foreground'}`}
+                              >
+                                {c.skip ? '+ Inclure' : 'Ignorer'}
+                              </button>
+                            )
+                          }
                         </div>
-                        {!c.alreadySynced && (
+                        {!c.alreadySynced && !c.skip && (
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <p className="text-[9px] text-muted-foreground mb-1">{offerBadge} Offre</p>
@@ -1250,25 +1341,33 @@ export const OperationsPage: React.FC<Props> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="px-5 py-4 border-t border-border/50 shrink-0 space-y-2">
+                <div className="px-5 py-4 border-t border-border/50 shrink-0 space-y-2 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
                   {(() => {
                     const toExport = candidates.filter(c => !c.skip && !c.alreadySynced)
                     const uncertain = toExport.filter(c => c.offerConfidence === 'none' || c.clientConfidence === 'none')
+                    const skipped = candidates.filter(c => c.skip && !c.alreadySynced)
                     return (
                       <>
-                        {uncertain.length > 0 && (
-                          <p className="text-[10px] text-amber-400 text-center">
-                            ⚠️ {uncertain.length} entrée{uncertain.length > 1 ? 's' : ''} avec correspondance incomplète — vérifie les ❓ avant d'exporter
+                        {candidates.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground text-center">
+                            {toExport.length > 0
+                              ? `${toExport.length} à exporter${skipped.length > 0 ? ` · ${skipped.length} ignorée${skipped.length > 1 ? 's' : ''}` : ''}${uncertain.length > 0 ? ` · ⚠️ ${uncertain.length} incomplète${uncertain.length > 1 ? 's' : ''}` : ''}`
+                              : candidates.every(c => c.alreadySynced) ? 'Tout est déjà synchronisé ✓' : 'Toutes les entrées sont ignorées'
+                            }
                           </p>
                         )}
                         <div className="flex gap-2">
-                          <button onClick={() => setShowExportReview(false)} className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30">Annuler</button>
+                          <button
+                            onClick={() => setShowExportReview(false)}
+                            disabled={exportLoading}
+                            className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground bg-muted/30 disabled:opacity-40"
+                          >Annuler</button>
                           <button
                             onClick={handleExport}
                             disabled={toExport.length === 0 || exportLoading}
                             className="flex-[2] py-2.5 rounded-xl text-sm font-semibold bg-blue-500 text-white disabled:opacity-40"
                           >
-                            {exportLoading ? 'Export…' : `Exporter ${toExport.length} opération${toExport.length > 1 ? 's' : ''}`}
+                            {exportLoading ? 'Export en cours…' : `Exporter ${toExport.length} opération${toExport.length > 1 ? 's' : ''}`}
                           </button>
                         </div>
                       </>
