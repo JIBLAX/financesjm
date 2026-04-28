@@ -586,7 +586,11 @@ export const OperationsPage: React.FC<Props> = ({
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <div className="flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isRevenu ? '#10b981' : '#ef4444' }} />
-                                <span className="text-[10px] text-muted-foreground">{cat.icon} {cat.id === 'opc_r_be_activ' ? 'Coaching' : cat.name}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {cat.id === 'opc_r_be_activ'
+                                    ? (op.beActivOfferId ? businessOffers.find(o => o.id === op.beActivOfferId)?.name ?? cat.icon : cat.icon)
+                                    : `${cat.icon} ${cat.name}`}
+                                </span>
                               </div>
                               {sub && <span className="text-[10px] text-muted-foreground/70">{sub.icon} {sub.name}</span>}
                               {op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
@@ -749,28 +753,27 @@ export const OperationsPage: React.FC<Props> = ({
               {/* Category */}
               {(isBeActivCat && form.family === 'revenu') ? (
                 formCategories.filter(c => c.id !== 'opc_r_be_activ').length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap shrink-0">Autre nature :</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {formCategories.filter(c => c.id !== 'opc_r_be_activ').map(cat => (
-                        <button key={cat.id} onClick={() => { setForm(f => ({ ...f, categoryId: cat.id, subcategoryId: '' })); setBeActivOffer(null) }}
-                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-muted/30 text-muted-foreground">
-                          {cat.icon} {cat.name}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {formCategories.filter(c => c.id !== 'opc_r_be_activ').map(cat => (
+                      <button key={cat.id} onClick={() => { setForm(f => ({ ...f, categoryId: cat.id, subcategoryId: '' })); setBeActivOffer(null) }}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-muted/30 text-muted-foreground">
+                        {cat.icon} {cat.name}
+                      </button>
+                    ))}
                   </div>
                 )
               ) : (
                 <div>
                   <label className="text-xs text-muted-foreground">Catégorie *</label>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {formCategories.map(cat => (
-                      <button key={cat.id} onClick={() => setForm(f => ({ ...f, categoryId: cat.id, subcategoryId: '' }))}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.categoryId === cat.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
-                        {cat.icon} {cat.name}
-                      </button>
-                    ))}
+                    {formCategories
+                      .filter(c => !(form.scope === 'pro' && form.family === 'revenu' && c.id === 'opc_r_be_activ'))
+                      .map(cat => (
+                        <button key={cat.id} onClick={() => setForm(f => ({ ...f, categoryId: cat.id, subcategoryId: '' }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${form.categoryId === cat.id ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground'}`}>
+                          {cat.icon} {cat.name}
+                        </button>
+                      ))}
                   </div>
                 </div>
               )}
@@ -779,42 +782,33 @@ export const OperationsPage: React.FC<Props> = ({
               {isBeActivCat && form.family === 'revenu' && (
                 <div className="space-y-2">
                   {/* Offres — sélection directe */}
-                  {Object.entries(offersByTheme).map(([themeName, { dot, offers: themeOffers }]) => (
-                    <div key={themeName}>
-                      <p className="text-[10px] text-muted-foreground/70 mb-1">{dot} {themeName}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {themeOffers.map(offer => {
-                          const dimmed = beActivSaleType === 'collectif' && themeName !== 'COLLECTIF'
-                          return (
-                            <button key={offer.id}
-                              onClick={() => {
-                                const isDeselect = beActivOffer?.id === offer.id
-                                setBeActivOffer(isDeselect ? null : offer)
-                                setBeActivDiscountType('none'); setBeActivDiscountValue('')
-                                if (!isDeselect) {
-                                  const labelPatch = beActivSaleType === 'collectif' ? { label: offer.name } : {}
-                                  if (offer.type === 'sessions' && offer.catalogPrice > 0) {
-                                    const nb = Number(beActivNbSeances) || 1
-                                    setForm(f => ({ ...f, forecast: offer.catalogPrice * nb, actual: offer.catalogPrice * nb, ...labelPatch }))
-                                  } else if (offer.type === 'program') {
-                                    const nbV = offer.maxInstallments && offer.maxInstallments > 1 ? offer.maxInstallments : 1
-                                    setBeActivNbVersements(nbV > 1 ? String(nbV) : '')
-                                    const perMonth = nbV > 1 ? offer.catalogPrice / nbV : offer.catalogPrice
-                                    setForm(f => ({ ...f, forecast: perMonth, actual: perMonth, ...labelPatch }))
-                                  }
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${
-                                beActivOffer?.id === offer.id ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40'
-                                : dimmed ? 'bg-muted/20 text-muted-foreground/30' : 'bg-muted/30 text-muted-foreground'
-                              }`}>
-                              {offer.name}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                  <div className="flex flex-wrap gap-1.5">
+                    {businessOffers.map(offer => (
+                      <button key={offer.id}
+                        onClick={() => {
+                          const isDeselect = beActivOffer?.id === offer.id
+                          setBeActivOffer(isDeselect ? null : offer)
+                          setBeActivDiscountType('none'); setBeActivDiscountValue('')
+                          if (!isDeselect) {
+                            const labelPatch = beActivSaleType === 'collectif' ? { label: offer.name } : {}
+                            if (offer.type === 'sessions' && offer.catalogPrice > 0) {
+                              const nb = Number(beActivNbSeances) || 1
+                              setForm(f => ({ ...f, forecast: offer.catalogPrice * nb, actual: offer.catalogPrice * nb, ...labelPatch }))
+                            } else if (offer.type === 'program') {
+                              const nbV = offer.maxInstallments && offer.maxInstallments > 1 ? offer.maxInstallments : 1
+                              setBeActivNbVersements(nbV > 1 ? String(nbV) : '')
+                              const perMonth = nbV > 1 ? offer.catalogPrice / nbV : offer.catalogPrice
+                              setForm(f => ({ ...f, forecast: perMonth, actual: perMonth, ...labelPatch }))
+                            }
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 ${
+                          beActivOffer?.id === offer.id ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40' : 'bg-muted/30 text-muted-foreground'
+                        }`}>
+                        {offer.name}
+                      </button>
+                    ))}
+                  </div>
 
                   {/* Sessions — nb séances */}
                   {beActivOffer?.type === 'sessions' && (
