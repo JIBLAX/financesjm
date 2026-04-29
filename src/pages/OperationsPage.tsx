@@ -178,7 +178,9 @@ export const OperationsPage: React.FC<Props> = ({
     const base = emptyForm(family, s, monthKey)
     const accountId = getDefaultAccountId(s)
     const categoryId = pending?.categoryId || (s === 'pro' && family === 'revenu' ? 'opc_r_be_activ' : '')
-    setForm({ ...base, categoryId, accountId })
+    const today = todayISO()
+    const beActivDates = (s === 'pro' && family === 'revenu') ? { serviceDate: today, paidAt: today } : {}
+    setForm({ ...base, categoryId, accountId, ...beActivDates })
     setModal({ mode: 'add' })
   }
 
@@ -249,6 +251,8 @@ export const OperationsPage: React.FC<Props> = ({
       accountId: form.accountId || undefined,
       beActivClientId: isBeActivRevenu ? (beActivClientId || undefined) : undefined,
       beActivOfferId:  isBeActivRevenu ? (beActivOffer?.id || undefined) : undefined,
+      serviceDate:     isBeActivRevenu ? (form.serviceDate || undefined) : undefined,
+      paidAt:          isBeActivRevenu ? (form.paidAt || undefined) : undefined,
     }
     if (modal?.mode === 'add') {
       const opId = `op_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
@@ -635,26 +639,58 @@ export const OperationsPage: React.FC<Props> = ({
               </div>
               )}
 
-              {/* Date */}
-              <div>
-                <label className="text-xs text-muted-foreground">Date</label>
-                <input
-                  type="date"
-                  className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
-                  value={form.date || todayISO()}
-                  max={todayISO()}
-                  onChange={e => {
-                    const newDate = e.target.value
-                    const newMonthKey = newDate.substring(0, 7)
-                    setForm(f => ({ ...f, date: newDate, monthKey: newMonthKey }))
-                  }}
-                />
-                {form.date && form.date.substring(0, 7) !== monthKey && (
-                  <p className="text-[10px] text-amber-400 mt-1">
-                    ⚠️ Cette opération sera enregistrée en {getMonthLabel(form.date.substring(0, 7))}
-                  </p>
-                )}
-              </div>
+              {/* Date(s) */}
+              {(isBeActivCat && form.family === 'revenu') ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">🗓 Prestation</label>
+                    <input
+                      type="date"
+                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
+                      value={form.serviceDate || todayISO()}
+                      max={todayISO()}
+                      onChange={e => setForm(f => ({ ...f, serviceDate: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">💳 Encaissement</label>
+                    <input
+                      type="date"
+                      className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
+                      value={form.paidAt || todayISO()}
+                      max={todayISO()}
+                      onChange={e => {
+                        const d = e.target.value
+                        setForm(f => ({ ...f, paidAt: d, date: d, monthKey: d.substring(0, 7) }))
+                      }}
+                    />
+                    {form.paidAt && form.paidAt.substring(0, 7) !== monthKey && (
+                      <p className="text-[10px] text-amber-400 mt-1">
+                        ⚠️ Enregistré en {getMonthLabel(form.paidAt.substring(0, 7))}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs text-muted-foreground">Date</label>
+                  <input
+                    type="date"
+                    className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
+                    value={form.date || todayISO()}
+                    max={todayISO()}
+                    onChange={e => {
+                      const newDate = e.target.value
+                      setForm(f => ({ ...f, date: newDate, monthKey: newDate.substring(0, 7) }))
+                    }}
+                  />
+                  {form.date && form.date.substring(0, 7) !== monthKey && (
+                    <p className="text-[10px] text-amber-400 mt-1">
+                      ⚠️ Cette opération sera enregistrée en {getMonthLabel(form.date.substring(0, 7))}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Category */}
               {(isBeActivCat && form.family === 'revenu') ? (
