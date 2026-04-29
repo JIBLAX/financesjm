@@ -497,7 +497,9 @@ export const OperationsPage: React.FC<Props> = ({
                                 </span>
                               </div>
                               {sub && <span className="text-[10px] text-muted-foreground/70">{sub.icon} {sub.name}</span>}
-                              {op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
+                              {op.serviceDate && <span className="text-[10px] text-muted-foreground/50">🗓 {fmtDate(op.serviceDate)}</span>}
+                              {op.paidAt && op.paidAt !== op.serviceDate && <span className="text-[10px] text-emerald-400/60">💳 {fmtDate(op.paidAt)}</span>}
+                              {!op.serviceDate && op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
                               {op.isTemplate && <span className="text-[9px] text-primary/60">↻</span>}
                               {op.family === 'revenu' && op.sourceType === 'cash' && (
                                 <span className="text-[9px] text-amber-400/80">💵 Espèces</span>

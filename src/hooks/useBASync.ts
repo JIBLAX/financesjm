@@ -64,12 +64,16 @@ export function useBASync(): UseBASync {
     onAdd: (t: Transaction) => void,
   ) => {
     const txId = crypto.randomUUID()
-    const monthKey = sale.date.substring(0, 7)
+    const serviceDate = sale.date
+    const paidAt = new Date().toISOString().split('T')[0]
+    const monthKey = paidAt.substring(0, 7)
     const proAccount = store.accounts.find(a => a.type === 'pro' && a.isActive)
 
     const tx: Transaction = {
       id: txId,
-      date: new Date(sale.date + 'T12:00:00').toISOString(),
+      date: new Date(paidAt + 'T12:00:00').toISOString(),
+      serviceDate,
+      paidAt,
       label: sale.client_name,
       amount: sale.amount,
       direction: 'income',

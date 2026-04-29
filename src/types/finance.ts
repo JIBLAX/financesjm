@@ -63,6 +63,8 @@ export interface Transaction {
   monthKey: string
   note: string
   isRecurring: boolean
+  serviceDate?: string   // date de prestation BE Activ (sale.date)
+  paidAt?: string        // date d'encaissement réel
   // V2 Revenue typing
   revenueSource?: RevenueSource
   revenueType?: RevenueType
@@ -310,6 +312,8 @@ export interface Operation {
   date?: string            // ISO date string (optional, for individual op tracking)
   beActivClientId?: string  // ID du client BE ACTIV sélectionné (restauré à l'édition)
   beActivOfferId?: string   // ID de l'offre BE ACTIV sélectionnée (restauré à l'édition)
+  serviceDate?: string      // date de prestation (BE Activ)
+  paidAt?: string           // date d'encaissement réel
 }
 
 export interface OpCategory {
