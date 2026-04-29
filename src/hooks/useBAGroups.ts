@@ -15,7 +15,7 @@ export function useBAGroups() {
 
   useEffect(() => {
     supabase
-      .from('clients_pro')
+      .from('be_activ_clients')
       .select('*')
       .not('group_id', 'is', null)
       .order('name', { ascending: true })
@@ -27,7 +27,7 @@ export function useBAGroups() {
         ;(data as any[]).forEach(c => {
           const gid = String(c.group_id ?? '')
           if (!gid) return
-          const name = c.name ?? `${c.prenom ?? ''} ${c.nom ?? ''}`.trim()
+          const name = (c.name ?? `${c.prenom ?? ''} ${c.nom ?? ''}`).trim()
           const member: BAClient = {
             id:          c.id          ?? '',
             nom:         c.nom         ?? '',

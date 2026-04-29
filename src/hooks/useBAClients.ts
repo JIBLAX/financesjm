@@ -22,24 +22,19 @@ export function useBAClients() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Source principale : be_activ_clients (rempli par BILAN CRM via saveToSupabase).
+    // clients_pro est un complément éventuel ; ne pas le privilégier seul (liste vide ou partielle).
     supabase
-      .from('clients_pro')
+      .from('be_activ_clients')
       .select('*')
+      .eq('is_client', true)
       .order('name', { ascending: true })
-      .then(async ({ data, error: err }) => {
-        if (err || !data) {
-          const legacy = await supabase
-            .from('be_activ_clients')
-            .select('*')
-            .eq('is_client', true)
-            .order('name', { ascending: true })
-          if (legacy.error) {
-            console.error('[useBAClients]', legacy.error.message, legacy.error.code)
-            setError('Impossible de charger les clients BE ACTIV')
-            setLoading(false)
-            return
-          }
-          data = legacy.data
+      .then(({ data, error: err }) => {
+        if (err || data == null) {
+          console.error('[useBAClients]', err?.message, err?.code)
+          setError('Impossible de charger les clients BE ACTIV')
+          setLoading(false)
+          return
         }
         setError(null)
         setClients(
