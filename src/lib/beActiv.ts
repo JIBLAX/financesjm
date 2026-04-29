@@ -112,3 +112,14 @@ export function getBusinessOffer(
 ): BusinessOffer | null {
   return offers.find(o => o.id === id) ?? null
 }
+
+/** Libellé « cours maître » pour ventes collectives (sans client / groupe). */
+export function collectiveCourseMasterLabel(offer: BusinessOffer | null): string {
+  if (!offer) return ''
+  const id = offer.id.toLowerCase()
+  const name = (offer.name || '').toLowerCase()
+  if (id.includes('cardio') || name.includes('cardio mouv')) return 'CARDIO MOUV'
+  if (id.includes('activ_training') || /\bactiv\s*training\b/i.test(offer.name || '')) return 'ACTIV TRAINING'
+  if (name.includes('lum social')) return 'LUM SOCIAL CLUB'
+  return offer.name
+}

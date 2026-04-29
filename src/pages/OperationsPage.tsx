@@ -10,7 +10,7 @@ import { useBusinessOffers } from '@/hooks/useBusinessOffers'
 import { useBAClients } from '@/hooks/useBAClients'
 import { useBAGroups } from '@/hooks/useBAGroups'
 import type { FinanceStore, Operation, OperationFamily, OperationScope, OpCategory, OpSubcategory, BaSaleType } from '@/types/finance'
-import type { BusinessOffer } from '@/lib/beActiv'
+import { collectiveCourseMasterLabel, type BusinessOffer } from '@/lib/beActiv'
 
 interface Props {
   store: FinanceStore
@@ -228,8 +228,6 @@ export const OperationsPage: React.FC<Props> = ({
     if (!isBeActivRevenu && !form.label.trim()) return
     // Offre obligatoire uniquement en mode ajout (pas en modification d'une opération existante)
     if (isBeActivRevenu && modal?.mode === 'add' && !beActivOffer) return
-    // Label fallback : utilise le nom de l'offre si vide (collectif sans client sélectionné)
-    if (isBeActivRevenu && modal?.mode === 'add' && !form.label.trim() && beActivOffer) setForm(f => ({ ...f, label: beActivOffer.name }))
     // isTemplate: charges → driven by toggle, revenus → driven by revenuType
     const isTemplate = form.family !== 'revenu'
       ? form.isTemplate
@@ -243,8 +241,16 @@ export const OperationsPage: React.FC<Props> = ({
       ? (opTvaRate === '20' ? 0.20 : opTvaRate === '10' ? 0.10 : 0.055)
       : undefined
     const sourceType = form.family === 'revenu' ? (form.sourceType || 'bank') : undefined
+    const resolvedLabel = (() => {
+      if (isBeActivRevenu && beActivSaleType === 'collectif' && beActivOffer)
+        return collectiveCourseMasterLabel(beActivOffer)
+      let L = form.label.trim()
+      if (isBeActivRevenu && modal?.mode === 'add' && !L && beActivOffer) L = beActivOffer.name
+      return L
+    })()
     const clean = {
       ...form,
+      label: resolvedLabel,
       isTemplate, recurrenceMonths, tvaRate, sourceType,
       subcategoryId: form.subcategoryId || undefined,
       note: form.note || undefined,
@@ -312,24 +318,24 @@ export const OperationsPage: React.FC<Props> = ({
             const nbS = Math.max(1, Number(beActivNbSeances) || 1)
             for (let i = 0; i < nbS; i++) {
               const id = i === 0 ? opId : `op_${Date.now()}_s${i}`
-              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label, client_id: null, financesjm_tx_id: id, amount: beActivOffer?.catalogPrice ?? amt })
+              beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clean.label, client_id: null, financesjm_tx_id: id, amount: beActivOffer?.catalogPrice ?? amt })
                 .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
             }
           } else if (beActivSaleType === 'groupe') {
             beActivGroupClientIds.filter(Boolean).forEach((cid, i) => {
-              const clientName = beActivGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || form.label
+              const clientName = beActivGroupNames[i] || baClients.find(c => c.id === cid)?.displayName || clean.label
               const id = i === 0 ? opId : `op_${Date.now()}_g${i}`
               beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clientName, client_id: cid, financesjm_tx_id: id })
                 .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
             })
           } else {
-            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: form.label || beActivOffer?.name || 'Be Activ', client_id: beActivClientId || null, financesjm_tx_id: opId })
+            beActivClient.from('ba_sales').insert({ ...baseSale, client_name: clean.label || beActivOffer?.name || 'Be Activ', client_id: beActivClientId || null, financesjm_tx_id: opId })
               .then(({ error }) => { if (error) console.error('[ba_sales]', error.message) })
           }
         } else {
           // Autres ops pro (revenus hors coaching + charges) : sync simplifié
           beActivClient.from('ba_sales').insert({
-            client_name:        form.label,
+            client_name:        clean.label,
             client_id:          null,
             offer_name:         cat?.name || null,
             offer_id:           null,
@@ -732,7 +738,10 @@ export const OperationsPage: React.FC<Props> = ({
                           setBeActivOffer(isDeselect ? null : offer)
                           setBeActivDiscountType('none'); setBeActivDiscountValue('')
                           if (!isDeselect) {
-                            const labelPatch = beActivSaleType === 'collectif' ? { label: offer.name } : {}
+                            const labelPatch =
+                              beActivSaleType === 'collectif'
+                                ? { label: collectiveCourseMasterLabel(offer) }
+                                : {}
                             if (offer.type === 'sessions' && offer.catalogPrice > 0) {
                               const nb = Number(beActivNbSeances) || 1
                               setForm(f => ({ ...f, forecast: offer.catalogPrice * nb, actual: offer.catalogPrice * nb, ...labelPatch }))
@@ -805,7 +814,12 @@ export const OperationsPage: React.FC<Props> = ({
                       { key: 'groupe',     icon: '👥', label: 'Groupe' },
                       { key: 'collectif',  icon: '🏃', label: 'Collectif' },
                     ] as { key: BaSaleType; icon: string; label: string }[]).map(({ key, icon, label: lbl }) => (
-                      <button key={key} onClick={() => setBeActivSaleType(key)}
+                      <button key={key} onClick={() => {
+                        setBeActivSaleType(key)
+                        if (key === 'collectif' && beActivOffer) {
+                          setForm(f => ({ ...f, label: collectiveCourseMasterLabel(beActivOffer) }))
+                        }
+                      }}
                         className={`py-1.5 rounded-xl text-xs font-medium ${beActivSaleType === key ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40' : 'bg-muted/40 text-muted-foreground'}`}>
                         {icon} {lbl}
                       </button>
