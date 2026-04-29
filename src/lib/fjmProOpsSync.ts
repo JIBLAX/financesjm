@@ -9,8 +9,8 @@ export function syncProOpUpsert(
   if (op.scope !== 'pro') return
   const cat    = categories.find(c => c.id === op.categoryId)
   const subcat = subcategories.find(s => s.id === op.subcategoryId)
-  beActivClient.from('fjm_pro_operations').upsert({
-    fjm_op_id:   op.id,
+  beActivClient.from('operations_pro').upsert({
+    external_ref: op.id,
     month_key:   op.monthKey,
     family:      op.family,
     category:    cat?.name    ?? op.categoryId,
@@ -18,15 +18,15 @@ export function syncProOpUpsert(
     label:       op.label,
     forecast:    op.forecast,
     actual:      op.actual,
-    date:        op.date      ?? null,
+    operation_date: op.date   ?? null,
     source_type: op.sourceType ?? null,
-  }, { onConflict: 'fjm_op_id' }).then(({ error }) => {
+  }, { onConflict: 'external_ref' }).then(({ error }) => {
     if (error) console.error('[fjmProOpsSync] upsert', error.message)
   })
 }
 
 export function syncProOpDelete(opId: string) {
-  beActivClient.from('fjm_pro_operations').delete().eq('fjm_op_id', opId).then(({ error }) => {
+  beActivClient.from('operations_pro').delete().eq('external_ref', opId).then(({ error }) => {
     if (error) console.error('[fjmProOpsSync] delete', error.message)
   })
 }

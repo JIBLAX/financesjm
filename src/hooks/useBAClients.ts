@@ -23,16 +23,23 @@ export function useBAClients() {
 
   useEffect(() => {
     supabase
-      .from('be_activ_clients')
+      .from('clients_pro')
       .select('*')
-      .eq('is_client', true)
       .order('name', { ascending: true })
-      .then(({ data, error: err }) => {
-        if (err) {
-          console.error('[useBAClients]', err.message, err.code)
-          setError('Impossible de charger les clients BE ACTIV')
-          setLoading(false)
-          return
+      .then(async ({ data, error: err }) => {
+        if (err || !data) {
+          const legacy = await supabase
+            .from('be_activ_clients')
+            .select('*')
+            .eq('is_client', true)
+            .order('name', { ascending: true })
+          if (legacy.error) {
+            console.error('[useBAClients]', legacy.error.message, legacy.error.code)
+            setError('Impossible de charger les clients BE ACTIV')
+            setLoading(false)
+            return
+          }
+          data = legacy.data
         }
         setError(null)
         setClients(
@@ -50,7 +57,7 @@ export function useBAClients() {
               montant:     c.montant     ?? c.Montant     ?? null,
               profil_code: c.profil_code ?? c.Profil_code ?? null,
               date_rdv:    c.date_rdv    ?? c.Date_rdv    ?? null,
-              is_client:   c.is_client   ?? false,
+              is_client:   c.is_client   ?? true,
               sap_enabled: c.sap_enabled ?? false,
               group_id:    c.group_id    ?? null,
               group_name:  c.group_name  ?? null,

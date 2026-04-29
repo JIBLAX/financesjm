@@ -15,10 +15,9 @@ export function useBAGroups() {
 
   useEffect(() => {
     supabase
-      .from('be_activ_clients')
+      .from('clients_pro')
       .select('*')
       .not('group_id', 'is', null)
-      .eq('is_client', true)
       .order('name', { ascending: true })
       .then(({ data, error: err }) => {
         if (err) { console.error('[useBAGroups]', err.message); setError('Impossible de charger les groupes'); setLoading(false); return }
@@ -38,7 +37,7 @@ export function useBAGroups() {
             montant:     c.montant     ?? null,
             profil_code: c.profil_code ?? null,
             date_rdv:    c.date_rdv    ?? null,
-            is_client:   c.is_client   ?? false,
+            is_client:   c.is_client   ?? true,
             sap_enabled: c.sap_enabled ?? false,
             group_id:    gid,
             group_name:  c.group_name  ?? null,
