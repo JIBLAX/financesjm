@@ -45,6 +45,12 @@ function shiftMonthKey(mk: string, months: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+const safeMonthLabel = (monthKeyLike: string): string => {
+  if (!monthKeyLike) return '—'
+  const mk = monthKeyLike.slice(0, 7)
+  if (!/^\d{4}-\d{2}$/.test(mk)) return mk
+  try { return getMonthLabel(mk) } catch { return mk }
+}
 
 function emptyForm(family: OperationFamily, scope: ScopeTab, monthKey: string): Omit<Operation, 'id'> {
   return { monthKey, family, scope, label: '', categoryId: '', subcategoryId: '', forecast: 0, actual: 0, isTemplate: family === 'charge_fixe', note: '', date: todayISO(), sourceType: 'bank' }
@@ -546,12 +552,12 @@ export const OperationsPage: React.FC<Props> = ({
                               {!op.serviceDate && op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
                               {isOffsetAccounting(op) && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                  📚 Rattaché {getMonthLabel(op.monthKey)}
+                                  📚 Rattaché {safeMonthLabel(op.monthKey)}
                                 </span>
                               )}
                               {isOffsetAccounting(op) && (op.paidAt || op.date) && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-cyan-500/12 text-cyan-300 border border-cyan-500/30">
-                                  ⏱ Réalisé {getMonthLabel((op.paidAt || op.date || '').substring(0, 7))}
+                                  ⏱ Réalisé {safeMonthLabel((op.paidAt || op.date || '').substring(0, 7))}
                                 </span>
                               )}
                               {op.isTemplate && <span className="text-[9px] text-primary/60">↻</span>}
@@ -755,7 +761,7 @@ export const OperationsPage: React.FC<Props> = ({
                 />
                 {((form.paidAt || form.date) && form.monthKey !== (form.paidAt || form.date || '').substring(0, 7)) && (
                   <p className="text-[10px] text-amber-300 mt-1">
-                    Décalage comptable actif: réalisé en {getMonthLabel((form.paidAt || form.date || '').substring(0, 7))}, rattaché à {getMonthLabel(form.monthKey)}
+                    Décalage comptable actif: réalisé en {safeMonthLabel((form.paidAt || form.date || '').substring(0, 7))}, rattaché à {safeMonthLabel(form.monthKey)}
                   </p>
                 )}
               </div>
