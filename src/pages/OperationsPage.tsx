@@ -430,9 +430,9 @@ export const OperationsPage: React.FC<Props> = ({
   )
 
   return (
-    <div className="page-container pt-6 page-bottom-pad gap-4">
+    <div className="page-container app-shell pt-6 page-bottom-pad gap-4">
       {/* Header — title + action buttons */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="page-hero flex items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold text-white uppercase tracking-wider">Opérations</h1>
         <div className="flex gap-2 shrink-0">
           <button
@@ -452,7 +452,8 @@ export const OperationsPage: React.FC<Props> = ({
       </div>
 
       {/* Scope toggle — dedicated full-width row */}
-      <div className="flex bg-muted/25 rounded-2xl p-1 gap-1">
+      <div className="section-card p-1">
+      <div className="flex bg-transparent rounded-2xl gap-1">
         <button
           onClick={() => setScope('perso')}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${isPerso
@@ -472,9 +473,10 @@ export const OperationsPage: React.FC<Props> = ({
           <span>Professionnel</span>
         </button>
       </div>
+      </div>
 
       {/* Month navigation */}
-      <div className="flex items-center justify-between">
+      <div className="section-card px-3 py-2 flex items-center justify-between">
         <button onClick={() => setMonthKey(k => getPreviousMonthKey(k))} className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center text-muted-foreground active:bg-muted/50">
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -485,7 +487,8 @@ export const OperationsPage: React.FC<Props> = ({
       </div>
 
       {scope === 'pro' && (
-        <div className="flex bg-muted/25 rounded-2xl p-1 gap-1">
+        <div className="section-card p-1">
+        <div className="flex bg-transparent rounded-2xl gap-1">
           <button
             onClick={() => setOpsViewMode('all')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${opsViewMode === 'all' ? 'bg-violet-500/20 text-violet-300' : 'text-muted-foreground'}`}
@@ -498,6 +501,7 @@ export const OperationsPage: React.FC<Props> = ({
           >
             Décalages compta ({monthOffsetCount})
           </button>
+        </div>
         </div>
       )}
 

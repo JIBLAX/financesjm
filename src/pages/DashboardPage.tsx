@@ -688,10 +688,10 @@ export const DashboardPage: React.FC<Props> = ({ store, onDismissAlert }) => {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="page-container pt-0 page-bottom-pad gap-5">
+    <div className="page-container app-shell pt-0 page-bottom-pad gap-5">
 
       {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-b-3xl bg-gradient-to-br from-[hsl(240_28%_17%)] via-[hsl(245_22%_13%)] to-[hsl(240_18%_10%)] px-5 pt-14 pb-6 -mx-5 border-b border-white/5">
+      <div className="relative overflow-hidden rounded-b-3xl bg-gradient-to-br from-[hsl(240_28%_17%)] via-[hsl(245_22%_13%)] to-[hsl(240_18%_10%)] px-5 pt-14 pb-6 -mx-5 border-b border-white/5 shadow-[0_12px_32px_rgba(0,0,0,.22)]">
         {/* Glow decorations */}
         <div className="absolute -top-16 -right-12 w-56 h-56 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-4 left-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl pointer-events-none" />

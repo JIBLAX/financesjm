@@ -228,14 +228,14 @@ export const VuePage: React.FC<Props> = ({ store, journal, onUpdateJournal, onUp
   const injections = store.allocationInjections?.[monthKey] || {}
 
   return (
-    <div className="page-container pt-6 page-bottom-pad gap-4">
+    <div className="page-container app-shell pt-6 page-bottom-pad gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="page-hero flex items-center justify-between gap-2">
         <h1 className="text-2xl font-extrabold text-foreground uppercase tracking-wider shrink-0">Vue</h1>
       </div>
 
       {/* Month navigation */}
-      <div className="flex items-center justify-between">
+      <div className="section-card px-3 py-2 flex items-center justify-between">
         <button onClick={() => navigateMonth(-1)} className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center text-muted-foreground active:bg-muted/50">
           <ChevronLeft className="w-5 h-5" />
         </button>
