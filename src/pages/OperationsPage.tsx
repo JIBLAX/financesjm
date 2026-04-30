@@ -27,6 +27,7 @@ interface Props {
 
 type FamilyTab = OperationFamily
 type ScopeTab = OperationScope
+type OpsViewMode = 'all' | 'offset'
 
 const FAMILY_TABS: { key: FamilyTab; label: string; icon?: string }[] = [
   { key: 'charge_fixe',     label: 'Fixes',    icon: '🔒' },
@@ -62,6 +63,7 @@ export const OperationsPage: React.FC<Props> = ({
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey())
   const [family, setFamily] = useState<FamilyTab>('charge_fixe')
   const [scope, setScope] = useState<ScopeTab>('perso')
+  const [opsViewMode, setOpsViewMode] = useState<OpsViewMode>('all')
   const [modal, setModal] = useState<ModalState>(null)
   const [scopePicker, setScopePicker] = useState<{ categoryId?: string } | null>(null)
   const [form, setForm] = useState<Omit<Operation, 'id'>>(emptyForm('charge_fixe', 'perso', getCurrentMonthKey()))
@@ -129,9 +131,19 @@ export const OperationsPage: React.FC<Props> = ({
     [store.opCategories, family, scope]
   )
 
+  const isOffsetAccounting = useCallback((op: Operation) => {
+    const ref = op.paidAt || op.date || ''
+    if (!ref || ref.length < 7) return false
+    return op.monthKey !== ref.substring(0, 7)
+  }, [])
+
   const operations = useMemo(
-    () => store.operations.filter(op => op.monthKey === monthKey && op.family === family && op.scope === scope && !op.skipped),
-    [store.operations, monthKey, family, scope]
+    () => store.operations.filter(op => {
+      if (op.monthKey !== monthKey || op.family !== family || op.scope !== scope || op.skipped) return false
+      if (opsViewMode === 'offset') return isOffsetAccounting(op)
+      return true
+    }),
+    [store.operations, monthKey, family, scope, opsViewMode, isOffsetAccounting]
   )
 
   const grouped = useMemo(() => {
@@ -164,6 +176,11 @@ export const OperationsPage: React.FC<Props> = ({
       })
   }, [store.opCategories, grouped])
 
+  const monthOffsetCount = useMemo(
+    () => store.operations.filter(op => op.monthKey === monthKey && op.family === family && op.scope === scope && !op.skipped && isOffsetAccounting(op)).length,
+    [store.operations, monthKey, family, scope, isOffsetAccounting]
+  )
+
   const getDefaultAccountId = (s: ScopeTab): string => {
     if (s === 'pro') return store.accounts.find(a => a.type === 'pro' && a.isActive)?.id || store.accounts.find(a => a.isActive)?.id || ''
     return store.accounts.find(a => a.type === 'courant' && a.isActive)?.id || store.accounts.find(a => a.isActive)?.id || ''
@@ -185,7 +202,7 @@ export const OperationsPage: React.FC<Props> = ({
   }
 
   const openEdit = (op: Operation) => {
-    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, recurrenceMonths: op.recurrenceMonths, note: op.note || '', date: op.date || todayISO(), accountId: op.accountId || getDefaultAccountId(op.scope), sourceType: op.sourceType || 'bank' })
+    setForm({ monthKey: op.monthKey, family: op.family, scope: op.scope, label: op.label, categoryId: op.categoryId, subcategoryId: op.subcategoryId || '', forecast: op.forecast, actual: op.actual, isTemplate: op.isTemplate, recurrenceMonths: op.recurrenceMonths, note: op.note || '', date: op.date || todayISO(), accountId: op.accountId || getDefaultAccountId(op.scope), sourceType: op.sourceType || 'bank', serviceDate: op.serviceDate, paidAt: op.paidAt })
     if (op.family === 'revenu') {
       setRevenuType(op.isTemplate ? 'fixe' : 'variable')
       if (op.recurrenceMonths) { setRecurrenceMode('x_months'); setRecurrenceCount(op.recurrenceMonths) }
@@ -461,6 +478,23 @@ export const OperationsPage: React.FC<Props> = ({
         </button>
       </div>
 
+      {scope === 'pro' && (
+        <div className="flex bg-muted/25 rounded-2xl p-1 gap-1">
+          <button
+            onClick={() => setOpsViewMode('all')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${opsViewMode === 'all' ? 'bg-violet-500/20 text-violet-300' : 'text-muted-foreground'}`}
+          >
+            Toutes
+          </button>
+          <button
+            onClick={() => setOpsViewMode('offset')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${opsViewMode === 'offset' ? 'bg-amber-500/20 text-amber-300' : 'text-muted-foreground'}`}
+          >
+            Décalages compta ({monthOffsetCount})
+          </button>
+        </div>
+      )}
+
       {/* Family tabs — scope-aware */}
       <SegmentedSwitch options={familyTabs} value={family} onChange={(v) => setFamily(v as FamilyTab)} />
 
@@ -510,6 +544,16 @@ export const OperationsPage: React.FC<Props> = ({
                               {op.serviceDate && <span className="text-[10px] text-muted-foreground/50">🗓 {fmtDate(op.serviceDate)}</span>}
                               {op.paidAt && op.paidAt !== op.serviceDate && <span className="text-[10px] text-emerald-400/60">💳 {fmtDate(op.paidAt)}</span>}
                               {!op.serviceDate && op.date && <span className="text-[10px] text-muted-foreground/50">{fmtDate(op.date)}</span>}
+                              {isOffsetAccounting(op) && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                  📚 Rattaché {getMonthLabel(op.monthKey)}
+                                </span>
+                              )}
+                              {isOffsetAccounting(op) && (op.paidAt || op.date) && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-cyan-500/12 text-cyan-300 border border-cyan-500/30">
+                                  ⏱ Réalisé {getMonthLabel((op.paidAt || op.date || '').substring(0, 7))}
+                                </span>
+                              )}
                               {op.isTemplate && <span className="text-[9px] text-primary/60">↻</span>}
                               {op.family === 'revenu' && op.sourceType === 'cash' && (
                                 <span className="text-[9px] text-amber-400/80">💵 Espèces</span>
@@ -667,7 +711,7 @@ export const OperationsPage: React.FC<Props> = ({
                       max={todayISO()}
                       onChange={e => {
                         const d = e.target.value
-                        setForm(f => ({ ...f, paidAt: d, date: d, monthKey: d.substring(0, 7) }))
+                        setForm(f => ({ ...f, paidAt: d, date: d }))
                       }}
                     />
                     {form.paidAt && form.paidAt.substring(0, 7) !== monthKey && (
@@ -697,6 +741,24 @@ export const OperationsPage: React.FC<Props> = ({
                   )}
                 </div>
               )}
+
+              <div>
+                <label className="text-xs text-muted-foreground">📚 Mois comptable concerné</label>
+                <input
+                  type="month"
+                  className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm text-foreground outline-none mt-1"
+                  value={form.monthKey}
+                  onChange={e => {
+                    const mk = e.target.value
+                    setForm(f => ({ ...f, monthKey: mk }))
+                  }}
+                />
+                {((form.paidAt || form.date) && form.monthKey !== (form.paidAt || form.date || '').substring(0, 7)) && (
+                  <p className="text-[10px] text-amber-300 mt-1">
+                    Décalage comptable actif: réalisé en {getMonthLabel((form.paidAt || form.date || '').substring(0, 7))}, rattaché à {getMonthLabel(form.monthKey)}
+                  </p>
+                )}
+              </div>
 
               {/* Category */}
               {(isBeActivCat && form.family === 'revenu') ? (
